@@ -1,1 +1,25 @@
-node_modules
+# Dependencies
+node_modules/
+it-helpdesk-main/node_modules/
+
+# Build output
+dist/
+it-helpdesk-main/dist/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+it-helpdesk-main/.env
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
