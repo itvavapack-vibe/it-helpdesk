@@ -7,6 +7,7 @@ import UserManagement from './components/UserManagement';
 import HomePage from './components/HomePage';
 import { Home, Settings, LogOut, Users, Ticket, ClipboardList } from 'lucide-react';
 import Swal from 'sweetalert2';
+import { notifyNewIssue, notifyStatusChange } from './telegramNotify';
 
 function App() {
     const [activeTab, setActiveTab] = useState('home');
@@ -154,6 +155,9 @@ function App() {
 
         // Update local state to reflect change immediately
         setIssues([issueWithId, ...issues]);
+
+        // Send Telegram notification
+        notifyNewIssue(issueWithId);
     };
 
     const updateIssueRepairDetails = async (id, details) => {
@@ -198,6 +202,15 @@ function App() {
             return issue;
         });
         setIssues(updatedIssues);
+
+        // Send Telegram notification
+        const updatedIssue = issues.find(i => i.id === id);
+        if (updatedIssue) {
+            notifyStatusChange(
+                { ...updatedIssue, ...(adminName && { assignedAdmin: adminName }) },
+                newStatus
+            );
+        }
     };
 
     const deleteIssue = async (id) => {
