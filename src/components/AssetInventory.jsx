@@ -12,12 +12,14 @@ const AssetInventory = ({ issues = [] }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedComputer, setSelectedComputer] = useState(null);
     const [qrComputer, setQrComputer] = useState(null);
+    const [warning, setWarning] = useState(null);
 
     const [isSyncing, setIsSyncing] = useState(false);
 
     const fetchComputers = useCallback(async () => {
         setIsLoading(true);
         setError(null);
+        setWarning(null);
         try {
             const data = await withGlpiSession(getComputers);
             const all = Array.isArray(data) ? data : [];
@@ -33,12 +35,12 @@ const AssetInventory = ({ issues = [] }) => {
                 if (cached && cached.length > 0) {
                     // แปลง field ให้ตรงกับ GLPI format
                     setComputers(cached.map(c => ({ ...c, id: c.glpi_id })));
-                    setError('⚠️ ใช้ข้อมูล Cached จาก Supabase (GLPI ไม่พร้อมใช้งาน)');
+                    setWarning('ใช้ข้อมูลอัปเดตล่าสุดจากระบบคลาวด์ (ไม่สามารถเชื่อมต่อ GLPI Studio ได้ในขณะนี้)');
                 } else {
-                    setError('ไม่สามารถเชื่อมต่อ GLPI ได้ และไม่มีข้อมูล Cached (กรุณา Sync ขณะอยู่ใน Office)');
+                    setError('ไม่สามารถเชื่อมต่อ GLPI ได้ และยังไม่มีข้อมูลในระบบ (กรุณาให้ Admin กด Sync ขณะอยู่ใน Office)');
                 }
             } catch {
-                setError('ไม่สามารถเชื่อมต่อ GLPI ได้');
+                setError('ไม่สามารถเชื่อมต่อ GLPI และ Supabase ได้');
             }
         } finally {
             setIsLoading(false);
@@ -190,19 +192,24 @@ const AssetInventory = ({ issues = [] }) => {
                 )}
             </div>
 
+            {/* Warning (Supabase Fallback) */}
+            {warning && (
+                <div className="glass-card rounded-xl p-4 flex items-center gap-3 border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 text-sm">
+                    <Clock className="w-5 h-5 flex-shrink-0" />
+                    <p>{warning}</p>
+                </div>
+            )}
+
             {/* Error */}
-            {
-                error && (
-                    <div className="glass-card rounded-2xl p-6 flex items-start gap-4 border border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-900/20">
-                        <AlertCircle className="w-6 h-6 text-red-500 flex-shrink-0 mt-0.5" />
-                        <div>
-                            <p className="font-semibold text-red-700 dark:text-red-400">เชื่อมต่อ GLPI ไม่ได้</p>
-                            <p className="text-sm text-red-600 dark:text-red-300 mt-1">{error}</p>
-                            <p className="text-xs text-red-500 dark:text-red-400 mt-2">⚠️ ใช้ได้เฉพาะในเครือข่าย Office เท่านั้น</p>
-                        </div>
+            {error && (
+                <div className="glass-card rounded-2xl p-6 flex items-start gap-4 border border-rose-200 dark:border-rose-800 bg-rose-50/50 dark:bg-rose-900/20">
+                    <AlertCircle className="w-6 h-6 text-rose-500 flex-shrink-0 mt-0.5" />
+                    <div>
+                        <p className="font-semibold text-rose-700 dark:text-rose-400">เกิดข้อผิดพลาดในการโหลดข้อมูล</p>
+                        <p className="text-sm text-rose-600 dark:text-rose-300 mt-1">{error}</p>
                     </div>
-                )
-            }
+                </div>
+            )}
 
             {/* Loading */}
             {
