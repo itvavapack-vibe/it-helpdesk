@@ -45,7 +45,7 @@ export const killGlpiSession = async (sessionToken) => {
 // Get computers list
 export const getComputers = async (sessionToken) => {
     const res = await fetchWithTimeout(
-        `${BASE_URL}/Computer?range=0-200&expand_dropdowns=true&is_deleted=false`,
+        `${BASE_URL}/Computer?range=0-499&expand_dropdowns=true&is_deleted=false`,
         {
             headers: {
                 'App-Token': APP_TOKEN,

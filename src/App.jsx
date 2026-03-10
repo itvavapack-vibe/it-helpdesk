@@ -324,7 +324,7 @@ function App() {
                                 isLoading={isIssuesLoading}
                             />
                         ) : adminSubTab === 'assets' ? (
-                            <AssetInventory />
+                            <AssetInventory issues={issues} />
                         ) : (
                             <UserManagement currentAdmin={isAdminAuth} />
                         )}

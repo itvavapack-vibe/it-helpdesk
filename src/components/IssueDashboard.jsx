@@ -65,6 +65,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
             'วันที่แจ้ง (Date)': formatDate(issue.createdAt),
             'ผู้แจ้ง (Name)': issue.name,
             'แผนก (Department)': issue.department,
+            'อุปกรณ์ (Asset)': issue.assetName || '-',
             'หมวดหมู่ (Category)': issue.category,
             'ความรุนแรง (Severity)': issue.severity,
             'รายละเอียด (Description)': issue.description,
@@ -424,6 +425,11 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                         <div className="text-sm text-slate-800 dark:text-slate-300 line-clamp-2 max-w-xs leading-relaxed" title={issue.description}>
                                             <span className="font-semibold text-slate-500 dark:text-slate-400 mr-1">ปัญหา:</span> {issue.description}
                                         </div>
+                                        {issue.assetName && (
+                                            <div className="text-xs text-indigo-600 dark:text-indigo-400 mt-1 flex items-center gap-1">
+                                                <span>💻</span> <span className="font-medium">{issue.assetName}</span>
+                                            </div>
+                                        )}
                                         {issue.repairDetails && (
                                             <div className="text-xs text-indigo-700 dark:text-indigo-300 line-clamp-1 mt-1.5 flex items-center gap-1 bg-indigo-50/50 dark:bg-indigo-900/30 p-1.5 rounded-md border border-indigo-100/50 dark:border-indigo-700/50">
                                                 <MessageSquare className="w-3 h-3 flex-shrink-0" /> <span className="italic">{issue.repairDetails}</span>
@@ -519,8 +525,8 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                     key={page}
                                     onClick={() => setCurrentPage(page)}
                                     className={`w-8 h-8 rounded-lg text-sm font-semibold transition-all ${currentPage === page
-                                            ? 'bg-indigo-600 text-white shadow-md'
-                                            : 'border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/40'
+                                        ? 'bg-indigo-600 text-white shadow-md'
+                                        : 'border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/40'
                                         }`}
                                 >
                                     {page}

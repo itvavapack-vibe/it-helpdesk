@@ -47,6 +47,18 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false }) => {
         fetchAssets();
     }, []);
 
+    // อ่าน URL params จาก QR Code
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const assetId = params.get('assetId');
+        const assetName = params.get('assetName');
+        if (assetId && assetName) {
+            setFormData(prev => ({ ...prev, assetId, assetName }));
+            // ล้าง URL param ออกหลังอ่านแล้ว
+            window.history.replaceState({}, '', window.location.pathname);
+        }
+    }, []);
+
     const handleChange = (e) => {
         const { name, value } = e.target;
         if (name === 'assetId') {

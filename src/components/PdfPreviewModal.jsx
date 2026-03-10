@@ -157,6 +157,7 @@ const PdfPreviewModal = ({ isOpen, onClose, issue }) => {
                                         { label: 'แผนก (Department)', value: issue.department },
                                         { label: 'หมวดหมู่ปัญหา (Category)', value: issue.category },
                                         { label: 'ระดับความรุนแรง (Severity)', value: getSeverityText(issue.severity) },
+                                        ...(issue.assetName ? [{ label: 'อุปกรณ์ที่แจ้งซ่อม (Asset)', value: issue.assetName }] : []),
                                     ].map(({ label, value }) => (
                                         <div key={label}>
                                             <div style={{ fontSize: '9px', fontWeight: '700', color: '#94a3b8', letterSpacing: '0.5px', textTransform: 'uppercase', marginBottom: '3px' }}>{label}</div>

@@ -16,6 +16,7 @@
     "@supabase/supabase-js": "^2.98.0",
     "html2canvas-pro": "^2.0.2",
     "jspdf-autotable": "^5.0.7",
+    "qrcode.react": "^4.2.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-draggable": "^4.5.0",
