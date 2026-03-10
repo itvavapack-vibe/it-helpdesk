@@ -6,7 +6,8 @@ import AdminLogin from './components/AdminLogin';
 import UserManagement from './components/UserManagement';
 import HomePage from './components/HomePage';
 import AssetInventory from './components/AssetInventory';
-import { Home, Settings, LogOut, Users, Ticket, ClipboardList, Monitor } from 'lucide-react';
+import IssueStatistics from './components/IssueStatistics';
+import { Home, Settings, LogOut, Users, Ticket, ClipboardList, Monitor, TrendingUp } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { notifyNewIssue, notifyStatusChange, notifyRepairUpdate } from './telegramNotify';
 
@@ -303,6 +304,12 @@ function App() {
                                         <Monitor className="w-4 h-4" /> ทรัพย์สิน
                                     </button>
                                     <button
+                                        onClick={() => setAdminSubTab('stats')}
+                                        className={`flex-1 sm:flex-none px-4 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-1.5 ${adminSubTab === 'stats' ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
+                                    >
+                                        <TrendingUp className="w-4 h-4" /> สถิติ
+                                    </button>
+                                    <button
                                         onClick={() => setAdminSubTab('users')}
                                         className={`flex-1 sm:flex-none px-4 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-1.5 ${adminSubTab === 'users' ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
                                     >
@@ -329,6 +336,8 @@ function App() {
                             />
                         ) : adminSubTab === 'assets' ? (
                             <AssetInventory issues={issues} />
+                        ) : adminSubTab === 'stats' ? (
+                            <IssueStatistics issues={issues} />
                         ) : (
                             <UserManagement currentAdmin={isAdminAuth} />
                         )}
