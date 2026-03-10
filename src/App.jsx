@@ -265,10 +265,6 @@ function App() {
             return <HomePage onNavigateTo={setActiveTab} />;
         }
 
-        if (activeTab === 'assets') {
-            return <AssetInventory />;
-        }
-
         if (activeTab === 'user') {
             return <IssueForm addIssue={addIssue} issues={issues} isLoading={isIssuesLoading} />;
         }
@@ -297,6 +293,12 @@ function App() {
                                         <Ticket className="w-4 h-4" /> แจ้งซ่อม
                                     </button>
                                     <button
+                                        onClick={() => setAdminSubTab('assets')}
+                                        className={`flex-1 sm:flex-none px-4 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-1.5 ${adminSubTab === 'assets' ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
+                                    >
+                                        <Monitor className="w-4 h-4" /> ทรัพย์สิน
+                                    </button>
+                                    <button
                                         onClick={() => setAdminSubTab('users')}
                                         className={`flex-1 sm:flex-none px-4 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-1.5 ${adminSubTab === 'users' ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
                                     >
@@ -321,6 +323,8 @@ function App() {
                                 deleteIssue={deleteIssue}
                                 isLoading={isIssuesLoading}
                             />
+                        ) : adminSubTab === 'assets' ? (
+                            <AssetInventory />
                         ) : (
                             <UserManagement currentAdmin={isAdminAuth} />
                         )}
@@ -358,12 +362,6 @@ function App() {
                             className={`px-4 py-2 rounded-xl transition-all duration-300 font-medium flex items-center gap-2 ${activeTab === 'user' ? 'bg-white dark:bg-indigo-600 text-indigo-700 dark:text-white shadow-md' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-700/50'}`}
                         >
                             <ClipboardList className="w-4 h-4" /> แจ้งซ่อม
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('assets')}
-                            className={`px-4 py-2 rounded-xl transition-all duration-300 font-medium flex items-center gap-2 ${activeTab === 'assets' ? 'bg-white dark:bg-indigo-600 text-indigo-700 dark:text-white shadow-md' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-700/50'}`}
-                        >
-                            <Monitor className="w-4 h-4" /> ทรัพย์สิน
                         </button>
                         <button
                             onClick={() => { setActiveTab('admin'); fetchIssues(); }}

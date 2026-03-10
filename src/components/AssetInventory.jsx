@@ -1,14 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Monitor, RefreshCw, AlertCircle, Search, X, Cpu, HardDrive, MemoryStick } from 'lucide-react';
+import { Monitor, RefreshCw, AlertCircle, Search, X, Tag } from 'lucide-react';
 import { withGlpiSession, getComputers } from '../glpiClient';
-
-const statusColorMap = {
-    1: { label: 'ใช้งาน', color: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
-    2: { label: 'เสีย', color: 'bg-red-100 text-red-700 border-red-200' },
-    3: { label: 'ซ่อม', color: 'bg-amber-100 text-amber-700 border-amber-200' },
-    4: { label: 'พัก', color: 'bg-slate-100 text-slate-600 border-slate-200' },
-    5: { label: 'จำหน่าย', color: 'bg-rose-100 text-rose-700 border-rose-200' },
-};
 
 const AssetInventory = () => {
     const [computers, setComputers] = useState([]);
@@ -22,7 +14,13 @@ const AssetInventory = () => {
         setError(null);
         try {
             const data = await withGlpiSession(getComputers);
-            setComputers(Array.isArray(data) ? data : []);
+            const all = Array.isArray(data) ? data : [];
+            // filter ออก Deactive (GLPI ใช้ states_id แทน is_active)
+            const active = all.filter(c => {
+                const state = String(c.states_id || '').toLowerCase();
+                return !state.includes('deactive') && !state.includes('inactive') && !state.includes('จำหน่าย');
+            });
+            setComputers(active.length > 0 ? active : all);
         } catch (err) {
             setError(err.message || 'ไม่สามารถเชื่อมต่อ GLPI ได้');
         } finally {
@@ -37,18 +35,26 @@ const AssetInventory = () => {
     const filtered = computers.filter(c =>
         (c.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (c.serial || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (c.otherserial || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (c.users_id || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (c.locations_id || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    const getStatusBadge = (stateId) => {
-        const s = statusColorMap[stateId] || { label: 'ไม่ระบุ', color: 'bg-slate-100 text-slate-500 border-slate-200' };
-        return (
-            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${s.color}`}>
-                {s.label}
-            </span>
-        );
+    // is_active: 1 = Active (เขียว), 0 = Deactive (แดง)
+    const getStatusBadge = (isActive, stateLabel) => {
+        if (isActive === 1 || isActive === true) {
+            return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border bg-emerald-100 text-emerald-700 border-emerald-200">● Active</span>;
+        }
+        if (isActive === 0 || isActive === false) {
+            return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border bg-red-100 text-red-700 border-red-200">● Deactive</span>;
+        }
+        // fallback: แสดง states_id label
+        if (stateLabel) {
+            return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border bg-slate-100 text-slate-600 border-slate-200">{stateLabel}</span>;
+        }
+        return null;
     };
+
 
     return (
         <div className="space-y-6 animate-fade-in">
@@ -75,13 +81,14 @@ const AssetInventory = () => {
 
             {/* Search */}
             <div className="relative">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none z-10" />
                 <input
                     type="text"
-                    placeholder="ค้นหาชื่อเครื่อง, Serial, ผู้ใช้, ตำแหน่ง..."
+                    placeholder="ค้นหาชื่อเครื่อง, Serial, รหัสทรัพย์สิน, ผู้ใช้..."
                     value={searchTerm}
                     onChange={e => setSearchTerm(e.target.value)}
-                    className="w-full input-modern pl-11"
+                    style={{ paddingLeft: '2.5rem' }}
+                    className="w-full input-modern"
                 />
                 {searchTerm && (
                     <button onClick={() => setSearchTerm('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
@@ -136,9 +143,15 @@ const AssetInventory = () => {
                                             <p className="text-xs text-slate-400 dark:text-slate-500 font-mono">{computer.serial || '-'}</p>
                                         </div>
                                     </div>
-                                    {getStatusBadge(computer.states_id)}
+                                    {getStatusBadge(computer.is_active, computer.states_id)}
                                 </div>
                                 <div className="space-y-1.5 text-xs text-slate-500 dark:text-slate-400">
+                                    {computer.otherserial && (
+                                        <div className="flex items-center gap-1.5">
+                                            <Tag className="w-3 h-3 text-slate-400 flex-shrink-0" />
+                                            <span>รหัสทรัพย์สิน: <span className="font-medium text-slate-700 dark:text-slate-300 font-mono">{computer.otherserial}</span></span>
+                                        </div>
+                                    )}
                                     {computer.users_id && (
                                         <div className="flex items-center gap-1.5">
                                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0"></span>
@@ -182,6 +195,7 @@ const AssetInventory = () => {
                         </div>
                         <div className="p-6 space-y-3">
                             {[
+                                { label: 'รหัสทรัพย์สิน', value: selectedComputer.otherserial },
                                 { label: 'Serial Number', value: selectedComputer.serial },
                                 { label: 'รุ่น', value: selectedComputer.computermodels_id },
                                 { label: 'ประเภท', value: selectedComputer.computertypes_id },
@@ -197,7 +211,7 @@ const AssetInventory = () => {
                             ))}
                             <div className="flex justify-between items-center text-sm pt-2 border-t border-slate-100 dark:border-slate-700">
                                 <span className="text-slate-500 dark:text-slate-400 font-medium">สถานะ</span>
-                                {getStatusBadge(selectedComputer.states_id)}
+                                {getStatusBadge(selectedComputer.is_active, selectedComputer.states_id)}
                             </div>
                         </div>
                     </div>
