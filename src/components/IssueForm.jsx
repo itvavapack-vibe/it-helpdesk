@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CheckCircle, Clock, Edit, CheckCircle2, Monitor } from 'lucide-react';
+import { CheckCircle, Clock, Edit, CheckCircle2, Monitor, ChevronDown, X } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { supabase } from '../supabaseClient';
 
@@ -32,6 +32,11 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false }) => {
     const [isLoadingAssets, setIsLoadingAssets] = useState(false);
     const [assetError, setAssetError] = useState(false);
 
+    // Autocomplete dropdown states
+    const [assetSearchTerm, setAssetSearchTerm] = useState('');
+    const [isAssetDropdownOpen, setIsAssetDropdownOpen] = useState(false);
+
+    // Initial load effects
     useEffect(() => {
         const fetchAssets = async () => {
             setIsLoadingAssets(true);
@@ -59,10 +64,36 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false }) => {
         const assetName = params.get('assetName');
         if (assetId && assetName) {
             setFormData(prev => ({ ...prev, assetId, assetName }));
+            setAssetSearchTerm(assetName);
             // ล้าง URL param ออกหลังอ่านแล้ว
             window.history.replaceState({}, '', window.location.pathname);
         }
     }, []);
+
+    // Helper for filtering assets in dropdown
+    const filteredAssets = computers.filter(c => {
+        const search = assetSearchTerm.toLowerCase();
+        return (c.name || '').toLowerCase().includes(search) ||
+            (c.serial || '').toLowerCase().includes(search) ||
+            (c.users_id || '').toLowerCase().includes(search);
+    });
+
+    // Close dropdown when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (!e.target.closest('.asset-dropdown-container')) {
+                setIsAssetDropdownOpen(false);
+                // Reset search term to selected asset name if closed without selecting
+                if (formData.assetName) {
+                    setAssetSearchTerm(formData.assetName);
+                } else if (!formData.assetId) {
+                    setAssetSearchTerm('');
+                }
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [formData.assetName, formData.assetId]);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -214,20 +245,107 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false }) => {
                         ) : assetError || computers.length === 0 ? (
                             <div className="input-modern text-sm text-slate-400">⚠️ ยังไม่มีข้อมูลอุปกรณ์ (Admin กรุณากด Sync → Supabase ในหน้าทรัพย์สินก่อน)</div>
                         ) : (
-                            <select
-                                name="assetId"
-                                value={formData.assetId}
-                                onChange={handleChange}
-                                className="w-full input-modern cursor-pointer appearance-none"
-                                style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: `right 0.5rem center`, backgroundRepeat: `no-repeat`, backgroundSize: `1.5em 1.5em`, paddingRight: `2.5rem` }}
-                            >
-                                <option value="">-- ไม่ระบุอุปกรณ์ --</option>
-                                {computers.map(c => (
-                                    <option key={c.id} value={c.id}>
-                                        {c.name}{c.serial ? ` (${c.serial})` : ''}{c.users_id ? ` · ${c.users_id}` : ''}
-                                    </option>
-                                ))}
-                            </select>
+                            <div className="relative asset-dropdown-container">
+                                {/* Searchable Input */}
+                                <div className="relative">
+                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <Monitor className="h-4 w-4 text-indigo-400" />
+                                    </div>
+                                    <input
+                                        type="text"
+                                        placeholder="พิมพ์ชื่อเครื่อง, รหัสทรัพย์สิน หรือผู้ใช้งานเพื่อค้นหา..."
+                                        className="w-full input-modern !pl-10 !pr-10"
+                                        value={assetSearchTerm}
+                                        onChange={(e) => {
+                                            setAssetSearchTerm(e.target.value);
+                                            setIsAssetDropdownOpen(true);
+                                            // หากลบข้อความค้นหาจนหมด ให้เคลียร์ค่าที่เลือกไว้ด้วย
+                                            if (e.target.value === '') {
+                                                setFormData(prev => ({ ...prev, assetId: '', assetName: '' }));
+                                            }
+                                        }}
+                                        onFocus={() => setIsAssetDropdownOpen(true)}
+                                    />
+                                    {/* Action Buttons inside Input */}
+                                    <div className="absolute inset-y-0 right-0 pr-3 flex items-center gap-1">
+                                        {formData.assetId && (
+                                            <button
+                                                type="button"
+                                                className="text-slate-400 hover:text-rose-500 transition-colors p-1"
+                                                onClick={() => {
+                                                    setFormData(prev => ({ ...prev, assetId: '', assetName: '' }));
+                                                    setAssetSearchTerm('');
+                                                    setIsAssetDropdownOpen(false);
+                                                }}
+                                                title="ยกเลิกการเลือก"
+                                            >
+                                                <X className="w-4 h-4" />
+                                            </button>
+                                        )}
+                                        <button
+                                            type="button"
+                                            className="text-slate-400 hover:text-indigo-500 transition-colors p-1"
+                                            onClick={() => setIsAssetDropdownOpen(!isAssetDropdownOpen)}
+                                        >
+                                            <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isAssetDropdownOpen ? 'rotate-180' : ''}`} />
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Dropdown Menu */}
+                                {isAssetDropdownOpen && (
+                                    <div className="absolute z-50 w-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl max-h-60 overflow-y-auto animate-fade-in custom-scrollbar">
+                                        {filteredAssets.length === 0 ? (
+                                            <div className="p-4 text-center text-sm text-slate-500 dark:text-slate-400">
+                                                ไม่พบอุปกรณ์ที่ค้นหา
+                                            </div>
+                                        ) : (
+                                            <ul className="py-1">
+                                                {/* Option: Clear Selection */}
+                                                <li
+                                                    className={`px-4 py-2 text-sm cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-700/50 ${!formData.assetId ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 font-medium' : ''}`}
+                                                    onClick={() => {
+                                                        setFormData(prev => ({ ...prev, assetId: '', assetName: '' }));
+                                                        setAssetSearchTerm('');
+                                                        setIsAssetDropdownOpen(false);
+                                                    }}
+                                                >
+                                                    -- ไม่ระบุอุปกรณ์ --
+                                                </li>
+                                                {/* Computer Options */}
+                                                {filteredAssets.map(c => {
+                                                    const isSelected = String(formData.assetId) === String(c.id);
+                                                    return (
+                                                        <li
+                                                            key={c.id}
+                                                            className={`px-4 py-2.5 text-sm cursor-pointer border-b border-slate-50 dark:border-slate-700/30 last:border-0 hover:bg-indigo-50 dark:hover:bg-indigo-900/40 transition-colors flex items-center justify-between group ${isSelected ? 'bg-indigo-50 dark:bg-indigo-900/40' : ''}`}
+                                                            onClick={() => {
+                                                                setFormData(prev => ({ ...prev, assetId: c.id, assetName: c.name || '' }));
+                                                                setAssetSearchTerm(c.name || '');
+                                                                setIsAssetDropdownOpen(false);
+                                                            }}
+                                                        >
+                                                            <div className="flex flex-col min-w-0">
+                                                                <span className={`font-semibold truncate ${isSelected ? 'text-indigo-700 dark:text-indigo-300' : 'text-slate-700 dark:text-slate-200 group-hover:text-indigo-700 dark:group-hover:text-indigo-300'}`}>
+                                                                    {c.name}
+                                                                </span>
+                                                                {(c.serial || c.users_id) && (
+                                                                    <span className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                                                                        {c.serial ? `S/N: ${c.serial}` : ''}
+                                                                        {c.serial && c.users_id ? ' · ' : ''}
+                                                                        {c.users_id ? `👩‍💻 ${c.users_id}` : ''}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            {isSelected && <CheckCircle2 className="w-4 h-4 text-indigo-500 flex-shrink-0 ml-2" />}
+                                                        </li>
+                                                    );
+                                                })}
+                                            </ul>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
                         )}
                     </div>
 
