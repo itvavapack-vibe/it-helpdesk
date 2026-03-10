@@ -1,9 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import * as XLSX from 'xlsx';
-import { Clock, CheckCircle2, Edit, FileSpreadsheet, Search, Filter, X, Save, MessageSquare, Trash2, Printer } from 'lucide-react';
+import { Clock, CheckCircle2, Edit, FileSpreadsheet, Search, Filter, X, Save, MessageSquare, Trash2, Printer, AlertTriangle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, Legend } from 'recharts';
 import PdfPreviewModal from './PdfPreviewModal';
 import Swal from 'sweetalert2';
+
+const ITEMS_PER_PAGE = 10;
 
 const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRepairDetails, deleteIssue, isLoading }) => {
     // Filter states
@@ -13,6 +15,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
     const [filterDateFrom, setFilterDateFrom] = useState('');
     const [filterDateTo, setFilterDateTo] = useState('');
     const [filterAdmin, setFilterAdmin] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
 
     // Modal state for repair details
     const [isRepairModalOpen, setIsRepairModalOpen] = useState(false);
@@ -20,6 +23,14 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
     const [repairDetailsText, setRepairDetailsText] = useState('');
     const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
     const [currentPdfIssue, setCurrentPdfIssue] = useState(null);
+    // Stats summary
+    const statsData = useMemo(() => ({
+        pending: issues.filter(i => i.status === 'Pending').length,
+        inProgress: issues.filter(i => i.status === 'In Progress').length,
+        resolved: issues.filter(i => i.status === 'Resolved').length,
+        mostUrgent: issues.filter(i => i.severity === 'Most Urgent').length,
+    }), [issues]);
+
     // Function to process data for the pie chart
     const statusData = useMemo(() => {
         const counts = { 'Pending': 0, 'In Progress': 0, 'Resolved': 0 };
@@ -69,6 +80,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
 
     // Derived filtered issues based on search and filters
     const filteredIssues = useMemo(() => {
+        setCurrentPage(1); // reset to page 1 when filter changes
         if (!issues) return [];
         return issues.filter(issue => {
             const matchSearch = issue.id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -86,6 +98,10 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
             return matchSearch && matchStatus && matchCategory && matchDateFrom && matchDateTo && matchAdmin;
         });
     }, [issues, searchTerm, filterStatus, filterCategory, filterDateFrom, filterDateTo, filterAdmin]);
+
+    // Pagination
+    const totalPages = Math.ceil(filteredIssues.length / ITEMS_PER_PAGE);
+    const paginatedIssues = filteredIssues.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
     // Handlers for Repair Details Modal
     const openRepairModal = (issue) => {
@@ -181,6 +197,46 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
 
     return (
         <div className="space-y-8 animate-fade-in">
+            {/* Stats Summary Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="glass-card rounded-2xl p-4 flex items-center gap-4">
+                    <div className="w-11 h-11 rounded-xl bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center flex-shrink-0">
+                        <Clock className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                    </div>
+                    <div>
+                        <p className="text-2xl font-bold text-slate-800 dark:text-white">{statsData.pending}</p>
+                        <p className="text-xs font-medium text-slate-500 dark:text-slate-400">รอดำเนินการ</p>
+                    </div>
+                </div>
+                <div className="glass-card rounded-2xl p-4 flex items-center gap-4">
+                    <div className="w-11 h-11 rounded-xl bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center flex-shrink-0">
+                        <Edit className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                    </div>
+                    <div>
+                        <p className="text-2xl font-bold text-slate-800 dark:text-white">{statsData.inProgress}</p>
+                        <p className="text-xs font-medium text-slate-500 dark:text-slate-400">กำลังแก้ไข</p>
+                    </div>
+                </div>
+                <div className="glass-card rounded-2xl p-4 flex items-center gap-4">
+                    <div className="w-11 h-11 rounded-xl bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center flex-shrink-0">
+                        <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                    </div>
+                    <div>
+                        <p className="text-2xl font-bold text-slate-800 dark:text-white">{statsData.resolved}</p>
+                        <p className="text-xs font-medium text-slate-500 dark:text-slate-400">เสร็จสิ้น</p>
+                    </div>
+                </div>
+                <div className="glass-card rounded-2xl p-4 flex items-center gap-4">
+                    <div className="w-11 h-11 rounded-xl bg-red-100 dark:bg-red-900/40 flex items-center justify-center flex-shrink-0">
+                        <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
+                    </div>
+                    <div>
+                        <p className="text-2xl font-bold text-slate-800 dark:text-white">{statsData.mostUrgent}</p>
+                        <p className="text-xs font-medium text-slate-500 dark:text-slate-400">ด่วนที่สุด</p>
+                    </div>
+                </div>
+            </div>
+
             {/* Analytics Charts section */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Status Make Pie Chart */}
@@ -343,7 +399,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                         </div>
                                     </td>
                                 </tr>
-                            ) : filteredIssues.map((issue) => (
+                            ) : paginatedIssues.map((issue) => (
                                 <tr key={issue.id} className="hover:bg-indigo-50/40 dark:hover:bg-indigo-900/20 transition-colors">
                                     <td className="px-6 py-5 whitespace-nowrap">
                                         <div className="text-sm font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-900/40 inline-block px-2 py-1 rounded border border-indigo-100 dark:border-indigo-800">{issue.id || 'N/A'}</div>
@@ -443,6 +499,43 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                         </tbody>
                     </table>
                 </div>
+
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                    <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between bg-white/40 dark:bg-slate-800/40">
+                        <p className="text-sm text-slate-500 dark:text-slate-400">
+                            แสดง {(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredIssues.length)} จาก {filteredIssues.length} รายการ
+                        </p>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                disabled={currentPage === 1}
+                                className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/40 hover:text-indigo-600 dark:hover:text-indigo-400 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                            >
+                                <ChevronLeft className="w-4 h-4" />
+                            </button>
+                            {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                                <button
+                                    key={page}
+                                    onClick={() => setCurrentPage(page)}
+                                    className={`w-8 h-8 rounded-lg text-sm font-semibold transition-all ${currentPage === page
+                                            ? 'bg-indigo-600 text-white shadow-md'
+                                            : 'border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/40'
+                                        }`}
+                                >
+                                    {page}
+                                </button>
+                            ))}
+                            <button
+                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                disabled={currentPage === totalPages}
+                                className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/40 hover:text-indigo-600 dark:hover:text-indigo-400 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                            >
+                                <ChevronRight className="w-4 h-4" />
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Repair Details Modal */}

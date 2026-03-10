@@ -2,24 +2,17 @@ const BOT_TOKEN = import.meta.env.VITE_TELEGRAM_BOT_TOKEN;
 const CHAT_ID = import.meta.env.VITE_TELEGRAM_CHAT_ID;
 
 const sendTelegramMessage = async (message) => {
-    // Debug: แสดงสถานะ env vars (จะเห็นใน browser console)
-    console.log('[Telegram] BOT_TOKEN:', BOT_TOKEN ? '✅ มีค่า' : '❌ ไม่มีค่า');
-    console.log('[Telegram] CHAT_ID:', CHAT_ID ? '✅ มีค่า' : '❌ ไม่มีค่า');
-
     if (!BOT_TOKEN || !CHAT_ID) {
-        console.error('[Telegram] ❌ BOT_TOKEN หรือ CHAT_ID ยังไม่ได้ตั้งค่า กรุณาตั้งค่า Environment Variables บน hosting');
+        console.error('[Telegram] ❌ BOT_TOKEN หรือ CHAT_ID ยังไม่ได้ตั้งค่า');
         return;
     }
-
-    // ตรวจสอบว่าค่าไม่ใช่ placeholder
     if (BOT_TOKEN.includes('ใส่') || CHAT_ID.includes('ใส่')) {
-        console.error('[Telegram] ❌ BOT_TOKEN หรือ CHAT_ID ยังเป็นค่า placeholder กรุณาใส่ค่าจริง');
+        console.error('[Telegram] ❌ BOT_TOKEN หรือ CHAT_ID ยังเป็นค่า placeholder');
         return;
     }
 
     try {
         const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
-        console.log('[Telegram] 📤 กำลังส่งข้อความ...');
         const response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -30,13 +23,11 @@ const sendTelegramMessage = async (message) => {
             }),
         });
         const result = await response.json();
-        if (result.ok) {
-            console.log('[Telegram] ✅ ส่งข้อความสำเร็จ');
-        } else {
-            console.error('[Telegram] ❌ API ตอบกลับ error:', result);
+        if (!result.ok) {
+            console.error('[Telegram] ❌ API error:', result);
         }
     } catch (error) {
-        console.error('[Telegram] ❌ ส่งข้อความไม่สำเร็จ (อาจเป็น CORS หรือ network error):', error);
+        console.error('[Telegram] ❌ ส่งข้อความไม่สำเร็จ:', error);
     }
 };
 
@@ -66,6 +57,17 @@ export const notifyStatusChange = (issue, newStatus) => {
         `🔖 <b>เลขที่:</b> ${issue.id}\n` +
         `👤 <b>ผู้แจ้ง:</b> ${issue.name}\n` +
         `📌 <b>สถานะใหม่:</b> ${statusMap[newStatus] || newStatus}` +
+        (issue.assignedAdmin ? `\n👨‍💻 <b>ผู้รับงาน:</b> ${issue.assignedAdmin}` : '');
+    return sendTelegramMessage(message);
+};
+
+export const notifyRepairUpdate = (issue, details) => {
+    const message =
+        `🔧 <b>บันทึกรายละเอียดการซ่อม</b>\n` +
+        `━━━━━━━━━━━━━━\n` +
+        `🔖 <b>เลขที่:</b> ${issue.id}\n` +
+        `👤 <b>ผู้แจ้ง:</b> ${issue.name}\n` +
+        `📝 <b>รายละเอียด:</b> ${details}` +
         (issue.assignedAdmin ? `\n👨‍💻 <b>ผู้รับงาน:</b> ${issue.assignedAdmin}` : '');
     return sendTelegramMessage(message);
 };

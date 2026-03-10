@@ -7,7 +7,7 @@ import UserManagement from './components/UserManagement';
 import HomePage from './components/HomePage';
 import { Home, Settings, LogOut, Users, Ticket, ClipboardList } from 'lucide-react';
 import Swal from 'sweetalert2';
-import { notifyNewIssue, notifyStatusChange } from './telegramNotify';
+import { notifyNewIssue, notifyStatusChange, notifyRepairUpdate } from './telegramNotify';
 
 function App() {
     const [activeTab, setActiveTab] = useState('home');
@@ -37,6 +37,18 @@ function App() {
     // Fetch issues from Supabase
     useEffect(() => {
         fetchIssues();
+    }, []);
+
+    // Supabase Realtime: อัพเดตข้อมูลอัตโนมัติเมื่อมีการเปลี่ยนแปลง
+    useEffect(() => {
+        const channel = supabase
+            .channel('issues-realtime')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'issues' }, () => {
+                fetchIssues();
+            })
+            .subscribe();
+
+        return () => supabase.removeChannel(channel);
     }, []);
 
     // Time-based Dark Mode Logic (18:00 - 05:59 is Dark)
@@ -176,6 +188,12 @@ function App() {
             issue.id === id ? { ...issue, repairDetails: details } : issue
         );
         setIssues(updatedIssues);
+
+        // Send Telegram notification for repair update
+        const updatedIssue = issues.find(i => i.id === id);
+        if (updatedIssue && details) {
+            notifyRepairUpdate(updatedIssue, details);
+        }
     };
 
     const updateIssueStatus = async (id, newStatus, adminName = null) => {
