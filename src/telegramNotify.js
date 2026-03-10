@@ -2,14 +2,25 @@ const BOT_TOKEN = import.meta.env.VITE_TELEGRAM_BOT_TOKEN;
 const CHAT_ID = import.meta.env.VITE_TELEGRAM_CHAT_ID;
 
 const sendTelegramMessage = async (message) => {
+    // Debug: แสดงสถานะ env vars (จะเห็นใน browser console)
+    console.log('[Telegram] BOT_TOKEN:', BOT_TOKEN ? '✅ มีค่า' : '❌ ไม่มีค่า');
+    console.log('[Telegram] CHAT_ID:', CHAT_ID ? '✅ มีค่า' : '❌ ไม่มีค่า');
+
     if (!BOT_TOKEN || !CHAT_ID) {
-        console.warn('Telegram: BOT_TOKEN หรือ CHAT_ID ยังไม่ได้ตั้งค่าใน .env');
+        console.error('[Telegram] ❌ BOT_TOKEN หรือ CHAT_ID ยังไม่ได้ตั้งค่า กรุณาตั้งค่า Environment Variables บน hosting');
+        return;
+    }
+
+    // ตรวจสอบว่าค่าไม่ใช่ placeholder
+    if (BOT_TOKEN.includes('ใส่') || CHAT_ID.includes('ใส่')) {
+        console.error('[Telegram] ❌ BOT_TOKEN หรือ CHAT_ID ยังเป็นค่า placeholder กรุณาใส่ค่าจริง');
         return;
     }
 
     try {
         const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
-        await fetch(url, {
+        console.log('[Telegram] 📤 กำลังส่งข้อความ...');
+        const response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -18,8 +29,14 @@ const sendTelegramMessage = async (message) => {
                 parse_mode: 'HTML',
             }),
         });
+        const result = await response.json();
+        if (result.ok) {
+            console.log('[Telegram] ✅ ส่งข้อความสำเร็จ');
+        } else {
+            console.error('[Telegram] ❌ API ตอบกลับ error:', result);
+        }
     } catch (error) {
-        console.error('Telegram: ส่งข้อความไม่สำเร็จ', error);
+        console.error('[Telegram] ❌ ส่งข้อความไม่สำเร็จ (อาจเป็น CORS หรือ network error):', error);
     }
 };
 
