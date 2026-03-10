@@ -5,7 +5,8 @@ import IssueDashboard from './components/IssueDashboard';
 import AdminLogin from './components/AdminLogin';
 import UserManagement from './components/UserManagement';
 import HomePage from './components/HomePage';
-import { Home, Settings, LogOut, Users, Ticket, ClipboardList } from 'lucide-react';
+import AssetInventory from './components/AssetInventory';
+import { Home, Settings, LogOut, Users, Ticket, ClipboardList, Monitor } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { notifyNewIssue, notifyStatusChange, notifyRepairUpdate } from './telegramNotify';
 
@@ -264,6 +265,10 @@ function App() {
             return <HomePage onNavigateTo={setActiveTab} />;
         }
 
+        if (activeTab === 'assets') {
+            return <AssetInventory />;
+        }
+
         if (activeTab === 'user') {
             return <IssueForm addIssue={addIssue} issues={issues} isLoading={isIssuesLoading} />;
         }
@@ -353,6 +358,12 @@ function App() {
                             className={`px-4 py-2 rounded-xl transition-all duration-300 font-medium flex items-center gap-2 ${activeTab === 'user' ? 'bg-white dark:bg-indigo-600 text-indigo-700 dark:text-white shadow-md' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-700/50'}`}
                         >
                             <ClipboardList className="w-4 h-4" /> แจ้งซ่อม
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('assets')}
+                            className={`px-4 py-2 rounded-xl transition-all duration-300 font-medium flex items-center gap-2 ${activeTab === 'assets' ? 'bg-white dark:bg-indigo-600 text-indigo-700 dark:text-white shadow-md' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-700/50'}`}
+                        >
+                            <Monitor className="w-4 h-4" /> ทรัพย์สิน
                         </button>
                         <button
                             onClick={() => { setActiveTab('admin'); fetchIssues(); }}

@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { CheckCircle, Clock, Edit, CheckCircle2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { CheckCircle, Clock, Edit, CheckCircle2, Monitor } from 'lucide-react';
 import Swal from 'sweetalert2';
+import { withGlpiSession, getComputers } from '../glpiClient';
 
 const STATUS_ORDER = ['Pending', 'In Progress', 'Resolved'];
 
@@ -24,11 +25,36 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false }) => {
         category: 'Hardware',
         description: '',
         severity: 'Normal',
+        assetId: '',
+        assetName: '',
     });
+    const [computers, setComputers] = useState([]);
+    const [isLoadingAssets, setIsLoadingAssets] = useState(false);
+    const [assetError, setAssetError] = useState(false);
+
+    useEffect(() => {
+        const fetchAssets = async () => {
+            setIsLoadingAssets(true);
+            try {
+                const data = await withGlpiSession(getComputers);
+                setComputers(Array.isArray(data) ? data : []);
+            } catch {
+                setAssetError(true);
+            } finally {
+                setIsLoadingAssets(false);
+            }
+        };
+        fetchAssets();
+    }, []);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
-        setFormData((prev) => ({ ...prev, [name]: value }));
+        if (name === 'assetId') {
+            const selected = computers.find(c => String(c.id) === value);
+            setFormData(prev => ({ ...prev, assetId: value, assetName: selected ? selected.name : '' }));
+        } else {
+            setFormData(prev => ({ ...prev, [name]: value }));
+        }
     };
 
     const handleSubmit = (e) => {
@@ -69,6 +95,8 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false }) => {
                     category: 'Hardware',
                     description: '',
                     severity: 'Normal',
+                    assetId: '',
+                    assetName: '',
                 });
 
                 Swal.fire({
@@ -153,6 +181,37 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false }) => {
                                 <option value="Most Urgent">ด่วนที่สุด (Most Urgent)</option>
                             </select>
                         </div>
+                    </div>
+
+                    {/* GLPI Asset Selector */}
+                    <div className="space-y-1">
+                        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1 ml-1 flex items-center gap-1.5">
+                            <Monitor className="w-4 h-4 text-indigo-400" /> เลือกอุปกรณ์ที่มีปัญหา
+                            <span className="text-xs font-normal text-slate-400">(ถ้ามี)</span>
+                        </label>
+                        {isLoadingAssets ? (
+                            <div className="input-modern flex items-center gap-2 text-slate-400 text-sm">
+                                <div className="w-4 h-4 border-2 border-indigo-200 border-t-indigo-500 rounded-full animate-spin" />
+                                กำลังโหลดข้อมูลจาก GLPI...
+                            </div>
+                        ) : assetError ? (
+                            <div className="input-modern text-sm text-slate-400">⚠️ ไม่สามารถเชื่อมต่อ GLPI ได้ (ใช้ได้เฉพาะใน Office)</div>
+                        ) : (
+                            <select
+                                name="assetId"
+                                value={formData.assetId}
+                                onChange={handleChange}
+                                className="w-full input-modern cursor-pointer appearance-none"
+                                style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: `right 0.5rem center`, backgroundRepeat: `no-repeat`, backgroundSize: `1.5em 1.5em`, paddingRight: `2.5rem` }}
+                            >
+                                <option value="">-- ไม่ระบุอุปกรณ์ --</option>
+                                {computers.map(c => (
+                                    <option key={c.id} value={c.id}>
+                                        {c.name}{c.serial ? ` (${c.serial})` : ''}{c.users_id ? ` · ${c.users_id}` : ''}
+                                    </option>
+                                ))}
+                            </select>
+                        )}
                     </div>
 
                     <div className="space-y-1">

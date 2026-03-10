@@ -41,6 +41,7 @@ export const notifyNewIssue = (issue) => {
         `🏢 <b>แผนก:</b> ${issue.department}\n` +
         `🗂️ <b>หมวดหมู่:</b> ${issue.category}\n` +
         `${severityEmoji} <b>ความเร่งด่วน:</b> ${issue.severity}\n` +
+        (issue.assetName ? `💻 <b>อุปกรณ์:</b> ${issue.assetName}\n` : '') +
         `📝 <b>ปัญหา:</b> ${issue.description}`;
     return sendTelegramMessage(message);
 };
