@@ -15,7 +15,7 @@ function App() {
     const [activeTab, setActiveTab] = useState(() => {
         // หากเปิดจาก QR Code (มี assetId) ให้ตั้งค่าเริ่มต้นเป็นหน้าแจ้งซ่อมทันที
         const params = new URLSearchParams(window.location.search);
-        return params.has('assetId') ? 'report' : 'home';
+        return params.has('assetId') ? 'user' : 'home';
     });
     const [adminSubTab, setAdminSubTab] = useState('issues'); // 'issues' or 'users'
     const [issues, setIssues] = useState([]);
