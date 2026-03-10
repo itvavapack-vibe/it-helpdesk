@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { CheckCircle, Clock, Edit, CheckCircle2, Monitor } from 'lucide-react';
 import Swal from 'sweetalert2';
-import { withGlpiSession, getComputers } from '../glpiClient';
+import { supabase } from '../supabaseClient';
 
 const STATUS_ORDER = ['Pending', 'In Progress', 'Resolved'];
 
@@ -36,8 +36,13 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false }) => {
         const fetchAssets = async () => {
             setIsLoadingAssets(true);
             try {
-                const data = await withGlpiSession(getComputers);
-                setComputers(Array.isArray(data) ? data : []);
+                const { data, error } = await supabase
+                    .from('assets')
+                    .select('glpi_id, name, serial, otherserial, users_id')
+                    .order('name');
+                if (error) throw error;
+                // แปลง glpi_id → id เพื่อให้ใช้ร่วมกับโครงสร้างเดิมได้
+                setComputers((data || []).map(c => ({ ...c, id: c.glpi_id })));
             } catch {
                 setAssetError(true);
             } finally {
@@ -206,8 +211,8 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false }) => {
                                 <div className="w-4 h-4 border-2 border-indigo-200 border-t-indigo-500 rounded-full animate-spin" />
                                 กำลังโหลดข้อมูลจาก GLPI...
                             </div>
-                        ) : assetError ? (
-                            <div className="input-modern text-sm text-slate-400">⚠️ ไม่สามารถเชื่อมต่อ GLPI ได้ (ใช้ได้เฉพาะใน Office)</div>
+                        ) : assetError || computers.length === 0 ? (
+                            <div className="input-modern text-sm text-slate-400">⚠️ ยังไม่มีข้อมูลอุปกรณ์ (Admin กรุณากด Sync → Supabase ในหน้าทรัพย์สินก่อน)</div>
                         ) : (
                             <select
                                 name="assetId"
