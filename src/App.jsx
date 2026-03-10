@@ -11,7 +11,11 @@ import Swal from 'sweetalert2';
 import { notifyNewIssue, notifyStatusChange, notifyRepairUpdate } from './telegramNotify';
 
 function App() {
-    const [activeTab, setActiveTab] = useState('home');
+    const [activeTab, setActiveTab] = useState(() => {
+        // หากเปิดจาก QR Code (มี assetId) ให้ตั้งค่าเริ่มต้นเป็นหน้าแจ้งซ่อมทันที
+        const params = new URLSearchParams(window.location.search);
+        return params.has('assetId') ? 'report' : 'home';
+    });
     const [adminSubTab, setAdminSubTab] = useState('issues'); // 'issues' or 'users'
     const [issues, setIssues] = useState([]);
     const [isIssuesLoading, setIsIssuesLoading] = useState(true);
