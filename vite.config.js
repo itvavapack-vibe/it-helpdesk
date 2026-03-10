@@ -10,5 +10,15 @@ export default defineConfig({
   ],
   define: {
     'process.env': {}
+  },
+  server: {
+    proxy: {
+      '/glpi-proxy': {
+        target: 'http://192.168.10.9',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/glpi-proxy/, '/glpi'),
+      }
+    }
   }
 })
+

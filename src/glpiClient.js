@@ -2,6 +2,12 @@ const GLPI_URL = import.meta.env.VITE_GLPI_URL;
 const APP_TOKEN = import.meta.env.VITE_GLPI_APP_TOKEN;
 const USER_TOKEN = import.meta.env.VITE_GLPI_USER_TOKEN;
 
+// ใน dev (localhost) ใช้ Vite proxy เพื่อ bypass CORS
+// ใน production ใช้ GLPI URL ตรง (ต้องตั้ง CORS บน Apache ฝั่ง GLPI)
+const BASE_URL = import.meta.env.DEV
+    ? '/glpi-proxy/apirest.php'
+    : `${GLPI_URL}/apirest.php`;
+
 // Helper: fetch with timeout
 const fetchWithTimeout = (url, options = {}, timeoutMs = 5000) => {
     const controller = new AbortController();
@@ -12,7 +18,7 @@ const fetchWithTimeout = (url, options = {}, timeoutMs = 5000) => {
 
 // Initialize session → returns session_token
 export const initGlpiSession = async () => {
-    const res = await fetchWithTimeout(`${GLPI_URL}/apirest.php/initSession`, {
+    const res = await fetchWithTimeout(`${BASE_URL}/initSession`, {
         method: 'GET',
         headers: {
             'Content-Type': 'application/json',
@@ -27,19 +33,19 @@ export const initGlpiSession = async () => {
 
 // Kill session
 export const killGlpiSession = async (sessionToken) => {
-    await fetch(`${GLPI_URL}/apirest.php/killSession`, {
+    await fetchWithTimeout(`${BASE_URL}/killSession`, {
         method: 'GET',
         headers: {
             'App-Token': APP_TOKEN,
             'Session-Token': sessionToken,
         },
-    });
+    }).catch(() => { }); // ไม่ต้อง throw ถ้า kill ไม่สำเร็จ
 };
 
 // Get computers list
 export const getComputers = async (sessionToken) => {
-    const res = await fetch(
-        `${GLPI_URL}/apirest.php/Computer?range=0-200&expand_dropdowns=true&is_deleted=false`,
+    const res = await fetchWithTimeout(
+        `${BASE_URL}/Computer?range=0-200&expand_dropdowns=true&is_deleted=false`,
         {
             headers: {
                 'App-Token': APP_TOKEN,
@@ -53,8 +59,8 @@ export const getComputers = async (sessionToken) => {
 
 // Get single computer detail
 export const getComputerDetail = async (sessionToken, id) => {
-    const res = await fetch(
-        `${GLPI_URL}/apirest.php/Computer/${id}?expand_dropdowns=true`,
+    const res = await fetchWithTimeout(
+        `${BASE_URL}/Computer/${id}?expand_dropdowns=true`,
         {
             headers: {
                 'App-Token': APP_TOKEN,
