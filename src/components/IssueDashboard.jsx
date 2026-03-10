@@ -238,50 +238,6 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                 </div>
             </div>
 
-            {/* Analytics Charts section */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Status Make Pie Chart */}
-                <div className="glass-card p-6 sm:p-8 rounded-3xl">
-                    <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-6 text-center tracking-wide uppercase">สัดส่วนสถานะการแจ้งซ่อม</h4>
-                    <div className="h-64">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                                <Pie
-                                    data={statusData}
-                                    cx="50%"
-                                    cy="50%"
-                                    labelLine={false}
-                                    outerRadius={80}
-                                    fill="#8884d8"
-                                    dataKey="value"
-                                    label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
-                                >
-                                    {statusData.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={entry.color} />
-                                    ))}
-                                </Pie>
-                                <RechartsTooltip formatter={(value) => [value, 'จำนวน']} />
-                                <Legend />
-                            </PieChart>
-                        </ResponsiveContainer>
-                    </div>
-                </div>
-
-                {/* Category Bar Chart */}
-                <div className="glass-card p-6 sm:p-8 rounded-3xl">
-                    <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-6 text-center tracking-wide uppercase">ปัญหาแยกตามหมวดหมู่</h4>
-                    <div className="h-64">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={categoryData} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
-                                <XAxis type="number" allowDecimals={false} axisLine={false} tickLine={false} />
-                                <YAxis dataKey="name" type="category" width={80} tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                                <RechartsTooltip formatter={(value) => [value, 'จำนวน']} cursor={{ fill: 'rgba(241, 245, 249, 0.5)' }} />
-                                <Bar dataKey="value" fill="#6366f1" radius={[0, 8, 8, 0]} />
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
-                </div>
-            </div>
 
             {/* Filter and Search Bar section */}
             <div className="glass-card p-4 sm:p-5 rounded-2xl flex flex-col lg:flex-row gap-4 justify-between items-center shadow-md shadow-indigo-100/30">
