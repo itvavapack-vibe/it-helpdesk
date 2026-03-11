@@ -50,6 +50,120 @@ const AssetInventory = ({ issues = [] }) => {
 
     useEffect(() => { fetchComputers(); }, [fetchComputers]);
 
+    // Core sync logic
+    const performSync = useCallback(async (showSuccessAlert = false) => {
+        if (computers.length === 0) return;
+        
+        // Prevent multiple simultaneous syncs
+        if (isSyncing) return;
+        
+        setIsSyncing(true);
+        try {
+            // 1. Sync Assets (Computers)
+            const rows = computers.map(c => ({
+                glpi_id: c.id,
+                name: c.name || '',
+                serial: c.serial || null,
+                otherserial: c.otherserial || null,
+                users_id: c.users_id || null,
+                locations_id: c.locations_id || null,
+                computermodels_id: c.computermodels_id || null,
+                states_id: c.states_id || null,
+            }));
+            const { error } = await supabase.from('assets').upsert(rows, { onConflict: 'glpi_id' });
+            if (error) throw error;
+
+            // 2. Sync Users
+            const usersData = await withGlpiSession(getUsers);
+            
+            // ข้อมูล owner จากเครื่องทั้งหมด
+            const assetUserIds = new Set(computers.map(c => c.users_id).filter(Boolean));
+
+            const activeUsers = (usersData || []).filter(u => {
+                const name = u.formattedName || u.name;
+                const isValidName = name && name.trim() !== '' && !name.toLowerCase().includes('admin');
+                const hasComputer = assetUserIds.has(u.name); // เช็คว่ามีเครื่องไหม
+                
+                return isValidName && hasComputer;
+            });
+
+            // หา Local Users (ชื่อที่มีในเครื่อง แต่ไม่มีในระบบ User ของ GLPI)
+            const glpiUsernames = new Set((usersData || []).map(u => u.name));
+            let localUserCounter = -1000;
+            const extraLocalUsers = [];
+
+            for (const assetUser of assetUserIds) {
+                if (!glpiUsernames.has(assetUser) && !assetUser.toLowerCase().includes('admin')) {
+                    extraLocalUsers.push({
+                        id: localUserCounter--, // ใช้ ID ติดลบสำหรับ Local Users
+                        name: assetUser,
+                        realname: assetUser,
+                        firstname: '',
+                        formattedName: assetUser
+                    });
+                }
+            }
+
+            const allSyncUsers = [...activeUsers, ...extraLocalUsers];
+
+            if (allSyncUsers.length > 0) {
+                const userRows = allSyncUsers.map(u => ({
+                    id: u.id,
+                    name: u.name || '',
+                    realname: u.realname || null,
+                    firstname: u.firstname || null,
+                    formattedName: u.formattedName || u.name || '',
+                }));
+                const { error: userError } = await supabase.from('glpi_users').upsert(userRows, { onConflict: 'id' });
+                if (userError) throw userError;
+            }
+
+            if (showSuccessAlert) {
+                import('sweetalert2').then(({ default: Swal }) => {
+                    Swal.fire({ 
+                        icon: 'success', 
+                        title: `Sync สำเร็จ!`, 
+                        text: `อัปโหลด ${rows.length} เครื่อง และผู้ใช้ ${allSyncUsers.length} รายชื่อไปยัง Supabase แล้ว`, 
+                        timer: 3000, 
+                        showConfirmButton: false 
+                    });
+                });
+            }
+            console.log(`Auto-sync completed: ${rows.length} computers, ${allSyncUsers.length} users`);
+        } catch (err) {
+            console.error('Auto-sync failed:', err);
+            if (showSuccessAlert) {
+                import('sweetalert2').then(({ default: Swal }) => {
+                    Swal.fire({ icon: 'error', title: 'Sync ไม่สำเร็จ', text: err.message });
+                });
+            }
+        } finally {
+            setIsSyncing(false);
+        }
+    }, [computers, isSyncing]);
+
+    // Auto-sync effect
+    useEffect(() => {
+        // Only run auto-sync if we successfully loaded data from GLPI (no error/warning)
+        // and we have computers to sync
+        if (computers.length > 0 && !error && !warning) {
+            // Initial auto-sync 3 seconds after loading to not block UI
+            const initialTimer = setTimeout(() => {
+                performSync(false);
+            }, 3000);
+
+            // Periodic auto-sync every 2 hours
+            const periodicTimer = setInterval(() => {
+                performSync(false);
+            }, 2 * 60 * 60 * 1000);
+
+            return () => {
+                clearTimeout(initialTimer);
+                clearInterval(periodicTimer);
+            };
+        }
+    }, [computers.length, error, warning, performSync]);
+
     // Cross-reference: หา issues ของแต่ละเครื่อง
     const getAssetIssues = useCallback((computer) => {
         return issues.filter(i =>
@@ -140,84 +254,7 @@ const AssetInventory = ({ issues = [] }) => {
     };
 
     const syncToSupabase = async () => {
-        if (computers.length === 0) return;
-        setIsSyncing(true);
-        try {
-            // 1. Sync Assets (Computers)
-            const rows = computers.map(c => ({
-                glpi_id: c.id,
-                name: c.name || '',
-                serial: c.serial || null,
-                otherserial: c.otherserial || null,
-                users_id: c.users_id || null,
-                locations_id: c.locations_id || null,
-                computermodels_id: c.computermodels_id || null,
-                states_id: c.states_id || null,
-            }));
-            const { error } = await supabase.from('assets').upsert(rows, { onConflict: 'glpi_id' });
-            if (error) throw error;
-
-            // 2. Sync Users
-            const usersData = await withGlpiSession(getUsers);
-            
-            // ข้อมูล owner จากเครื่องทั้งหมด
-            const assetUserIds = new Set(computers.map(c => c.users_id).filter(Boolean));
-
-            const activeUsers = (usersData || []).filter(u => {
-                const name = u.formattedName || u.name;
-                const isValidName = name && name.trim() !== '' && !name.toLowerCase().includes('admin');
-                const hasComputer = assetUserIds.has(u.name); // เช็คว่ามีเครื่องไหม
-                
-                return isValidName && hasComputer;
-            });
-
-            // หา Local Users (ชื่อที่มีในเครื่อง แต่ไม่มีในระบบ User ของ GLPI)
-            const glpiUsernames = new Set((usersData || []).map(u => u.name));
-            let localUserCounter = -1000;
-            const extraLocalUsers = [];
-
-            for (const assetUser of assetUserIds) {
-                if (!glpiUsernames.has(assetUser) && !assetUser.toLowerCase().includes('admin')) {
-                    extraLocalUsers.push({
-                        id: localUserCounter--, // ใช้ ID ติดลบสำหรับ Local Users
-                        name: assetUser,
-                        realname: assetUser,
-                        firstname: '',
-                        formattedName: assetUser
-                    });
-                }
-            }
-
-            const allSyncUsers = [...activeUsers, ...extraLocalUsers];
-
-            if (allSyncUsers.length > 0) {
-                const userRows = allSyncUsers.map(u => ({
-                    id: u.id,
-                    name: u.name || '',
-                    realname: u.realname || null,
-                    firstname: u.firstname || null,
-                    formattedName: u.formattedName || u.name || '',
-                }));
-                const { error: userError } = await supabase.from('glpi_users').upsert(userRows, { onConflict: 'id' });
-                if (userError) throw userError;
-            }
-
-            import('sweetalert2').then(({ default: Swal }) => {
-                Swal.fire({ 
-                    icon: 'success', 
-                    title: `Sync สำเร็จ!`, 
-                    text: `อัปโหลด ${rows.length} เครื่อง และผู้ใช้ ${allSyncUsers.length} รายชื่อไปยัง Supabase แล้ว`, 
-                    timer: 3000, 
-                    showConfirmButton: false 
-                });
-            });
-        } catch (err) {
-            import('sweetalert2').then(({ default: Swal }) => {
-                Swal.fire({ icon: 'error', title: 'Sync ไม่สำเร็จ', text: err.message });
-            });
-        } finally {
-            setIsSyncing(false);
-        }
+        await performSync(true);
     };
 
     return (
