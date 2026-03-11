@@ -90,16 +90,20 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false }) => {
 
     // อ่าน URL params จาก QR Code
     useEffect(() => {
+        // ต้องรอข้อมูลคอมพิวเตอร์และ User โหลดเสร็จก่อน จึงจะแมพหาชื่อจริงเจอ
+        if (computers.length === 0 || glpiUsersRaw.length === 0) return;
+
         const params = new URLSearchParams(window.location.search);
         const assetId = params.get('assetId');
         const assetName = params.get('assetName');
+        
         if (assetId && assetName) {
             // เมื่อสแกน QR Code ให้หา user ที่เป็นเจ้าของเครื่องนี้มาแสดงด้วยเลย (ถ้ามี)
             const matchedComputer = computers.find(c => String(c.id) === String(assetId));
             let ownerName = formData.name;
             
             if (matchedComputer && matchedComputer.users_id) {
-                // แปลง AD username เป็นชื่อจริง แบบไม่สนใจช่องว่างหรือพิมพ์เล็กใหญ่
+                // แปลง AD username เป็นชื่อจริง 
                 const normalize = (str) => (str || '').toLowerCase().replace(/\s+/g, '');
                 const userObj = glpiUsersRaw.find(u => normalize(u.name) === normalize(matchedComputer.users_id));
                 ownerName = userObj ? (userObj.formattedName || userObj.name) : matchedComputer.users_id;
@@ -107,10 +111,11 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false }) => {
 
             setFormData(prev => ({ ...prev, assetId, assetName, name: ownerName }));
             setAssetSearchTerm(assetName);
+            
             // ล้าง URL param ออกหลังอ่านแล้ว
             window.history.replaceState({}, '', window.location.pathname);
         }
-    }, [computers]); // ต้องรันใหม่หลัง computers โหลดเสร็จ เพื่อให้ lookup user เจอ
+    }, [computers, glpiUsersRaw]);
 
     // Helper for filtering assets in dropdown
     const filteredAssets = computers.filter(c => {
