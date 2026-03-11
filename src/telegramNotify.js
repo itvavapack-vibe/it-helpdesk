@@ -50,7 +50,10 @@ export const notifyStatusChange = (issue, newStatus) => {
     const statusMap = {
         'Pending': '⏳ รอดำเนินการ',
         'In Progress': '🔧 กำลังแก้ไข',
+        'External Repair': '⚠️ ส่งซ่อมภายนอก',
+        'Waiting for Parts': '⏳ รออะไหล่',
         'Resolved': '✅ เสร็จสิ้น',
+        'Cancelled': '❌ ยกเลิก',
     };
     const message =
         `🔔 <b>อัปเดตสถานะการซ่อม</b>\n` +

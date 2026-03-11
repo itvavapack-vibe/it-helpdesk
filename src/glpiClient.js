@@ -42,6 +42,19 @@ export const killGlpiSession = async (sessionToken) => {
     }).catch(() => { }); // ไม่ต้อง throw ถ้า kill ไม่สำเร็จ
 };
 
+export const formatGlpiUserName = (nameStr) => {
+    if (!nameStr) return nameStr;
+    if (typeof nameStr !== 'string') return nameStr;
+    const parts = nameStr.trim().replace(/\s+/g, ' ').split(' ');
+    if (parts.length >= 2) {
+        // แลกตำแหน่งคำสุดท้าย (First Name) กับคำข้างหน้าทั้งหมด (Last Name)
+        const firstName = parts.pop();
+        const lastName = parts.join(' ');
+        return `${firstName} ${lastName}`;
+    }
+    return nameStr;
+};
+
 // Get computers list
 export const getComputers = async (sessionToken) => {
     const res = await fetchWithTimeout(
@@ -54,7 +67,16 @@ export const getComputers = async (sessionToken) => {
         }
     );
     if (!res.ok) throw new Error(`GLPI getComputers failed: ${res.status}`);
-    return res.json();
+    const data = await res.json();
+    
+    // Format users_id names if it exists
+    if (Array.isArray(data)) {
+        return data.map(c => ({
+            ...c,
+            users_id: formatGlpiUserName(c.users_id)
+        }));
+    }
+    return data;
 };
 
 // Get single computer detail
@@ -70,6 +92,34 @@ export const getComputerDetail = async (sessionToken, id) => {
     );
     if (!res.ok) throw new Error(`GLPI getComputerDetail failed: ${res.status}`);
     return res.json();
+};
+
+// Get users list (from AD usually linked in GLPI)
+export const getUsers = async (sessionToken) => {
+    const res = await fetchWithTimeout(
+        `${BASE_URL}/User?range=0-999&is_deleted=false&is_active=true`,
+        {
+            headers: {
+                'App-Token': APP_TOKEN,
+                'Session-Token': sessionToken,
+            },
+        }
+    );
+    if (!res.ok) throw new Error(`GLPI getUsers failed: ${res.status}`);
+    const data = await res.json();
+    
+    // Format users name to match our structure if the name comes as Last First
+    if (Array.isArray(data)) {
+        return data.map(u => {
+            // Usually GLPI returns firstname, lastname, name separately. If they use AD mapped "name"
+            const realName = u.firstname && u.realname ? `${u.firstname} ${u.realname}`.replace(/\s+/g, ' ').trim() : formatGlpiUserName(u.name);
+            return {
+                ...u,
+                formattedName: realName
+            };
+        });
+    }
+    return data;
 };
 
 // Helper: run a function with auto session management

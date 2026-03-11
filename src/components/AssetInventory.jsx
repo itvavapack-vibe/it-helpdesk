@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Monitor, RefreshCw, AlertCircle, Search, X, Tag, FileSpreadsheet, QrCode, Clock, Upload } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import * as XLSX from 'xlsx';
-import { withGlpiSession, getComputers } from '../glpiClient';
+import { withGlpiSession, getComputers, getUsers } from '../glpiClient';
 import { supabase } from '../supabaseClient';
 
 const AssetInventory = ({ issues = [] }) => {
@@ -13,6 +13,7 @@ const AssetInventory = ({ issues = [] }) => {
     const [selectedComputer, setSelectedComputer] = useState(null);
     const [qrComputer, setQrComputer] = useState(null);
     const [warning, setWarning] = useState(null);
+    const [sourceFilter, setSourceFilter] = useState('all'); // all, buy, rent
 
     const [isSyncing, setIsSyncing] = useState(false);
 
@@ -72,13 +73,45 @@ const AssetInventory = ({ issues = [] }) => {
         return { total: computers.length, repairing, topAsset };
     }, [computers, getOpenIssues, getAssetIssues]);
 
-    const filtered = computers.filter(c =>
-        (c.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (c.serial || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (c.otherserial || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (c.users_id || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (c.locations_id || '').toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const formatUpdateSourceTEXT = (source) => {
+        if (!source) return '-';
+        const str = String(source).toLowerCase();
+        if (str.includes('buy') || str.includes('ซื้อ')) return 'ซื้อขาด (Buy)';
+        if (str.includes('rent') || str.includes('เช่า')) return 'เช่า (Rental)';
+        return source;
+    };
+
+    const isSourceMatch = (source, filterType) => {
+        if (filterType === 'all') return true;
+        
+        const sourceStr = String(source || '').toLowerCase();
+        if (filterType === 'buy') return sourceStr.includes('buy') || sourceStr.includes('ซื้อ');
+        if (filterType === 'rent') return sourceStr.includes('rent') || sourceStr.includes('เช่า');
+        
+        return false;
+    };
+
+    const filtered = computers.filter(c => {
+        const matchesSearch = (c.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (c.serial || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (c.otherserial || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (c.users_id || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (c.locations_id || '').toLowerCase().includes(searchTerm.toLowerCase());
+            
+        const matchesSource = isSourceMatch(c.autoupdatesystems_id, sourceFilter);
+        
+        return matchesSearch && matchesSource;
+    });
+
+    const filterCounts = useMemo(() => {
+        let buy = 0;
+        let rent = 0;
+        computers.forEach(c => {
+            if (isSourceMatch(c.autoupdatesystems_id, 'buy')) buy++;
+            else if (isSourceMatch(c.autoupdatesystems_id, 'rent')) rent++;
+        });
+        return { all: computers.length, buy, rent };
+    }, [computers]);
 
     const exportToExcel = () => {
         const data = filtered.map(c => ({
@@ -86,12 +119,14 @@ const AssetInventory = ({ issues = [] }) => {
             'รหัสทรัพย์สิน': c.otherserial || '-',
             'Serial Number': c.serial || '-',
             'รุ่น': c.computermodels_id || '-',
+            'แหล่งที่มา': formatUpdateSourceTEXT(c.autoupdatesystems_id),
             'ผู้ใช้งาน': c.users_id || '-',
             'ตำแหน่ง': c.locations_id || '-',
             'OS': c.operatingsystems_id || '-',
             'สถานะ': c.states_id || '-',
             'กำลังซ่อม': getOpenIssues(c).length > 0 ? 'ใช่' : 'ไม่',
             'ประวัติซ่อม (ครั้ง)': getAssetIssues(c).length,
+            'หมายเหตุ': c.comment || '-',
         }));
         const ws = XLSX.utils.json_to_sheet(data);
         const wb = XLSX.utils.book_new();
@@ -108,6 +143,7 @@ const AssetInventory = ({ issues = [] }) => {
         if (computers.length === 0) return;
         setIsSyncing(true);
         try {
+            // 1. Sync Assets (Computers)
             const rows = computers.map(c => ({
                 glpi_id: c.id,
                 name: c.name || '',
@@ -120,8 +156,60 @@ const AssetInventory = ({ issues = [] }) => {
             }));
             const { error } = await supabase.from('assets').upsert(rows, { onConflict: 'glpi_id' });
             if (error) throw error;
+
+            // 2. Sync Users
+            const usersData = await withGlpiSession(getUsers);
+            
+            // ข้อมูล owner จากเครื่องทั้งหมด
+            const assetUserIds = new Set(computers.map(c => c.users_id).filter(Boolean));
+
+            const activeUsers = (usersData || []).filter(u => {
+                const name = u.formattedName || u.name;
+                const isValidName = name && name.trim() !== '' && !name.toLowerCase().includes('admin');
+                const hasComputer = assetUserIds.has(u.name); // เช็คว่ามีเครื่องไหม
+                
+                return isValidName && hasComputer;
+            });
+
+            // หา Local Users (ชื่อที่มีในเครื่อง แต่ไม่มีในระบบ User ของ GLPI)
+            const glpiUsernames = new Set((usersData || []).map(u => u.name));
+            let localUserCounter = -1000;
+            const extraLocalUsers = [];
+
+            for (const assetUser of assetUserIds) {
+                if (!glpiUsernames.has(assetUser) && !assetUser.toLowerCase().includes('admin')) {
+                    extraLocalUsers.push({
+                        id: localUserCounter--, // ใช้ ID ติดลบสำหรับ Local Users
+                        name: assetUser,
+                        realname: assetUser,
+                        firstname: '',
+                        formattedName: assetUser
+                    });
+                }
+            }
+
+            const allSyncUsers = [...activeUsers, ...extraLocalUsers];
+
+            if (allSyncUsers.length > 0) {
+                const userRows = allSyncUsers.map(u => ({
+                    id: u.id,
+                    name: u.name || '',
+                    realname: u.realname || null,
+                    firstname: u.firstname || null,
+                    formattedName: u.formattedName || u.name || '',
+                }));
+                const { error: userError } = await supabase.from('glpi_users').upsert(userRows, { onConflict: 'id' });
+                if (userError) throw userError;
+            }
+
             import('sweetalert2').then(({ default: Swal }) => {
-                Swal.fire({ icon: 'success', title: `Sync สำเร็จ!`, text: `อัปโหลด ${rows.length} เครื่องไปยัง Supabase แล้ว`, timer: 2000, showConfirmButton: false });
+                Swal.fire({ 
+                    icon: 'success', 
+                    title: `Sync สำเร็จ!`, 
+                    text: `อัปโหลด ${rows.length} เครื่อง และผู้ใช้ ${allSyncUsers.length} รายชื่อไปยัง Supabase แล้ว`, 
+                    timer: 3000, 
+                    showConfirmButton: false 
+                });
             });
         } catch (err) {
             import('sweetalert2').then(({ default: Swal }) => {
@@ -179,17 +267,41 @@ const AssetInventory = ({ issues = [] }) => {
                 </div>
             </div>
 
-            {/* Search */}
-            <div className="relative">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none z-10" />
-                <input type="text" placeholder="ค้นหาชื่อเครื่อง, Serial, รหัสทรัพย์สิน, ผู้ใช้..."
-                    value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-                    style={{ paddingLeft: '2.5rem' }} className="w-full input-modern" />
-                {searchTerm && (
-                    <button onClick={() => setSearchTerm('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                        <X className="w-4 h-4" />
+            {/* Search and Filters */}
+            <div className="flex flex-col sm:flex-row gap-3">
+                <div className="relative flex-1">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none z-10" />
+                    <input type="text" placeholder="ค้นหาชื่อเครื่อง, Serial, รหัสทรัพย์สิน, ผู้ใช้..."
+                        value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+                        style={{ paddingLeft: '2.5rem' }} className="w-full input-modern" />
+                    {searchTerm && (
+                        <button onClick={() => setSearchTerm('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                            <X className="w-4 h-4" />
+                        </button>
+                    )}
+                </div>
+                
+                {/* Source Filter Capsules */}
+                <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl w-full sm:w-auto">
+                    <button 
+                        onClick={() => setSourceFilter('all')}
+                        className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${sourceFilter === 'all' ? 'bg-white text-slate-800 shadow-sm dark:bg-slate-700 dark:text-white' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}
+                    >
+                        ทั้งหมด <span className="bg-slate-200 text-slate-600 dark:bg-slate-600 dark:text-slate-300 text-xs px-2 py-0.5 rounded-full">{filterCounts.all}</span>
                     </button>
-                )}
+                    <button 
+                        onClick={() => setSourceFilter('buy')}
+                        className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${sourceFilter === 'buy' ? 'bg-emerald-500 text-white shadow-sm shadow-emerald-200 dark:shadow-none' : 'text-slate-500 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-400'}`}
+                    >
+                        💰 ซื้อขาด <span className={`text-xs px-2 py-0.5 rounded-full ${sourceFilter === 'buy' ? 'bg-emerald-600 text-emerald-50' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300'}`}>{filterCounts.buy}</span>
+                    </button>
+                    <button 
+                        onClick={() => setSourceFilter('rent')}
+                        className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${sourceFilter === 'rent' ? 'bg-indigo-500 text-white shadow-sm shadow-indigo-200 dark:shadow-none' : 'text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400'}`}
+                    >
+                        🤝 เช่า <span className={`text-xs px-2 py-0.5 rounded-full ${sourceFilter === 'rent' ? 'bg-indigo-600 text-indigo-50' : 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300'}`}>{filterCounts.rent}</span>
+                    </button>
+                </div>
             </div>
 
             {/* Warning (Supabase Fallback) */}
@@ -319,13 +431,39 @@ const AssetInventory = ({ issues = [] }) => {
                                         { label: 'ผู้ใช้งาน', value: selectedComputer.users_id },
                                         { label: 'ตำแหน่ง', value: selectedComputer.locations_id },
                                         { label: 'OS', value: selectedComputer.operatingsystems_id },
-                                        { label: 'หมายเหตุ', value: selectedComputer.comment },
                                     ].filter(r => r.value).map(row => (
                                         <div key={row.label} className="flex justify-between items-start text-sm">
                                             <span className="text-slate-500 dark:text-slate-400 font-medium">{row.label}</span>
                                             <span className="text-slate-800 dark:text-slate-200 font-semibold text-right max-w-[60%]">{row.value}</span>
                                         </div>
                                     ))}
+
+                                    {/* Update Source (แหล่งที่มา) */}
+                                    {selectedComputer.autoupdatesystems_id && (
+                                        <div className="flex justify-between items-start text-sm pt-2 border-t border-slate-100 dark:border-slate-700/50 mt-2">
+                                            <span className="text-slate-500 dark:text-slate-400 font-medium">แหล่งที่มา (Update Source)</span>
+                                            {(() => {
+                                                const source = String(selectedComputer.autoupdatesystems_id).toLowerCase();
+                                                const isBuy = source.includes('buy') || source.includes('ซื้อ');
+                                                const isRent = source.includes('rent') || source.includes('เช่า');
+                                                return (
+                                                    <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${isBuy ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-400 dark:border-emerald-800' : isRent ? 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-900/40 dark:text-indigo-400 dark:border-indigo-800' : 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'}`}>
+                                                        {isBuy ? '💰 ซื้อขาด (Buy)' : isRent ? '🤝 เช่า (Rental)' : selectedComputer.autoupdatesystems_id}
+                                                    </span>
+                                                );
+                                            })()}
+                                        </div>
+                                    )}
+
+                                    {/* Comment */}
+                                    {selectedComputer.comment && (
+                                        <div className="pt-2">
+                                            <span className="text-slate-500 dark:text-slate-400 font-medium text-sm block mb-1">หมายเหตุ (Comment)</span>
+                                            <div className="bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-700 rounded-lg p-3 text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
+                                                {selectedComputer.comment}
+                                            </div>
+                                        </div>
+                                    )}
 
                                     {/* Repair History */}
                                     <div className="pt-4 mt-2 border-t border-slate-100 dark:border-slate-700">
@@ -336,18 +474,37 @@ const AssetInventory = ({ issues = [] }) => {
                                             <p className="text-sm text-slate-400 text-center py-4">ยังไม่มีประวัติการซ่อม</p>
                                         ) : (
                                             <div className="space-y-2 max-h-52 overflow-y-auto">
-                                                {assetIssues.map(issue => (
-                                                    <div key={issue.id} className={`p-3 rounded-xl text-xs border ${issue.status === 'Resolved' ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800' : 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800'}`}>
-                                                        <div className="flex justify-between items-center mb-1">
-                                                            <span className="font-bold text-slate-700 dark:text-slate-200">{issue.id}</span>
-                                                            <span className={`font-semibold ${issue.status === 'Resolved' ? 'text-emerald-600' : 'text-amber-600'}`}>
-                                                                {issue.status === 'Resolved' ? '✅ เสร็จสิ้น' : issue.status === 'In Progress' ? '🔧 กำลังแก้ไข' : '⏳ รอดำเนินการ'}
-                                                            </span>
+                                                {assetIssues.map(issue => {
+                                                    const getIssueStatusStyle = (status) => {
+                                                        if (status === 'Resolved') return 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 text-emerald-600';
+                                                        if (status === 'External Repair') return 'bg-violet-50 dark:bg-violet-900/20 border-violet-200 dark:border-violet-800 text-violet-600';
+                                                        if (status === 'Waiting for Parts') return 'bg-pink-50 dark:bg-pink-900/20 border-pink-200 dark:border-pink-800 text-pink-600';
+                                                        if (status === 'Cancelled') return 'bg-slate-50 dark:bg-slate-900/20 border-slate-200 dark:border-slate-800 text-slate-600';
+                                                        return 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800 text-amber-600';
+                                                    };
+                                                    
+                                                    const getIssueStatusText = (status) => {
+                                                        if (status === 'Resolved') return '✅ เสร็จสิ้น';
+                                                        if (status === 'In Progress') return '🔧 กำลังแก้ไข';
+                                                        if (status === 'External Repair') return '⚠️ ส่งซ่อมภายนอก';
+                                                        if (status === 'Waiting for Parts') return '⏳ รออะไหล่';
+                                                        if (status === 'Cancelled') return '❌ ยกเลิก';
+                                                        return '⏳ รอดำเนินการ';
+                                                    };
+
+                                                    return (
+                                                        <div key={issue.id} className={`p-3 rounded-xl text-xs border ${getIssueStatusStyle(issue.status).split('text-')[0]}`}>
+                                                            <div className="flex justify-between items-center mb-1">
+                                                                <span className="font-bold text-slate-700 dark:text-slate-200">{issue.id}</span>
+                                                                <span className={`font-semibold ${getIssueStatusStyle(issue.status).match(/text-[a-z]+-[0-9]+/)?.[0] || 'text-amber-600'}`}>
+                                                                    {getIssueStatusText(issue.status)}
+                                                                </span>
+                                                            </div>
+                                                            <p className="text-slate-600 dark:text-slate-300 line-clamp-2">{issue.description}</p>
+                                                            {issue.assignedAdmin && <p className="text-slate-400 mt-0.5">👤 {issue.assignedAdmin}</p>}
                                                         </div>
-                                                        <p className="text-slate-600 dark:text-slate-300 line-clamp-2">{issue.description}</p>
-                                                        {issue.assignedAdmin && <p className="text-slate-400 mt-0.5">👤 {issue.assignedAdmin}</p>}
-                                                    </div>
-                                                ))}
+                                                    );
+                                                })}
                                             </div>
                                         )}
                                     </div>

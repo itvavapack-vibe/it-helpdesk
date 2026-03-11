@@ -33,14 +33,17 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
 
     // Function to process data for the pie chart
     const statusData = useMemo(() => {
-        const counts = { 'Pending': 0, 'In Progress': 0, 'Resolved': 0 };
+        const counts = { 'Pending': 0, 'In Progress': 0, 'Resolved': 0, 'External Repair': 0, 'Waiting for Parts': 0, 'Cancelled': 0 };
         issues.forEach(issue => {
             if (counts[issue.status] !== undefined) counts[issue.status]++;
         });
         return [
             { name: 'รอดำเนินการ (Pending)', value: counts['Pending'], color: '#f59e0b' }, // Amber
             { name: 'กำลังแก้ไข (In Progress)', value: counts['In Progress'], color: '#3b82f6' }, // Blue
-            { name: 'เสร็จสิ้น (Resolved)', value: counts['Resolved'], color: '#10b981' } // Emerald
+            { name: 'เสร็จสิ้น (Resolved)', value: counts['Resolved'], color: '#10b981' }, // Emerald
+            { name: 'ส่งซ่อมภายนอก', value: counts['External Repair'], color: '#8b5cf6' }, // Violet
+            { name: 'รออะไหล่', value: counts['Waiting for Parts'], color: '#ec4899' }, // Pink
+            { name: 'ยกเลิก', value: counts['Cancelled'], color: '#64748b' } // Slate
         ].filter(item => item.value > 0);
     }, [issues]);
 
@@ -162,6 +165,9 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
             case 'Pending': return 'รอดำเนินการ';
             case 'In Progress': return 'กำลังแก้ไข';
             case 'Resolved': return 'เสร็จสิ้น';
+            case 'External Repair': return 'ส่งซ่อมภายนอก';
+            case 'Waiting for Parts': return 'รออะไหล่';
+            case 'Cancelled': return 'ยกเลิก';
             default: return status || '-';
         }
     };
@@ -178,6 +184,12 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                 return <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-indigo-100/80 text-indigo-700 border border-indigo-200/50"><Edit className="w-3 h-3 mr-1.5" /> กำลังแก้ไข</span>;
             case 'Resolved':
                 return <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100/80 text-emerald-700 border border-emerald-200/50"><CheckCircle2 className="w-3 h-3 mr-1.5" /> เสร็จสิ้น</span>;
+            case 'External Repair':
+                return <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-violet-100/80 text-violet-700 border border-violet-200/50"><AlertTriangle className="w-3 h-3 mr-1.5" /> ส่งซ่อมภายนอก</span>;
+            case 'Waiting for Parts':
+                return <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-pink-100/80 text-pink-700 border border-pink-200/50"><Clock className="w-3 h-3 mr-1.5" /> รออะไหล่</span>;
+            case 'Cancelled':
+                return <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-slate-100/80 text-slate-700 border border-slate-200/50"><X className="w-3 h-3 mr-1.5" /> ยกเลิก</span>;
             default:
                 return <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-slate-100/80 text-slate-700 border border-slate-200/50">{status}</span>;
         }
@@ -266,7 +278,10 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                         <option value="All">ทุกสถานะ</option>
                         <option value="Pending">รอดำเนินการ</option>
                         <option value="In Progress">กำลังแก้ไข</option>
+                        <option value="External Repair">ส่งซ่อมภายนอก</option>
+                        <option value="Waiting for Parts">รออะไหล่</option>
                         <option value="Resolved">เสร็จสิ้น</option>
+                        <option value="Cancelled">ยกเลิก</option>
                     </select>
                     <select
                         value={filterCategory}
@@ -274,10 +289,15 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                         className="w-full sm:w-auto input-modern cursor-pointer py-1.5 px-3 text-sm appearance-none"
                     >
                         <option value="All">ทุกหมวดหมู่</option>
-                        <option value="Hardware">ฮาร์ดแวร์</option>
-                        <option value="Software">ซอฟต์แวร์</option>
-                        <option value="Network">เครือข่าย</option>
-                        <option value="Other">อื่นๆ</option>
+                        <option value="แก้ไขปัญหาด้าน Software D365">แก้ไขปัญหาด้าน Software D365</option>
+                        <option value="ติดตั้งและแก้ไขปัญหาด้าน Hardware">ติดตั้งและแก้ไขปัญหาด้าน Hardware</option>
+                        <option value="ซ่อมบำรุงอุปกรณ์ต่อพ่วง Hardware & Network">ซ่อมบำรุงอุปกรณ์ต่อพ่วง Hardware & Network</option>
+                        <option value="ประชุม/อบรม/สัมนา">ประชุม/อบรม/สัมนา</option>
+                        <option value="งานอื่น ๆ">งานอื่น ๆ</option>
+                        <option value="กล้องวงจรปิด">กล้องวงจรปิด</option>
+                        <option value="แก้ไขปัญหาด้าน Printer">แก้ไขปัญหาด้าน Printer</option>
+                        <option value="ติดตั้งและแก้ปัญหาด้าน Software ทั่วไป">ติดตั้งและแก้ปัญหาด้าน Software ทั่วไป</option>
+                        <option value="แก้ไขปัญหาด้านอีเมล">แก้ไขปัญหาด้านอีเมล</option>
                     </select>
                     <input
                         type="date"
@@ -397,7 +417,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                     </td>
                                     <td className="px-6 py-5 whitespace-nowrap text-right text-sm font-medium">
                                         <div className="flex flex-col items-end gap-2">
-                                            {issue.status !== 'Resolved' && (
+                                            {issue.status !== 'Resolved' && issue.status !== 'Cancelled' && (
                                                 <select
                                                     value={issue.status}
                                                     onChange={(e) => {
@@ -406,21 +426,15 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                                         const adminName = (newStatus === 'In Progress' && !issue.assignedAdmin) ? currentAdmin?.name : null;
                                                         updateIssueStatus(issue.id, newStatus, adminName);
                                                     }}
-                                                    className="block w-full sm:w-36 pl-3 pr-8 py-1.5 text-sm font-bold border-indigo-100 dark:border-indigo-800 text-indigo-900 dark:text-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 rounded-lg bg-indigo-50/70 dark:bg-indigo-900/50 hover:bg-white dark:hover:bg-indigo-800 border cursor-pointer hover:shadow-sm transition-all appearance-none text-center"
+                                                    className={`block w-full sm:w-36 pl-3 pr-8 py-1.5 text-sm font-bold border-indigo-100 dark:border-indigo-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 rounded-lg hover:bg-white border cursor-pointer hover:shadow-sm transition-all appearance-none text-center ${issue.status === 'External Repair' ? 'bg-violet-50/70 text-violet-900 border-violet-200' : issue.status === 'Waiting for Parts' ? 'bg-pink-50/70 text-pink-900 border-pink-200' : 'bg-indigo-50/70 text-indigo-900 dark:bg-indigo-900/50 dark:text-indigo-200'} `}
                                                     style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%234f46e5' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M5 8l5 5 5-5'/%3e%3c/svg%3e")`, backgroundPosition: `right 0.5rem center`, backgroundRepeat: `no-repeat`, backgroundSize: `1.2em 1.2em` }}
                                                 >
-                                                    {issue.status === 'Pending' && (
-                                                        <>
-                                                            <option value="Pending">รอดำเนินการ</option>
-                                                            <option value="In Progress">กำลังแก้ไข</option>
-                                                        </>
-                                                    )}
-                                                    {issue.status === 'In Progress' && (
-                                                        <>
-                                                            <option value="In Progress">กำลังแก้ไข</option>
-                                                            <option value="Resolved">เสร็จสิ้น</option>
-                                                        </>
-                                                    )}
+                                                    <option value="Pending">รอดำเนินการ</option>
+                                                    <option value="In Progress">กำลังแก้ไข</option>
+                                                    <option value="External Repair">ส่งซ่อมภายนอก</option>
+                                                    <option value="Waiting for Parts">รออะไหล่</option>
+                                                    <option value="Resolved">เสร็จสิ้น</option>
+                                                    <option value="Cancelled">ยกเลิก</option>
                                                 </select>
                                             )}
                                             <div className="flex w-full gap-2 mt-1">

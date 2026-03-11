@@ -203,6 +203,15 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false }) => {
                         newState.assetName = pc.name;
                         setAssetSearchTerm(pc.name);
                     }
+                } else if (userComputers.length > 1) {
+                    // ถ้ามีหลายเครื่อง ให้เปิด dropdown และกรองชื่อเครื่องเฉพาะของคนนี้
+                    // แต่ถ้าเขาเลือกเครื่องไว้อยู่แล้วแบบตั้งใจ เราก็ไม่ต้องเคลียร์ ให้เขาเปลี่ยนเอง
+                    if (!prev.assetId || !userComputers.find(c => String(c.id) === prev.assetId)) {
+                        newState.assetId = ''; 
+                        newState.assetName = '';
+                        setAssetSearchTerm(adUsername); // Search by owner
+                        setIsAssetDropdownOpen(true);   // Auto-open dropdown
+                    }
                 } else if (prev.assetId) {
                     // ป้องกันการเอาเครื่องออกในกรณีที่เปลี่ยนชื่อนิดเดียวหรือพิมพ์ยังไม่เสร็จ
                     // ถ้าชื่อใหม่ที่ถูกพิมพ์ ไม่ได้เป็นเจ้าของเครื่องที่เลือกอยู่ปัจจุบัน ให้ปลดเครื่องออก
