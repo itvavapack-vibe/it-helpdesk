@@ -76,6 +76,7 @@ const AssetInventory = ({ issues = [] }) => {
                 locations_id: c.locations_id || null,
                 computermodels_id: c.computermodels_id || null,
                 states_id: c.states_id || null,
+                autoupdatesystems_id: c.autoupdatesystems_id || null,
             }));
             
             // Fetch existing assets to calculate added/updated stats
