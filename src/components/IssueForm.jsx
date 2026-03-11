@@ -4,6 +4,15 @@ import Swal from 'sweetalert2';
 import { supabase } from '../supabaseClient';
 const STATUS_ORDER = ['Pending', 'In Progress', 'Resolved'];
 
+const DEPARTMENTS = [
+    'แอดมิน', 'บุคคลและธุรการ', 'วิศวกรรม', 'การตลาดและขาย (ในประเทศ)',
+    'การตลาดและขาย (ต่างประเทศ)', 'แอดมินการตลาด', 'บัญชี', 'การเงิน',
+    'จัดซื้อ', 'เทคโนโลยีสารสนเทศ และ ERP', 'วางแผน', 'ฝ่ายผลิต',
+    'ตรวจสอบคุณภาพ', 'ควบคุมคุณภาพ', 'บริหารระบบ และ จป.', 'ออกแบบ',
+    'วิจัยและพัฒนาผลิตภัณฑ์', 'คลังพัสดุและจัดส่ง', 'ตรวจสอบ', 'ซ่อมบำรุง',
+    'สำนักกรรมการ', 'อื่นๆ'
+];
+
 const getStatusBadge = (status) => {
     switch (status) {
         case 'Pending':
@@ -249,6 +258,16 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false }) => {
             return;
         }
 
+        if (!DEPARTMENTS.includes(formData.department)) {
+            Swal.fire({
+                title: 'แผนกไม่ถูกต้อง',
+                text: 'กรุณาเลือกชื่อแผนกจากตัวเลือกที่กำหนดให้เท่านั้น (ห้ามพิมพ์แผนกมั่วเอง)',
+                icon: 'error',
+                confirmButtonColor: '#4f46e5',
+            });
+            return;
+        }
+
         Swal.fire({
             title: 'ยืนยันการส่งข้อมูล?',
             text: "ตรวจสอบข้อมูลการแจ้งซ่อมของคุณให้ถูกต้องก่อนกดยืนยัน",
@@ -336,28 +355,9 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false }) => {
                                 autoComplete="off"
                             />
                             <datalist id="department-list">
-                                <option value="แอดมิน" />
-                                <option value="บุคคลและธุรการ" />
-                                <option value="วิศวกรรม" />
-                                <option value="การตลาดและขาย (ในประเทศ)" />
-                                <option value="การตลาดและขาย (ต่างประเทศ)" />
-                                <option value="แอดมินการตลาด" />
-                                <option value="บัญชี" />
-                                <option value="การเงิน" />
-                                <option value="จัดซื้อ" />
-                                <option value="เทคโนโลยีสารสนเทศ และ ERP" />
-                                <option value="วางแผน" />
-                                <option value="ฝ่ายผลิต" />
-                                <option value="ตรวจสอบคุณภาพ" />
-                                <option value="ควบคุมคุณภาพ" />
-                                <option value="บริหารระบบ และ จป." />
-                                <option value="ออกแบบ" />
-                                <option value="วิจัยและพัฒนาผลิตภัณฑ์" />
-                                <option value="คลังพัสดุและจัดส่ง" />
-                                <option value="ตรวจสอบ" />
-                                <option value="ซ่อมบำรุง" />
-                                <option value="สำนักกรรมการ" />
-                                <option value="อื่นๆ" />
+                                {DEPARTMENTS.map(dept => (
+                                    <option key={dept} value={dept} />
+                                ))}
                             </datalist>
                         </div>
                     </div>
