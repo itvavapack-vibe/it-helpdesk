@@ -107,6 +107,8 @@ function App() {
                 status: issue.status,
                 repairDetails: issue.repair_details,
                 assignedAdmin: issue.assigned_admin || null,
+                assetId: issue.asset_id || null,
+                assetName: issue.asset_name || null,
                 createdAt: issue.created_at
             }));
             setIssues(formattedIssues);
@@ -161,6 +163,8 @@ function App() {
                     description: newIssue.description,
                     status: newIssue.status,
                     repair_details: '',
+                    asset_id: newIssue.assetId || null,
+                    asset_name: newIssue.assetName || null,
                     created_at: newIssue.createdAt
                 }
             ]);

@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { CheckCircle, Clock, Edit, CheckCircle2, Monitor, ChevronDown, X } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { supabase } from '../supabaseClient';
-
 const STATUS_ORDER = ['Pending', 'In Progress', 'Resolved'];
 
 const getStatusBadge = (status) => {
@@ -22,13 +21,15 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false }) => {
     const [formData, setFormData] = useState({
         name: '',
         department: '',
-        category: 'Hardware',
+        category: 'แก้ไขปัญหาด้าน Software D365',
         description: '',
         severity: 'Normal',
         assetId: '',
         assetName: '',
     });
     const [computers, setComputers] = useState([]);
+    const [glpiUsers, setGlpiUsers] = useState([]);
+    const [glpiUsersRaw, setGlpiUsersRaw] = useState([]); // เก็บ object เต็มไว้แปลง AD Username เป็น ชื่อจริง
     const [isLoadingAssets, setIsLoadingAssets] = useState(false);
     const [assetError, setAssetError] = useState(false);
 
@@ -54,8 +55,38 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false }) => {
                 setIsLoadingAssets(false);
             }
         };
+
+        const fetchUsers = async () => {
+            try {
+                // ดึงข้อมูล User จาก Supabase (ที่ Admin เพิ่งจะ Sync มาจาก GLPI)
+                const { data, error } = await supabase.from('glpi_users').select('*');
+                if (error) throw error;
+                
+                // เราไม่ต้อง filter เองแล้วเพราะรายชื่อที่ Sync มาใน db เลือกเฉพาะคนที่ active
+                setGlpiUsersRaw(data || []);
+            } catch (error) {
+                console.error("Failed to load users from Supabase:", error);
+                setGlpiUsersRaw([]);
+            }
+        };
+
         fetchAssets();
+        fetchUsers();
     }, []);
+
+    // Effect For Filtering Users based on Assets
+    useEffect(() => {
+        if (glpiUsersRaw.length === 0) return;
+
+        // ข้อมูล owner จากเครื่องทั้งหมด 
+        const assetUserIds = new Set(computers.map(c => c.users_id).filter(Boolean));
+
+        // กรองหาเฉพาะผู้ใช้งานที่มี id (AD username) อยู่ในรายการเจ้าของเครื่อง
+        const usersWithComputers = glpiUsersRaw.filter(u => assetUserIds.has(u.name));
+
+        const uniqueSortedUsers = Array.from(new Set(usersWithComputers.map(u => u.formattedName || u.name))).sort();
+        setGlpiUsers(uniqueSortedUsers);
+    }, [glpiUsersRaw, computers]);
 
     // อ่าน URL params จาก QR Code
     useEffect(() => {
@@ -63,12 +94,23 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false }) => {
         const assetId = params.get('assetId');
         const assetName = params.get('assetName');
         if (assetId && assetName) {
-            setFormData(prev => ({ ...prev, assetId, assetName }));
+            // เมื่อสแกน QR Code ให้หา user ที่เป็นเจ้าของเครื่องนี้มาแสดงด้วยเลย (ถ้ามี)
+            const matchedComputer = computers.find(c => String(c.id) === String(assetId));
+            let ownerName = formData.name;
+            
+            if (matchedComputer && matchedComputer.users_id) {
+                // แปลง AD username เป็นชื่อจริง แบบไม่สนใจช่องว่างหรือพิมพ์เล็กใหญ่
+                const normalize = (str) => (str || '').toLowerCase().replace(/\s+/g, '');
+                const userObj = glpiUsersRaw.find(u => normalize(u.name) === normalize(matchedComputer.users_id));
+                ownerName = userObj ? (userObj.formattedName || userObj.name) : matchedComputer.users_id;
+            }
+
+            setFormData(prev => ({ ...prev, assetId, assetName, name: ownerName }));
             setAssetSearchTerm(assetName);
             // ล้าง URL param ออกหลังอ่านแล้ว
             window.history.replaceState({}, '', window.location.pathname);
         }
-    }, []);
+    }, [computers]); // ต้องรันใหม่หลัง computers โหลดเสร็จ เพื่อให้ lookup user เจอ
 
     // Helper for filtering assets in dropdown
     const filteredAssets = computers.filter(c => {
@@ -99,7 +141,83 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false }) => {
         const { name, value } = e.target;
         if (name === 'assetId') {
             const selected = computers.find(c => String(c.id) === value);
-            setFormData(prev => ({ ...prev, assetId: value, assetName: selected ? selected.name : '' }));
+            
+            let ownerName = prev.name;
+            if (selected && selected.users_id) {
+                 // แปลง AD username จากเครื่อง เป็นชื่อจริง แบบไม่สนใจช่องว่างและพิมพ์เล็กใหญ่
+                 const normalize = (str) => (str || '').toLowerCase().replace(/\s+/g, '');
+                 const userObj = glpiUsersRaw.find(u => normalize(u.name) === normalize(selected.users_id));
+                 ownerName = userObj ? (userObj.formattedName || userObj.name) : selected.users_id;
+            }
+
+            setFormData(prev => ({ 
+                ...prev, 
+                assetId: value, 
+                assetName: selected ? selected.name : '',
+                // Auto-fill ชื่อถ้ายังไม่ได้กรอก และเครื่องมีเจ้าของ
+                name: prev.name || ownerName
+            }));
+        } else if (name === 'name') {
+            const newValue = value;
+            
+            // ถ้าลบชื่อออกจนหมด ให้เคลียร์เครื่องทิ้งด้วยเลย
+            if (newValue.trim() === '') {
+                setFormData(prev => ({ 
+                    ...prev, 
+                    name: '',
+                    assetId: '',
+                    assetName: ''
+                }));
+                setAssetSearchTerm('');
+                return;
+            }
+
+            const normalize = (str) => (str || '').toLowerCase().replace(/\s+/g, '');
+            const normalizedInput = normalize(newValue);
+
+            // หา AD Username ของชื่อที่ผู้ใช้พิมพ์มา 
+            // 1. ลองหาจาก formattedName (ชื่อจริง)
+            // 2. ลองหาจาก name (AD Username ตรงๆ)
+            // 3. Fallback เผื่อพิมพ์ชื่อภาษาอังกฤษแล้วตรงกับส่วนหนึ่งของ AD
+            const matchedUserObj = glpiUsersRaw.find(u => 
+                normalize(u.formattedName) === normalizedInput || 
+                normalize(u.name) === normalizedInput ||
+                (u.formattedName && u.formattedName.toLowerCase().includes(newValue.toLowerCase()))
+            );
+            
+            const adUsername = matchedUserObj ? matchedUserObj.name : newValue;
+
+            // ตรวจสอบเครื่องที่เกี่ยวข้องกันกับ AD Username นี้
+            const userComputers = computers.filter(c => 
+                normalize(c.users_id) === normalize(adUsername)
+            );
+            
+            setFormData(prev => {
+                const newState = { ...prev, [name]: newValue };
+                
+                // ถ้าเจอเครื่องของคนนี้แค่ 1 เครื่อง ให้ auto-select ทับไปเลยทันที
+                if (userComputers.length === 1) {
+                    const pc = userComputers[0];
+                    if (prev.assetId !== String(pc.id)) {
+                        newState.assetId = String(pc.id);
+                        newState.assetName = pc.name;
+                        setAssetSearchTerm(pc.name);
+                    }
+                } else if (prev.assetId) {
+                    // ป้องกันการเอาเครื่องออกในกรณีที่เปลี่ยนชื่อนิดเดียวหรือพิมพ์ยังไม่เสร็จ
+                    // ถ้าชื่อใหม่ที่ถูกพิมพ์ ไม่ได้เป็นเจ้าของเครื่องที่เลือกอยู่ปัจจุบัน ให้ปลดเครื่องออก
+                    const currentAsset = computers.find(c => String(c.id) === prev.assetId);
+                    if (currentAsset && normalize(currentAsset.users_id) !== normalize(adUsername)) {
+                        // เช็คอีกรอบ เผื่อว่าชื่อที่พิมพ์มาใหม่ มันคือ AD username ของเครื่องเดิม
+                        if(normalize(currentAsset.users_id) !== normalizedInput) {
+                            newState.assetId = '';
+                            newState.assetName = '';
+                            setAssetSearchTerm('');
+                        }
+                    }
+                }
+                return newState;
+            });
         } else {
             setFormData(prev => ({ ...prev, [name]: value }));
         }
@@ -140,7 +258,7 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false }) => {
                 setFormData({
                     name: '',
                     department: '',
-                    category: 'Hardware',
+                    category: 'แก้ไขปัญหาด้าน Software D365',
                     description: '',
                     severity: 'Normal',
                     assetId: '',
@@ -177,11 +295,18 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false }) => {
                                 type="text"
                                 id="name"
                                 name="name"
+                                list="name-list"
                                 value={formData.name}
                                 onChange={handleChange}
                                 className="w-full input-modern"
                                 placeholder="นาย สมชาย ใจดี"
+                                autoComplete="off"
                             />
+                            <datalist id="name-list">
+                                {glpiUsers.map(name => (
+                                    <option key={name} value={name} />
+                                ))}
+                            </datalist>
                         </div>
                         <div className="space-y-1">
                             <label htmlFor="department" className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1 ml-1">แผนก <span className="text-rose-500 dark:text-rose-400">*</span></label>
@@ -189,11 +314,37 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false }) => {
                                 type="text"
                                 id="department"
                                 name="department"
+                                list="department-list"
                                 value={formData.department}
                                 onChange={handleChange}
                                 className="w-full input-modern"
-                                placeholder="การตลาด"
+                                placeholder="แอดมิน"
+                                autoComplete="off"
                             />
+                            <datalist id="department-list">
+                                <option value="แอดมิน" />
+                                <option value="บุคคลและธุรการ" />
+                                <option value="วิศวกรรม" />
+                                <option value="การตลาดและขาย (ในประเทศ)" />
+                                <option value="การตลาดและขาย (ต่างประเทศ)" />
+                                <option value="แอดมินการตลาด" />
+                                <option value="บัญชี" />
+                                <option value="การเงิน" />
+                                <option value="จัดซื้อ" />
+                                <option value="เทคโนโลยีสารสนเทศ และ ERP" />
+                                <option value="วางแผน" />
+                                <option value="ฝ่ายผลิต" />
+                                <option value="ตรวจสอบคุณภาพ" />
+                                <option value="ควบคุมคุณภาพ" />
+                                <option value="บริหารระบบ และ จป." />
+                                <option value="ออกแบบ" />
+                                <option value="วิจัยและพัฒนาผลิตภัณฑ์" />
+                                <option value="คลังพัสดุและจัดส่ง" />
+                                <option value="ตรวจสอบ" />
+                                <option value="ซ่อมบำรุง" />
+                                <option value="สำนักกรรมการ" />
+                                <option value="อื่นๆ" />
+                            </datalist>
                         </div>
                     </div>
 
@@ -208,10 +359,15 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false }) => {
                                 className="w-full input-modern cursor-pointer appearance-none"
                                 style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: `right 0.5rem center`, backgroundRepeat: `no-repeat`, backgroundSize: `1.5em 1.5em`, paddingRight: `2.5rem` }}
                             >
-                                <option value="Hardware">ฮาร์ดแวร์ (Hardware)</option>
-                                <option value="Software">ซอฟต์แวร์ (Software)</option>
-                                <option value="Network">เครือข่าย (Network)</option>
-                                <option value="Other">อื่นๆ (Other)</option>
+                                <option value="แก้ไขปัญหาด้าน Software D365">แก้ไขปัญหาด้าน Software D365</option>
+                                <option value="ติดตั้งและแก้ไขปัญหาด้าน Hardware">ติดตั้งและแก้ไขปัญหาด้าน Hardware</option>
+                                <option value="ซ่อมบำรุงอุปกรณ์ต่อพ่วง Hardware & Network">ซ่อมบำรุงอุปกรณ์ต่อพ่วง Hardware & Network</option>
+                                <option value="ประชุม/อบรม/สัมนา">ประชุม/อบรม/สัมนา</option>
+                                <option value="งานอื่น ๆ">งานอื่น ๆ</option>
+                                <option value="กล้องวงจรปิด">กล้องวงจรปิด</option>
+                                <option value="แก้ไขปัญหาด้าน Printer">แก้ไขปัญหาด้าน Printer</option>
+                                <option value="ติดตั้งและแก้ปัญหาด้าน Software ทั่วไป">ติดตั้งและแก้ปัญหาด้าน Software ทั่วไป</option>
+                                <option value="แก้ไขปัญหาด้านอีเมล">แก้ไขปัญหาด้านอีเมล</option>
                             </select>
                         </div>
                         <div className="space-y-1">
@@ -320,7 +476,18 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false }) => {
                                                             key={c.id}
                                                             className={`px-4 py-2.5 text-sm cursor-pointer border-b border-slate-50 dark:border-slate-700/30 last:border-0 hover:bg-indigo-50 dark:hover:bg-indigo-900/40 transition-colors flex items-center justify-between group ${isSelected ? 'bg-indigo-50 dark:bg-indigo-900/40' : ''}`}
                                                             onClick={() => {
-                                                                setFormData(prev => ({ ...prev, assetId: c.id, assetName: c.name || '' }));
+                                                                let ownerName = formData.name;
+                                                                if (c.users_id) {
+                                                                    const userObj = glpiUsersRaw.find(u => u.name === c.users_id);
+                                                                    ownerName = userObj ? (userObj.formattedName || userObj.name) : c.users_id;
+                                                                }
+
+                                                                setFormData(prev => ({ 
+                                                                    ...prev, 
+                                                                    assetId: c.id, 
+                                                                    assetName: c.name || '',
+                                                                    name: prev.name || ownerName
+                                                                }));
                                                                 setAssetSearchTerm(c.name || '');
                                                                 setIsAssetDropdownOpen(false);
                                                             }}
