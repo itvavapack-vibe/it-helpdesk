@@ -4,6 +4,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import * as XLSX from 'xlsx';
 import { withGlpiSession, getComputers, getUsers } from '../glpiClient';
 import { supabase } from '../supabaseClient';
+import { notifyGlpiSync } from '../telegramNotify';
 
 const AssetInventory = ({ issues = [] }) => {
     const [computers, setComputers] = useState([]);
@@ -16,6 +17,7 @@ const AssetInventory = ({ issues = [] }) => {
     const [sourceFilter, setSourceFilter] = useState('all'); // all, buy, rent
 
     const [isSyncing, setIsSyncing] = useState(false);
+    const [syncResult, setSyncResult] = useState(null);
 
     const fetchComputers = useCallback(async () => {
         setIsLoading(true);
@@ -59,6 +61,11 @@ const AssetInventory = ({ issues = [] }) => {
         
         setIsSyncing(true);
         try {
+            const stats = {
+                assetsAdded: 0, assetsUpdated: 0, assetsDeleted: 0,
+                usersAdded: 0, usersUpdated: 0, usersDeleted: 0
+            };
+
             // 1. Sync Assets (Computers)
             const rows = computers.map(c => ({
                 glpi_id: c.id,
@@ -70,16 +77,32 @@ const AssetInventory = ({ issues = [] }) => {
                 computermodels_id: c.computermodels_id || null,
                 states_id: c.states_id || null,
             }));
-            const { error } = await supabase.from('assets').upsert(rows, { onConflict: 'glpi_id' });
-            if (error) throw error;
+            
+            // Fetch existing assets to calculate added/updated stats
+            const { data: existingAssets } = await supabase.from('assets').select('glpi_id, updated_at');
+            const existingAssetIds = new Set(existingAssets?.map(a => a.glpi_id) || []);
+            
+            let currentAssetsAdded = 0;
+            let currentAssetsUpdated = 0;
+            
+            rows.forEach(r => {
+                if (existingAssetIds.has(r.glpi_id)) currentAssetsUpdated++;
+                else currentAssetsAdded++;
+            });
+            
+            stats.assetsAdded = currentAssetsAdded;
+            stats.assetsUpdated = currentAssetsUpdated;
+
+            const { error: assetUpsertError } = await supabase.from('assets').upsert(rows, { onConflict: 'glpi_id' });
+            if (assetUpsertError) throw assetUpsertError;
 
             // --- ลบข้อมูลเครื่องเก่าที่ถูกลบออกจาก GLPI ไปแล้ว ---
-            const { data: existingAssets } = await supabase.from('assets').select('glpi_id');
             if (existingAssets) {
                 const currentGlpiIds = new Set(rows.map(r => r.glpi_id));
                 const staleAssetIds = existingAssets.filter(a => !currentGlpiIds.has(a.glpi_id)).map(a => a.glpi_id);
                 if (staleAssetIds.length > 0) {
                     await supabase.from('assets').delete().in('glpi_id', staleAssetIds);
+                    stats.assetsDeleted = staleAssetIds.length;
                 }
             }
 
@@ -116,6 +139,12 @@ const AssetInventory = ({ issues = [] }) => {
 
             const allSyncUsers = [...activeUsers, ...extraLocalUsers];
 
+            const { data: existingUsers } = await supabase.from('glpi_users').select('id');
+            const existingUserIds = new Set(existingUsers?.map(u => u.id) || []);
+
+            let currentUsersAdded = 0;
+            let currentUsersUpdated = 0;
+
             if (allSyncUsers.length > 0) {
                 const userRows = allSyncUsers.map(u => ({
                     id: u.id,
@@ -124,38 +153,49 @@ const AssetInventory = ({ issues = [] }) => {
                     firstname: u.firstname || null,
                     formattedName: u.formattedName || u.name || '',
                 }));
+                
+                userRows.forEach(u => {
+                    if (existingUserIds.has(u.id)) currentUsersUpdated++;
+                    else currentUsersAdded++;
+                });
+                
+                stats.usersAdded = currentUsersAdded;
+                stats.usersUpdated = currentUsersUpdated;
+
                 const { error: userError } = await supabase.from('glpi_users').upsert(userRows, { onConflict: 'id' });
                 if (userError) throw userError;
             }
 
             // --- ลบข้อมูล User เก่าที่ไม่มีเครื่องหรือถูกลบออกจาก GLPI ไปแล้ว ---
-            const { data: existingUsers } = await supabase.from('glpi_users').select('id');
             if (existingUsers) {
                 const currentUserIds = new Set(allSyncUsers.map(u => u.id));
                 const staleUserIds = existingUsers.filter(u => !currentUserIds.has(u.id)).map(u => u.id);
                 if (staleUserIds.length > 0) {
                     await supabase.from('glpi_users').delete().in('id', staleUserIds);
+                    stats.usersDeleted = staleUserIds.length;
                 }
             }
 
+            // Send Telegram Notification if there were any structural changes
+            if (stats.assetsAdded > 0 || stats.assetsDeleted > 0 || stats.usersAdded > 0 || stats.usersDeleted > 0) {
+                await notifyGlpiSync(stats).catch(console.error);
+            }
+
             if (showSuccessAlert) {
-                import('sweetalert2').then(({ default: Swal }) => {
-                    Swal.fire({ 
-                        icon: 'success', 
-                        title: `Sync สำเร็จ!`, 
-                        text: `อัปโหลด ${rows.length} เครื่อง และผู้ใช้ ${allSyncUsers.length} รายชื่อไปยัง Supabase แล้ว`, 
-                        timer: 3000, 
-                        showConfirmButton: false 
-                    });
-                });
+                setSyncResult({ type: 'success', stats, time: new Date() });
+                // Clear after 10 seconds
+                setTimeout(() => setSyncResult(null), 10000);
+            } else if (stats.assetsAdded > 0 || stats.assetsDeleted > 0 || stats.usersAdded > 0 || stats.usersDeleted > 0) {
+                // Auto Sync พบว่ามีการเปลี่ยนแปลง
+                setSyncResult({ type: 'info', stats, time: new Date() });
+                setTimeout(() => setSyncResult(null), 10000);
             }
             console.log(`Auto-sync completed: ${rows.length} computers, ${allSyncUsers.length} users`);
         } catch (err) {
             console.error('Auto-sync failed:', err);
             if (showSuccessAlert) {
-                import('sweetalert2').then(({ default: Swal }) => {
-                    Swal.fire({ icon: 'error', title: 'Sync ไม่สำเร็จ', text: err.message });
-                });
+                setSyncResult({ type: 'error', message: err.message, time: new Date() });
+                setTimeout(() => setSyncResult(null), 10000);
             }
         } finally {
             setIsSyncing(false);
@@ -296,32 +336,64 @@ const AssetInventory = ({ issues = [] }) => {
                 ))}
             </div>
 
-            {/* Header */}
-            <div className="glass-card rounded-3xl p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div className="flex items-center gap-3">
-                    <div className="w-11 h-11 rounded-xl bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center">
-                        <Monitor className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
+            {/* Header Area */}
+            <div className="flex flex-col gap-3">
+                <div className="glass-card rounded-3xl p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div className="flex items-center gap-3">
+                        <div className="w-11 h-11 rounded-xl bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center">
+                            <Monitor className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
+                        </div>
+                        <div>
+                            <h2 className="text-xl font-bold text-slate-800 dark:text-white">ทรัพย์สิน IT</h2>
+                            <p className="text-sm text-slate-500 dark:text-slate-400">ข้อมูลจาก GLPI · {computers.length} เครื่อง</p>
+                        </div>
                     </div>
-                    <div>
-                        <h2 className="text-xl font-bold text-slate-800 dark:text-white">ทรัพย์สิน IT</h2>
-                        <p className="text-sm text-slate-500 dark:text-slate-400">ข้อมูลจาก GLPI · {computers.length} เครื่อง</p>
+                    <div className="flex gap-2 flex-wrap">
+                        <button onClick={syncToSupabase} disabled={isLoading || isSyncing || computers.length === 0}
+                            className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-white dark:bg-slate-800 text-violet-600 dark:text-violet-400 border border-violet-200 dark:border-violet-700 rounded-full hover:bg-violet-50 dark:hover:bg-violet-900/40 transition-all disabled:opacity-40">
+                            <Upload className={`w-4 h-4 ${isSyncing ? 'animate-bounce' : ''}`} />
+                            {isSyncing ? 'กำลัง Sync...' : 'Sync → Supabase'}
+                        </button>
+                        <button onClick={exportToExcel} disabled={isLoading || computers.length === 0}
+                            className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-700 rounded-full hover:bg-emerald-50 dark:hover:bg-emerald-900/40 transition-all disabled:opacity-40">
+                            <FileSpreadsheet className="w-4 h-4" /> Excel
+                        </button>
+                        <button onClick={fetchComputers} disabled={isLoading}
+                            className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-700 rounded-full hover:bg-indigo-50 dark:hover:bg-indigo-900/40 transition-all disabled:opacity-50">
+                            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} /> รีเฟรช
+                        </button>
                     </div>
                 </div>
-                <div className="flex gap-2 flex-wrap">
-                    <button onClick={syncToSupabase} disabled={isLoading || isSyncing || computers.length === 0}
-                        className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-white dark:bg-slate-800 text-violet-600 dark:text-violet-400 border border-violet-200 dark:border-violet-700 rounded-full hover:bg-violet-50 dark:hover:bg-violet-900/40 transition-all disabled:opacity-40">
-                        <Upload className={`w-4 h-4 ${isSyncing ? 'animate-bounce' : ''}`} />
-                        {isSyncing ? 'กำลัง Sync...' : 'Sync → Supabase'}
-                    </button>
-                    <button onClick={exportToExcel} disabled={isLoading || computers.length === 0}
-                        className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-700 rounded-full hover:bg-emerald-50 dark:hover:bg-emerald-900/40 transition-all disabled:opacity-40">
-                        <FileSpreadsheet className="w-4 h-4" /> Excel
-                    </button>
-                    <button onClick={fetchComputers} disabled={isLoading}
-                        className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-700 rounded-full hover:bg-indigo-50 dark:hover:bg-indigo-900/40 transition-all disabled:opacity-50">
-                        <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} /> รีเฟรช
-                    </button>
-                </div>
+
+                {/* Sync Result Box */}
+                {syncResult && (
+                    <div className={`p-4 rounded-xl border flex justify-between items-start animate-fade-in ${
+                        syncResult.type === 'error' ? 'bg-rose-50 border-rose-200 text-rose-700 dark:bg-rose-900/20' : 
+                        syncResult.type === 'info' ? 'bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-900/20' : 
+                        'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-900/20'
+                    }`}>
+                        <div className="flex gap-3">
+                            <RefreshCw className={`w-5 h-5 flex-shrink-0 mt-0.5 ${syncResult.type === 'success' ? 'text-emerald-500' : 'text-indigo-500'}`} />
+                            <div>
+                                <h4 className="font-bold text-sm">
+                                    {syncResult.type === 'error' ? 'Sync ไม่สำเร็จ' : syncResult.type === 'info' ? 'Auto-Sync ทำงาน' : 'ซิงค์ข้อมูลสำเร็จล่าสุด'}
+                                    <span className="font-normal text-xs opacity-70 ml-2">({syncResult.time.toLocaleTimeString()})</span>
+                                </h4>
+                                {syncResult.type === 'error' ? (
+                                    <p className="text-xs mt-1">{syncResult.message}</p>
+                                ) : (
+                                    <div className="text-xs mt-1.5 space-y-0.5 opacity-90">
+                                        <p>💻 <b>คอมพิวเตอร์:</b> เพิ่ม <span className="font-semibold text-emerald-600">{syncResult.stats.assetsAdded}</span> | ลบ <span className="font-semibold text-rose-500">{syncResult.stats.assetsDeleted}</span> | อัปเดต {syncResult.stats.assetsUpdated}</p>
+                                        <p>👤 <b>ผู้ใช้งาน:</b> เพิ่ม <span className="font-semibold text-emerald-600">{syncResult.stats.usersAdded}</span> | ลบ <span className="font-semibold text-rose-500">{syncResult.stats.usersDeleted}</span> | อัปเดต {syncResult.stats.usersUpdated}</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                        <button onClick={() => setSyncResult(null)} className="text-slate-400 hover:text-slate-600 p-1">
+                            <X className="w-4 h-4" />
+                        </button>
+                    </div>
+                )}
             </div>
 
             {/* Search and Filters */}

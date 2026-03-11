@@ -75,3 +75,26 @@ export const notifyRepairUpdate = (issue, details) => {
         (issue.assignedAdmin ? `\n👨‍💻 <b>ผู้รับงาน:</b> ${issue.assignedAdmin}` : '');
     return sendTelegramMessage(message);
 };
+
+export const notifyGlpiSync = (stats) => {
+    const hasChanges = stats.assetsAdded > 0 || stats.assetsUpdated > 0 || stats.assetsDeleted > 0 || 
+                       stats.usersAdded > 0 || stats.usersUpdated > 0 || stats.usersDeleted > 0;
+                       
+    if (!hasChanges) return Promise.resolve(); // ไม่ต้องส่งถ้าไม่มีอะไรเปลี่ยน
+
+    const message =
+        `🔄 <b>อัปเดตข้อมูลจาก GLPI</b>\n` +
+        `━━━━━━━━━━━━━━\n` +
+        `🖥️ <b>ข้อมูลเครื่องคอมพิวเตอร์:</b>\n` +
+        `   ➕ เพิ่มใหม่: ${stats.assetsAdded}\n` +
+        `   ♻️ อัปเดต: ${stats.assetsUpdated}\n` +
+        `   🗑️ ลบออก: ${stats.assetsDeleted}\n\n` +
+        `👤 <b>ข้อมูลผู้ใช้งาน:</b>\n` +
+        `   ➕ เพิ่มใหม่: ${stats.usersAdded}\n` +
+        `   ♻️ อัปเดต: ${stats.usersUpdated}\n` +
+        `   🗑️ ลบออก: ${stats.usersDeleted}\n` +
+        `━━━━━━━━━━━━━━\n` +
+        `💡 <i>อัปเดตข้อมูลล่าสุดเมื่อ: ${new Date().toLocaleTimeString('th-TH')}</i>`;
+        
+    return sendTelegramMessage(message);
+};
