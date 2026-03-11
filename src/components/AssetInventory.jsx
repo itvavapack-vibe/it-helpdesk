@@ -73,6 +73,16 @@ const AssetInventory = ({ issues = [] }) => {
             const { error } = await supabase.from('assets').upsert(rows, { onConflict: 'glpi_id' });
             if (error) throw error;
 
+            // --- ลบข้อมูลเครื่องเก่าที่ถูกลบออกจาก GLPI ไปแล้ว ---
+            const { data: existingAssets } = await supabase.from('assets').select('glpi_id');
+            if (existingAssets) {
+                const currentGlpiIds = new Set(rows.map(r => r.glpi_id));
+                const staleAssetIds = existingAssets.filter(a => !currentGlpiIds.has(a.glpi_id)).map(a => a.glpi_id);
+                if (staleAssetIds.length > 0) {
+                    await supabase.from('assets').delete().in('glpi_id', staleAssetIds);
+                }
+            }
+
             // 2. Sync Users
             const usersData = await withGlpiSession(getUsers);
             
@@ -116,6 +126,16 @@ const AssetInventory = ({ issues = [] }) => {
                 }));
                 const { error: userError } = await supabase.from('glpi_users').upsert(userRows, { onConflict: 'id' });
                 if (userError) throw userError;
+            }
+
+            // --- ลบข้อมูล User เก่าที่ไม่มีเครื่องหรือถูกลบออกจาก GLPI ไปแล้ว ---
+            const { data: existingUsers } = await supabase.from('glpi_users').select('id');
+            if (existingUsers) {
+                const currentUserIds = new Set(allSyncUsers.map(u => u.id));
+                const staleUserIds = existingUsers.filter(u => !currentUserIds.has(u.id)).map(u => u.id);
+                if (staleUserIds.length > 0) {
+                    await supabase.from('glpi_users').delete().in('id', staleUserIds);
+                }
             }
 
             if (showSuccessAlert) {
