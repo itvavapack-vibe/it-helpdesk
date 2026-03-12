@@ -431,7 +431,7 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false }) => {
                                             setIsAssetDropdownOpen(true);
                                             // หากลบข้อความค้นหาจนหมด ให้เคลียร์ค่าที่เลือกไว้ด้วย
                                             if (e.target.value === '') {
-                                                setFormData(prev => ({ ...prev, assetId: '', assetName: '' }));
+                                                setFormData(prev => ({ ...prev, assetId: '', assetName: '', name: '' }));
                                             }
                                         }}
                                         onFocus={() => setIsAssetDropdownOpen(true)}
@@ -443,7 +443,7 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false }) => {
                                                 type="button"
                                                 className="text-slate-400 hover:text-rose-500 transition-colors p-1"
                                                 onClick={() => {
-                                                    setFormData(prev => ({ ...prev, assetId: '', assetName: '' }));
+                                                    setFormData(prev => ({ ...prev, assetId: '', assetName: '', name: '' }));
                                                     setAssetSearchTerm('');
                                                     setIsAssetDropdownOpen(false);
                                                 }}
@@ -475,7 +475,7 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false }) => {
                                                 <li
                                                     className={`px-4 py-2 text-sm cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-700/50 ${!formData.assetId ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 font-medium' : ''}`}
                                                     onClick={() => {
-                                                        setFormData(prev => ({ ...prev, assetId: '', assetName: '' }));
+                                                        setFormData(prev => ({ ...prev, assetId: '', assetName: '', name: '' }));
                                                         setAssetSearchTerm('');
                                                         setIsAssetDropdownOpen(false);
                                                     }}
