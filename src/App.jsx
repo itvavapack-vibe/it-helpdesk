@@ -206,6 +206,39 @@ function App() {
         }
     };
 
+    const updateIssueFullDetails = async (id, updatedFields) => {
+        const dbFields = {};
+        if (updatedFields.name !== undefined) dbFields.name = updatedFields.name;
+        if (updatedFields.department !== undefined) dbFields.department = updatedFields.department;
+        if (updatedFields.category !== undefined) dbFields.category = updatedFields.category;
+        if (updatedFields.severity !== undefined) dbFields.severity = updatedFields.severity;
+        if (updatedFields.description !== undefined) dbFields.description = updatedFields.description;
+        if (updatedFields.repairDetails !== undefined) dbFields.repair_details = updatedFields.repairDetails;
+
+        const { error } = await supabase
+            .from('issues')
+            .update(dbFields)
+            .eq('id', id);
+
+        if (error) {
+            console.error("Error updating full issue details:", error);
+            Swal.fire('Error', 'ไม่สามารถอัปเดตข้อมูลได้', 'error');
+            return;
+        }
+
+        const updatedIssues = issues.map(issue =>
+            issue.id === id ? { ...issue, ...updatedFields } : issue
+        );
+        setIssues(updatedIssues);
+        Swal.fire({
+            title: 'บันทึกสำเร็จ!',
+            text: 'แก้ไขข้อมูลการแจ้งซ่อมเรียบร้อยแล้ว',
+            icon: 'success',
+            timer: 1500,
+            showConfirmButton: false
+        });
+    };
+
     const updateIssueStatus = async (id, newStatus, adminName = null) => {
         const updateData = { status: newStatus };
         if (adminName) {
@@ -294,30 +327,30 @@ function App() {
                             </div>
 
                             <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-                                <div className="flex bg-slate-100/80 dark:bg-slate-800/80 p-1 rounded-xl w-full sm:w-auto overflow-hidden">
+                                <div className="grid grid-cols-4 sm:flex bg-slate-100/80 dark:bg-slate-800/80 p-1 rounded-xl w-full sm:w-auto overflow-hidden">
                                     <button
                                         onClick={() => { setAdminSubTab('issues'); fetchIssues(); }}
-                                        className={`flex-1 sm:flex-none px-4 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-1.5 ${adminSubTab === 'issues' ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
+                                        className={`px-1 sm:px-4 py-2 sm:py-1.5 rounded-lg font-medium transition-all flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 ${adminSubTab === 'issues' ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-md sm:shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
                                     >
-                                        <Ticket className="w-4 h-4" /> แจ้งซ่อม
+                                        <Ticket className="w-[18px] h-[18px] sm:w-4 sm:h-4" /> <span className="text-[11px] sm:text-sm whitespace-nowrap">แจ้งซ่อม</span>
                                     </button>
                                     <button
                                         onClick={() => setAdminSubTab('assets')}
-                                        className={`flex-1 sm:flex-none px-4 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-1.5 ${adminSubTab === 'assets' ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
+                                        className={`px-1 sm:px-4 py-2 sm:py-1.5 rounded-lg font-medium transition-all flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 ${adminSubTab === 'assets' ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-md sm:shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
                                     >
-                                        <Monitor className="w-4 h-4" /> ทรัพย์สิน
+                                        <Monitor className="w-[18px] h-[18px] sm:w-4 sm:h-4" /> <span className="text-[11px] sm:text-sm whitespace-nowrap">ทรัพย์สิน</span>
                                     </button>
                                     <button
                                         onClick={() => setAdminSubTab('stats')}
-                                        className={`flex-1 sm:flex-none px-4 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-1.5 ${adminSubTab === 'stats' ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
+                                        className={`px-1 sm:px-4 py-2 sm:py-1.5 rounded-lg font-medium transition-all flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 ${adminSubTab === 'stats' ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-md sm:shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
                                     >
-                                        <TrendingUp className="w-4 h-4" /> สถิติ
+                                        <TrendingUp className="w-[18px] h-[18px] sm:w-4 sm:h-4" /> <span className="text-[11px] sm:text-sm whitespace-nowrap">สถิติ</span>
                                     </button>
                                     <button
                                         onClick={() => setAdminSubTab('users')}
-                                        className={`flex-1 sm:flex-none px-4 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-1.5 ${adminSubTab === 'users' ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
+                                        className={`px-1 sm:px-4 py-2 sm:py-1.5 rounded-lg font-medium transition-all flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 ${adminSubTab === 'users' ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-md sm:shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
                                     >
-                                        <Users className="w-4 h-4" /> ผู้ใช้งาน
+                                        <Users className="w-[18px] h-[18px] sm:w-4 sm:h-4" /> <span className="text-[11px] sm:text-sm whitespace-nowrap">ผู้ใช้งาน</span>
                                     </button>
                                 </div>
                                 <button
@@ -335,6 +368,7 @@ function App() {
                                 currentAdmin={isAdminAuth}
                                 updateIssueStatus={updateIssueStatus}
                                 updateIssueRepairDetails={updateIssueRepairDetails}
+                                updateIssueFullDetails={updateIssueFullDetails}
                                 deleteIssue={deleteIssue}
                                 isLoading={isIssuesLoading}
                             />
@@ -356,7 +390,7 @@ function App() {
     return (
         <div className="min-h-screen font-sans text-slate-800 dark:text-slate-200 flex flex-col relative w-full overflow-hidden">
             <header className="fixed w-full z-50 top-0 transition-all duration-300 glass-panel border-b border-white/40 dark:border-slate-700/50">
-                <div className="container mx-auto px-4 md:px-8 py-3 flex flex-col sm:flex-row justify-between items-center gap-4">
+                <div className="container mx-auto px-4 md:px-8 py-3 flex flex-col sm:flex-row justify-between items-center gap-4 max-w-[95%] 2xl:max-w-[1500px]">
                     <div className="flex items-center gap-3">
                         <div className="bg-indigo-600 dark:bg-indigo-500 text-white p-2 rounded-xl shadow-lg shadow-indigo-200 dark:shadow-indigo-900/30">
                             <Settings className="w-6 h-6" />
@@ -367,7 +401,7 @@ function App() {
                         </div>
                     </div>
 
-                    <nav className="flex bg-slate-100/80 dark:bg-slate-800/80 backdrop-blur-md p-1.5 rounded-2xl border border-white dark:border-slate-700 shadow-inner">
+                    <nav className="hidden sm:flex bg-slate-100/80 dark:bg-slate-800/80 backdrop-blur-md p-1.5 rounded-2xl border border-white dark:border-slate-700 shadow-inner">
                         <button
                             onClick={() => setActiveTab('home')}
                             className={`px-4 py-2 rounded-xl transition-all duration-300 font-medium flex items-center gap-2 ${activeTab === 'home' ? 'bg-white dark:bg-indigo-600 text-indigo-700 dark:text-white shadow-md' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-700/50'}`}
@@ -390,17 +424,44 @@ function App() {
                 </div>
             </header>
 
-            <main className="flex-grow container mx-auto p-4 md:p-8 mt-24 relative z-10 w-full max-w-6xl">
+            <main className="flex-grow container mx-auto p-4 md:p-8 mt-24 relative z-10 w-full max-w-[95%] 2xl:max-w-[1500px] mb-20 sm:mb-0">
                 <div className="animate-fade-in">
                     {renderContent()}
                 </div>
             </main>
 
-            <footer className="py-6 mt-auto relative z-10">
+            <footer className="py-6 mt-auto relative z-10 hidden sm:block">
                 <div className="container mx-auto px-4 text-center text-slate-500/70 dark:text-slate-400/70 text-sm font-medium">
                     &copy; {new Date().getFullYear()} IT Helpdesk System. Built with React & Tailwind CSS.
                 </div>
             </footer>
+
+            {/* Mobile Bottom Navigation Bar limit sm:hidden */}
+            <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/90 dark:bg-slate-900/90 backdrop-blur-lg border-t border-slate-200 dark:border-slate-800 pb-safe pt-2 px-2 pb-2">
+                <div className="flex justify-around items-center h-14">
+                    <button
+                        onClick={() => setActiveTab('home')}
+                        className={`flex flex-col items-center justify-center w-16 h-full space-y-1 transition-colors ${activeTab === 'home' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500 dark:text-slate-500 hover:text-slate-900 dark:hover:text-slate-300'}`}
+                    >
+                        <Home className="w-6 h-6" strokeWidth={activeTab === 'home' ? 2.5 : 2} />
+                        <span className="text-[10px] font-semibold">หน้าแรก</span>
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('user')}
+                        className={`flex flex-col items-center justify-center w-16 h-full space-y-1 transition-colors ${activeTab === 'user' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500 dark:text-slate-500 hover:text-slate-900 dark:hover:text-slate-300'}`}
+                    >
+                        <ClipboardList className="w-6 h-6" strokeWidth={activeTab === 'user' ? 2.5 : 2} />
+                        <span className="text-[10px] font-semibold">แจ้งซ่อม</span>
+                    </button>
+                    <button
+                        onClick={() => { setActiveTab('admin'); fetchIssues(); }}
+                        className={`flex flex-col items-center justify-center w-16 h-full space-y-1 transition-colors ${activeTab === 'admin' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500 dark:text-slate-500 hover:text-slate-900 dark:hover:text-slate-300'}`}
+                    >
+                        <Settings className="w-6 h-6" strokeWidth={activeTab === 'admin' ? 2.5 : 2} />
+                        <span className="text-[10px] font-semibold">จัดการ</span>
+                    </button>
+                </div>
+            </nav>
         </div>
     )
 }
