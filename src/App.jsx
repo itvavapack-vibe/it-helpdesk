@@ -7,20 +7,41 @@ import UserManagement from './components/UserManagement';
 import HomePage from './components/HomePage';
 import AssetInventory from './components/AssetInventory';
 import IssueStatistics from './components/IssueStatistics';
-import { Home, Settings, LogOut, Users, Ticket, ClipboardList, Monitor, TrendingUp } from 'lucide-react';
+import UserAccessRequestForm from './components/UserAccessRequestForm';
+import AdminAccessRequests from './components/AdminAccessRequests';
+import ManagerApproval from './components/ManagerApproval';
+import ITManagerApproval from './components/ITManagerApproval';
+import { Home, Settings, LogOut, Users, Ticket, ClipboardList, Monitor, TrendingUp, UserPlus, Key } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { notifyNewIssue, notifyStatusChange, notifyRepairUpdate } from './telegramNotify';
 
 function App() {
     const [activeTab, setActiveTab] = useState(() => {
-        // หากเปิดจาก QR Code (มี assetId) ให้ตั้งค่าเริ่มต้นเป็นหน้าแจ้งซ่อมทันที
+        // หากเปิดจาก QR Code (มี assetId) หรือลิงก์ขอสิทธิ์
         const params = new URLSearchParams(window.location.search);
+        if (params.has('approveRequest')) return 'manager_approval';
+        if (params.has('itApproveRequest')) return 'it_manager_approval';
         return params.has('assetId') ? 'user' : 'home';
+    });
+    const [approveRequestId] = useState(() => {
+        const params = new URLSearchParams(window.location.search);
+        return params.get('approveRequest');
+    });
+    const [itApproveRequestId] = useState(() => {
+        const params = new URLSearchParams(window.location.search);
+        return params.get('itApproveRequest');
     });
     const [adminSubTab, setAdminSubTab] = useState('issues'); // 'issues' or 'users'
     const [issues, setIssues] = useState([]);
     const [isIssuesLoading, setIsIssuesLoading] = useState(true);
     const [isAdminAuth, setIsAdminAuth] = useState(null);
+
+    // Clean up URL to avoid sticking on refresh
+    useEffect(() => {
+        if (window.location.search) {
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+    }, []);
 
     // Check auth state from localStorage initially
     useEffect(() => {
@@ -311,6 +332,18 @@ function App() {
             return <IssueForm addIssue={addIssue} issues={issues} isLoading={isIssuesLoading} />;
         }
 
+        if (activeTab === 'access_request') {
+            return <UserAccessRequestForm />;
+        }
+
+        if (activeTab === 'manager_approval') {
+            return <ManagerApproval requestId={approveRequestId} />;
+        }
+
+        if (activeTab === 'it_manager_approval') {
+            return <ITManagerApproval requestId={itApproveRequestId} />;
+        }
+
         if (activeTab === 'admin') {
             if (isAdminAuth) {
                 return (
@@ -327,7 +360,7 @@ function App() {
                             </div>
 
                             <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-                                <div className="grid grid-cols-4 sm:flex bg-slate-100/80 dark:bg-slate-800/80 p-1 rounded-xl w-full sm:w-auto overflow-hidden">
+                                <div className="grid grid-cols-3 sm:flex flex-wrap bg-slate-100/80 dark:bg-slate-800/80 p-1 rounded-xl w-full sm:w-auto gap-1">
                                     <button
                                         onClick={() => { setAdminSubTab('issues'); fetchIssues(); }}
                                         className={`px-1 sm:px-4 py-2 sm:py-1.5 rounded-lg font-medium transition-all flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 ${adminSubTab === 'issues' ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-md sm:shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
@@ -339,6 +372,12 @@ function App() {
                                         className={`px-1 sm:px-4 py-2 sm:py-1.5 rounded-lg font-medium transition-all flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 ${adminSubTab === 'assets' ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-md sm:shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
                                     >
                                         <Monitor className="w-[18px] h-[18px] sm:w-4 sm:h-4" /> <span className="text-[11px] sm:text-sm whitespace-nowrap">ทรัพย์สิน</span>
+                                    </button>
+                                    <button
+                                        onClick={() => setAdminSubTab('access_requests')}
+                                        className={`px-1 sm:px-4 py-2 sm:py-1.5 rounded-lg font-medium transition-all flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 ${adminSubTab === 'access_requests' ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-md sm:shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
+                                    >
+                                        <Key className="w-[18px] h-[18px] sm:w-4 sm:h-4" /> <span className="text-[11px] sm:text-sm whitespace-nowrap">ขอสิทธิ์</span>
                                     </button>
                                     <button
                                         onClick={() => setAdminSubTab('stats')}
@@ -374,6 +413,8 @@ function App() {
                             />
                         ) : adminSubTab === 'assets' ? (
                             <AssetInventory issues={issues} />
+                        ) : adminSubTab === 'access_requests' ? (
+                            <AdminAccessRequests />
                         ) : adminSubTab === 'stats' ? (
                             <IssueStatistics issues={issues} />
                         ) : (
@@ -415,6 +456,12 @@ function App() {
                             <ClipboardList className="w-4 h-4" /> แจ้งซ่อม
                         </button>
                         <button
+                            onClick={() => setActiveTab('access_request')}
+                            className={`px-4 py-2 rounded-xl transition-all duration-300 font-medium flex items-center gap-2 ${activeTab === 'access_request' ? 'bg-white dark:bg-indigo-600 text-indigo-700 dark:text-white shadow-md' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-700/50'}`}
+                        >
+                            <UserPlus className="w-4 h-4" /> ขอสิทธิ์ใช้งาน
+                        </button>
+                        <button
                             onClick={() => { setActiveTab('admin'); fetchIssues(); }}
                             className={`px-4 py-2 rounded-xl transition-all duration-300 font-medium flex items-center gap-2 ${activeTab === 'admin' ? 'bg-white dark:bg-indigo-600 text-indigo-700 dark:text-white shadow-md' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-700/50'}`}
                         >
@@ -452,6 +499,13 @@ function App() {
                     >
                         <ClipboardList className="w-6 h-6" strokeWidth={activeTab === 'user' ? 2.5 : 2} />
                         <span className="text-[10px] font-semibold">แจ้งซ่อม</span>
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('access_request')}
+                        className={`flex flex-col items-center justify-center w-16 h-full space-y-1 transition-colors ${activeTab === 'access_request' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500 dark:text-slate-500 hover:text-slate-900 dark:hover:text-slate-300'}`}
+                    >
+                        <UserPlus className="w-6 h-6" strokeWidth={activeTab === 'access_request' ? 2.5 : 2} />
+                        <span className="text-[10px] font-semibold">ขอสิทธิ์</span>
                     </button>
                     <button
                         onClick={() => { setActiveTab('admin'); fetchIssues(); }}

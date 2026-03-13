@@ -98,3 +98,25 @@ export const notifyGlpiSync = (stats) => {
         
     return sendTelegramMessage(message);
 };
+
+export const notifyNewAccessRequest = (data) => {
+    const requestedSystemsList = Object.keys(data.systems)
+        .filter(key => data.systems[key] && key !== 'other')
+        .map(key => key.toUpperCase())
+        .join(', ');
+        
+    const otherSystem = data.systems.other ? `อื่นๆ (${data.otherSystemDetails})` : '';
+    const allRequestedSystems = [requestedSystemsList, otherSystem].filter(Boolean).join(', ');
+
+    const message =
+        `🔑 <b>คำร้องขอสิทธิ์ใช้งาน (อนุมัติแล้ว) ✅</b>\n` +
+        `━━━━━━━━━━━━━━\n` +
+        `🔖 <b>เลขที่ใบแจ้ง:</b> ${data.ticketNumber || 'ยังไม่มีเลขที่'}\n` +
+        `👤 <b>ผู้ขอ:</b> ${data.nameTh}\n` +
+        `🏢 <b>แผนก:</b> ${data.department}\n` +
+        `💼 <b>ตำแหน่ง:</b> ${data.position}\n` +
+        `📞 <b>เบอร์ภายใน:</b> ${data.internalPhone || '-'}\n` +
+        `💻 <b>ระบบที่ร้องขอ:</b> ${allRequestedSystems}\n` +
+        `📝 <b>รายละเอียด:</b> ${data.requestDetails || 'ไม่ได้ระบุวิจารณญาณ'}`;
+    return sendTelegramMessage(message);
+};
