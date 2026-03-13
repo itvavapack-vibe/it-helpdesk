@@ -305,7 +305,8 @@ const AdminAccessRequests = () => {
                                 </div>
                                 <button 
                                     onClick={() => handleStatusChange(req.id, req.status || 'Pending')}
-                                    className="cursor-pointer hover:opacity-80 transition-opacity"
+                                    disabled={req.status !== 'Pending_IT'}
+                                    className={`transition-opacity ${req.status === 'Pending_IT' ? 'cursor-pointer hover:opacity-80' : 'cursor-default'}`}
                                 >
                                     {getStatusBadge(req.status || 'Pending')}
                                 </button>
