@@ -24,8 +24,24 @@ const AdminAccessRequests = () => {
     // For IT Staff Completion Form
     const [itStaffName, setItStaffName] = useState('');
     const [actionResult, setActionResult] = useState('');
+    
     useEffect(() => {
         fetchRequests();
+
+        // Subscribe to real-time changes
+        const subscription = supabase
+            .channel('access_requests_changes')
+            .on('postgres_changes', 
+                { event: '*', schema: 'public', table: 'access_requests' }, 
+                () => {
+                    fetchRequests(); // Re-fetch on any change
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(subscription);
+        };
     }, []);
 
     const fetchRequests = async () => {
