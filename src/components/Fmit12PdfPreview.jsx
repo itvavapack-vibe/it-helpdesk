@@ -164,7 +164,7 @@ const Fmit12PdfPreview = ({ isOpen, onClose, formData }) => {
                                 <tr>
                                     <td colSpan="4" style={{ border: '1px solid #000', padding: '10px 8px 6px 8px', fontSize: '14px' }}>
                                         <div>ลงนาม</div>
-                                        <div style={{ marginTop: '5px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', paddingLeft: '80px', width: '100%' }}>
+                                        <div style={{ marginTop: '5px', display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-start', gap: '30px', width: '100%' }}>
                                             <div style={{ display: 'flex', alignItems: 'flex-end', gap: '5px' }}>
                                                 <div style={{ borderBottom: '1px dotted #000', width: '200px', display: 'flex', justifyContent: 'center', height: '40px' }}>
                                                     {formData.requesterSign && <img src={formData.requesterSign} alt="Requester Sign" style={{ height: '40px', objectFit: 'contain' }} />}
@@ -185,7 +185,7 @@ const Fmit12PdfPreview = ({ isOpen, onClose, formData }) => {
                                 <tr>
                                     <td style={{ border: '1px solid #000', padding: '4px 8px 10px 8px', fontSize: '14px', width: '50%', verticalAlign: 'top' }}>
                                         <div style={{ fontWeight: 'bold', textDecoration: 'underline', marginBottom: '15px' }}>ลงนาม หน./ผจก. แผนก/ฝ่าย ต้นสังกัด :</div>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingLeft: '30px', alignItems: 'flex-end', width: '100%' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'flex-start', gap: '30px', alignItems: 'flex-end', width: '100%' }}>
                                             <div style={{ borderBottom: '1px dotted #000', width: '130px', display: 'flex', justifyContent: 'center', height: '40px' }}>
                                                 {formData.managerSign && <img src={formData.managerSign} alt="Manager Sign" style={{ height: '40px', objectFit: 'contain' }} />}
                                             </div>
@@ -194,7 +194,7 @@ const Fmit12PdfPreview = ({ isOpen, onClose, formData }) => {
                                     </td>
                                     <td style={{ border: '1px solid #000', padding: '4px 8px 10px 8px', fontSize: '14px', width: '50%', verticalAlign: 'top', backgroundColor: '#e2e8f0' }}>
                                         <div style={{ fontWeight: 'bold', textDecoration: 'underline', marginBottom: '15px' }}>ลงนามหัวหน้าแผนก IT :</div>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingLeft: '30px', alignItems: 'flex-end', width: '100%' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'flex-start', gap: '30px', alignItems: 'flex-end', width: '100%' }}>
                                             <div style={{ borderBottom: '1px dotted #000', width: '130px', display: 'flex', justifyContent: 'center', height: '40px' }}>
                                                 {formData.itManagerSign && <img src={formData.itManagerSign} alt="IT Manager Sign" style={{ height: '40px', objectFit: 'contain' }} />}
                                             </div>
@@ -255,23 +255,6 @@ const Fmit12PdfPreview = ({ isOpen, onClose, formData }) => {
                         <div style={{ borderBottom: '1px dotted #000', marginTop: '20px' }}></div>
                         <div style={{ borderBottom: '1px dotted #000', marginTop: '20px', marginBottom: '15px' }}></div>
 
-                        {/* Action Results */}
-                        <div style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '5px' }}>ผลการดำเนินการ ( ส่วนของผู้ดำเนินการ )</div>
-                        <div style={{ fontSize: '14px', marginBottom: '5px' }}>
-                            <span style={{fontWeight: 'bold'}}>ผู้รับแจ้ง:</span> {formData.itStaffName || '...................................................'}
-                        </div>
-                        <div style={{ 
-                            fontSize: '14px', 
-                            lineHeight: '20px', 
-                            borderBottom: '1px dotted #000', 
-                            minHeight: '20px',
-                            paddingBottom: '2px',
-                            wordBreak: 'break-word',
-                            position: 'relative'
-                        }}>
-                            <span style={{fontWeight: 'bold'}}>ผลการดำเนินการ:</span> {formData.actionResult}
-                        </div>
-                        <div style={{ borderBottom: '1px dotted #000', marginTop: '20px', marginBottom: '15px' }}></div>
 
                         {/* Acknowledgment Section */}
                         <div style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '2px' }}>ส่วนรับทราบผลการปฏิบัติงาน</div>
@@ -280,7 +263,7 @@ const Fmit12PdfPreview = ({ isOpen, onClose, formData }) => {
                                 <tr>
                                     <td style={{ border: '1px solid #000', padding: '4px 8px 6px 8px', fontSize: '14px', width: '50%', verticalAlign: 'top' }}>
                                         <div style={{ fontWeight: 'bold', textDecoration: 'underline', marginBottom: '15px' }}>ผู้แจ้งงานลงนามรับทราบผล การใช้งาน :</div>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingLeft: '30px', alignItems: 'flex-end', width: '100%' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'flex-start', gap: '30px', alignItems: 'flex-end', width: '100%' }}>
                                             <div style={{ borderBottom: '1px dotted #000', width: '130px', display: 'flex', justifyContent: 'center', height: '40px' }}>
                                                 {formData.requesterSign && <img src={formData.requesterSign} alt="Requester Sign" style={{ height: '40px', objectFit: 'contain' }} />}
                                             </div>
@@ -289,7 +272,7 @@ const Fmit12PdfPreview = ({ isOpen, onClose, formData }) => {
                                     </td>
                                     <td style={{ border: '1px solid #000', padding: '4px 8px 6px 8px', fontSize: '14px', width: '50%', verticalAlign: 'top' }}>
                                         <div style={{ fontWeight: 'bold', textDecoration: 'underline', marginBottom: '15px' }}>ลงนามผู้ปฏิบัติงาน ผู้ติดตั้งการใช้งาน :</div>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingLeft: '30px', alignItems: 'flex-end', width: '100%' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'flex-start', gap: '30px', alignItems: 'flex-end', width: '100%' }}>
                                             <div style={{ borderBottom: '1px dotted #000', width: '130px', display: 'flex', justifyContent: 'center', height: '40px' }}>
                                                 {formData.itSign && <img src={formData.itSign} alt="IT Sign" style={{ height: '40px', objectFit: 'contain' }} />}
                                             </div>
@@ -307,7 +290,7 @@ const Fmit12PdfPreview = ({ isOpen, onClose, formData }) => {
                                 <tr>
                                     <td style={{ border: '1px solid #000', padding: '4px 8px 6px 8px', fontSize: '14px', verticalAlign: 'top' }}>
                                         <div style={{ fontWeight: 'bold', textDecoration: 'underline', marginBottom: '15px' }}>ลงนามผู้อนุมัติ การเข้าใช้งานระบบ :</div>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingLeft: '30px', alignItems: 'flex-end', width: '100%' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'flex-start', gap: '30px', alignItems: 'flex-end', width: '100%' }}>
                                             <div style={{ borderBottom: '1px dotted #000', width: '130px', display: 'flex', justifyContent: 'center', height: '40px' }}>
                                                 {formData.managerSign && <img src={formData.managerSign} alt="Manager Sign" style={{ height: '40px', objectFit: 'contain' }} />}
                                             </div>
@@ -324,7 +307,7 @@ const Fmit12PdfPreview = ({ isOpen, onClose, formData }) => {
                                 <tr>
                                     <td style={{ border: '1px solid #000', padding: '4px 8px 6px 8px', fontSize: '14px', verticalAlign: 'top' }}>
                                         <div style={{ fontWeight: 'bold', textDecoration: 'underline', marginBottom: '15px' }}>ลงนามผู้ปฏิบัติงาน ผู้ยกเลิกการใช้งาน :</div>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingLeft: '30px' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'flex-start', gap: '30px' }}>
                                             <span>..........................................</span>
                                             <span>วันที่ ......./......./.......</span>
                                         </div>
