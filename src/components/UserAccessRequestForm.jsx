@@ -6,6 +6,14 @@ import { notifyNewAccessRequest } from '../telegramNotify';
 import { supabase } from '../supabaseClient';
 import SignatureCanvas from 'react-signature-canvas';
 
+const DEPARTMENTS = [
+    'แอดมิน', 'บุคคลและธุรการ', 'วิศวกรรม', 'การตลาดและขาย (ในประเทศ)',
+    'การตลาดและขาย (ต่างประเทศ)', 'แอดมินการตลาด', 'บัญชี', 'การเงิน',
+    'จัดซื้อ', 'เทคโนโลยีสารสนเทศ และ ERP', 'วางแผน', 'ฝ่ายผลิต',
+    'ตรวจสอบคุณภาพ', 'ควบคุมคุณภาพ', 'บริหารระบบ และ จป.', 'ออกแบบ',
+    'วิจัยและพัฒนาผลิตภัณฑ์', 'คลังพัสดุและจัดส่ง', 'ตรวจสอบ', 'ซ่อมบำรุง',
+    'สำนักกรรมการ', 'อื่นๆ'
+];
 const UserAccessRequestForm = ({ onCancel }) => {
     const signatureRef = useRef(null);
     const [signatureData, setSignatureData] = useState(null);
@@ -248,11 +256,18 @@ const UserAccessRequestForm = ({ onCancel }) => {
                                 <input
                                     type="text"
                                     name="department"
+                                    list="department-list"
                                     value={formData.department}
                                     onChange={handleChange}
                                     className="input-modern !pl-10 w-full"
                                     placeholder="ระบุแผนก..."
+                                    autoComplete="off"
                                 />
+                                <datalist id="department-list">
+                                    {DEPARTMENTS.map(dept => (
+                                        <option key={dept} value={dept} />
+                                    ))}
+                                </datalist>
                             </div>
                         </div>
 

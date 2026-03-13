@@ -158,7 +158,7 @@ const Fmit12PdfPreview = ({ isOpen, onClose, formData }) => {
                                 <tr>
                                     <td style={{ border: '1px solid #000', padding: '4px 8px', fontSize: '14px' }}>ตำแหน่ง :</td>
                                     <td style={{ border: '1px solid #000', padding: '4px 8px', fontSize: '14px', width: '35%' }}>{formData.position}</td>
-                                    <td style={{ border: '1px solid #000', padding: '4px 8px', fontSize: '14px', width: '15%' }}>เบอร์โทรภายใน :</td>
+                                    <td style={{ border: '1px solid #000', padding: '4px 8px', fontSize: '14px', width: '15%', whiteSpace: 'nowrap' }}>เบอร์โทรภายใน :</td>
                                     <td style={{ border: '1px solid #000', padding: '4px 8px', fontSize: '14px', width: '25%' }}>{formData.internalPhone}</td>
                                 </tr>
                                 <tr>
