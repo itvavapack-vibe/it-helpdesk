@@ -291,82 +291,94 @@ const AdminAccessRequests = () => {
                     <p className="text-slate-500 dark:text-slate-400">ยังไม่มีผู้ใช้งานส่งคำร้องขอสิทธิ์เข้ามาในระบบ หรือไม่พบในเงื่อนไขการค้นหา</p>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                    {filteredRequests.map((req) => (
-                        <div key={req.id} className="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow flex flex-col">
-                            <div className="flex justify-between items-start mb-4">
-                                <div>
-                                    <h3 className="font-bold text-slate-800 dark:text-white text-base">
-                                        {req.name_th}
-                                    </h3>
-                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                                        {req.ticket_number || 'ไม่มีเลขที่'} • {req.department}
-                                    </p>
-                                </div>
-                                <button 
-                                    onClick={() => handleStatusChange(req.id, req.status || 'Pending')}
-                                    disabled={req.status !== 'Pending_IT'}
-                                    className={`transition-opacity ${req.status === 'Pending_IT' ? 'cursor-pointer hover:opacity-80' : 'cursor-default'}`}
-                                >
-                                    {getStatusBadge(req.status || 'Pending')}
-                                </button>
-                            </div>
-                            
-                            <div className="space-y-3 mb-5 flex-1">
-                                <div className="bg-slate-50 dark:bg-slate-900/50 p-3 rounded-lg border border-slate-100 dark:border-slate-700/50">
-                                    <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 block mb-1 uppercase tracking-wider">ระบบที่ขอสิทธิ์</span>
-                                    <p className="text-sm text-slate-700 dark:text-slate-300 font-medium break-words leading-relaxed">
-                                        {formatSystems(req.systems, req.other_system_details)}
-                                    </p>
-                                </div>
-                                
-                                {req.request_details && (
-                                    <div className="pt-2">
-                                        <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2">
-                                            <span className="font-medium">รายละเอียด:</span> {req.request_details}
-                                        </p>
-                                    </div>
-                                )}
-                            </div>
-                            
-                            <div className="flex justify-between items-center pt-4 border-t border-slate-100 dark:border-slate-700 mt-auto">
-                                <div className="text-xs text-slate-400">
-                                    {new Date(req.created_at).toLocaleDateString('th-TH')}
-                                </div>
-                                <div className="flex gap-2">
-                                    {req.status === 'Pending_IT_Manager' && (
-                                        <button 
-                                            onClick={() => {
-                                                navigator.clipboard.writeText(`${window.location.origin}${window.location.pathname}?itApproveRequest=${req.id}`);
-                                                Swal.fire({
-                                                    title: 'คัดลอกลิงก์สำเร็จ',
-                                                    text: 'ส่งลิงก์นี้ให้หัวหน้า IT อนุมัติได้เลยครับ',
-                                                    icon: 'success',
-                                                    timer: 2000,
-                                                    showConfirmButton: false
-                                                });
-                                            }}
-                                            className="py-1.5 px-3 bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 font-semibold text-xs rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/50 transition-colors"
-                                        >
-                                            คัดลอกลิงก์
-                                        </button>
-                                    )}
-                                    <button 
-                                        onClick={() => openPreview(req)}
-                                        className="py-1.5 px-3 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 font-semibold text-xs rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors"
-                                    >
-                                        ดูแบบฟอร์ม
-                                    </button>
-                                    <button 
-                                        onClick={() => handleDelete(req.id)}
-                                        className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                                    >
-                                        <Trash2 className="w-4 h-4" />
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    ))}
+                <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider">
+                                    <th className="p-4 font-semibold whitespace-nowrap">วันที่ / เลขที่</th>
+                                    <th className="p-4 font-semibold whitespace-nowrap">ชื่อ / แผนก</th>
+                                    <th className="p-4 font-semibold">ระบบที่ขอสิทธิ์</th>
+                                    <th className="p-4 font-semibold whitespace-nowrap">สถานะ</th>
+                                    <th className="p-4 font-semibold text-right whitespace-nowrap">จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
+                                {filteredRequests.map((req) => (
+                                    <tr key={req.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                                        <td className="p-4 align-top whitespace-nowrap">
+                                            <div className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                                                {new Date(req.created_at).toLocaleDateString('th-TH')}
+                                            </div>
+                                            <div className="text-xs text-slate-500 font-mono mt-1">
+                                                {req.ticket_number || 'ไม่มีเลขที่'}
+                                            </div>
+                                        </td>
+                                        <td className="p-4 align-top whitespace-nowrap">
+                                            <div className="text-sm font-bold text-slate-800 dark:text-white">
+                                                {req.name_th}
+                                            </div>
+                                            <div className="text-xs text-slate-500 mt-1">
+                                                {req.department}
+                                            </div>
+                                        </td>
+                                        <td className="p-4 align-top min-w-[200px]">
+                                            <div className="text-sm text-slate-700 dark:text-slate-300 font-medium leading-relaxed">
+                                                {formatSystems(req.systems, req.other_system_details)}
+                                            </div>
+                                            {req.request_details && (
+                                                <div className="text-xs text-slate-500 mt-1.5 line-clamp-2" title={req.request_details}>
+                                                    <span className="font-medium">รายละเอียด:</span> {req.request_details}
+                                                </div>
+                                            )}
+                                        </td>
+                                        <td className="p-4 align-top whitespace-nowrap">
+                                            <button 
+                                                onClick={() => handleStatusChange(req.id, req.status || 'Pending')}
+                                                disabled={req.status !== 'Pending_IT'}
+                                                className={`transition-opacity ${req.status === 'Pending_IT' ? 'cursor-pointer hover:opacity-80' : 'cursor-default'}`}
+                                            >
+                                                {getStatusBadge(req.status || 'Pending')}
+                                            </button>
+                                        </td>
+                                        <td className="p-4 align-top">
+                                            <div className="flex gap-2 justify-end">
+                                                {req.status === 'Pending_IT_Manager' && (
+                                                    <button 
+                                                        onClick={() => {
+                                                            navigator.clipboard.writeText(`${window.location.origin}${window.location.pathname}?itApproveRequest=${req.id}`);
+                                                            Swal.fire({
+                                                                title: 'คัดลอกลิงก์สำเร็จ',
+                                                                text: 'ส่งลิงก์นี้ให้หัวหน้า IT อนุมัติได้เลยครับ',
+                                                                icon: 'success',
+                                                                timer: 2000,
+                                                                showConfirmButton: false
+                                                            });
+                                                        }}
+                                                        className="py-1.5 px-3 bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 font-semibold text-xs rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/50 transition-colors whitespace-nowrap shadow-sm"
+                                                    >
+                                                        คัดลอกลิงก์
+                                                    </button>
+                                                )}
+                                                <button 
+                                                    onClick={() => openPreview(req)}
+                                                    className="py-1.5 px-3 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 font-semibold text-xs rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors whitespace-nowrap shadow-sm"
+                                                >
+                                                    ดูแบบฟอร์ม
+                                                </button>
+                                                <button 
+                                                    onClick={() => handleDelete(req.id)}
+                                                    className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             )}
 
