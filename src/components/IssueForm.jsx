@@ -26,7 +26,7 @@ const getStatusBadge = (status) => {
     }
 };
 
-const IssueForm = ({ addIssue, issues = [], isLoading = false }) => {
+const IssueForm = ({ addIssue, issues = [], isLoading = false, qrParams = null }) => {
     const [formData, setFormData] = useState({
         name: '',
         department: '',
@@ -97,14 +97,13 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false }) => {
         setGlpiUsers(uniqueSortedUsers);
     }, [glpiUsersRaw, computers]);
 
-    // อ่าน URL params จาก QR Code
+    // อ่าน QR Code params ที่ส่งมาจาก App.jsx (เก็บไว้ก่อน URL จะถูกลบ)
     useEffect(() => {
         // ต้องรอข้อมูลคอมพิวเตอร์และ User โหลดเสร็จก่อน จึงจะแมพหาชื่อจริงเจอ
         if (computers.length === 0 || glpiUsersRaw.length === 0) return;
+        if (!qrParams) return;
 
-        const params = new URLSearchParams(window.location.search);
-        const assetId = params.get('assetId');
-        const assetName = params.get('assetName');
+        const { assetId, assetName } = qrParams;
         
         if (assetId && assetName) {
             // เมื่อสแกน QR Code ให้หา user ที่เป็นเจ้าของเครื่องนี้มาแสดงด้วยเลย (ถ้ามี)
@@ -120,11 +119,8 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false }) => {
 
             setFormData(prev => ({ ...prev, assetId, assetName, name: ownerName }));
             setAssetSearchTerm(assetName);
-            
-            // ล้าง URL param ออกหลังอ่านแล้ว
-            window.history.replaceState({}, '', window.location.pathname);
         }
-    }, [computers, glpiUsersRaw]);
+    }, [computers, glpiUsersRaw, qrParams]);
 
     // Helper for filtering assets in dropdown
     const filteredAssets = computers.filter(c => {
@@ -156,7 +152,7 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false }) => {
         if (name === 'assetId') {
             const selected = computers.find(c => String(c.id) === value);
             
-            let ownerName = prev.name;
+            let ownerName = formData.name;
             if (selected && selected.users_id) {
                  // แปลง AD username จากเครื่อง เป็นชื่อจริง แบบไม่สนใจช่องว่างและพิมพ์เล็กใหญ่
                  const normalize = (str) => (str || '').toLowerCase().replace(/\s+/g, '');

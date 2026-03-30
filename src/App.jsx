@@ -11,7 +11,9 @@ import UserAccessRequestForm from './components/UserAccessRequestForm';
 import AdminAccessRequests from './components/AdminAccessRequests';
 import ManagerApproval from './components/ManagerApproval';
 import ITManagerApproval from './components/ITManagerApproval';
-import { Home, Settings, LogOut, Users, Ticket, ClipboardList, Monitor, TrendingUp, UserPlus, Key } from 'lucide-react';
+import ChangeRequestForm from './components/ChangeRequestForm';
+import AdminChangeRequests from './components/AdminChangeRequests';
+import { Home, Settings, LogOut, Users, Ticket, ClipboardList, Monitor, TrendingUp, UserPlus, Key, Code } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { notifyNewIssue, notifyStatusChange, notifyRepairUpdate } from './telegramNotify';
 
@@ -22,6 +24,14 @@ function App() {
         if (params.has('approveRequest')) return 'manager_approval';
         if (params.has('itApproveRequest')) return 'it_manager_approval';
         return params.has('assetId') ? 'user' : 'home';
+    });
+    // เก็บค่า QR params ไว้ก่อนที่จะถูกลบออกจาก URL
+    const [qrParams] = useState(() => {
+        const params = new URLSearchParams(window.location.search);
+        const assetId = params.get('assetId');
+        const assetName = params.get('assetName');
+        if (assetId && assetName) return { assetId, assetName };
+        return null;
     });
     const [approveRequestId] = useState(() => {
         const params = new URLSearchParams(window.location.search);
@@ -329,11 +339,15 @@ function App() {
         }
 
         if (activeTab === 'user') {
-            return <IssueForm addIssue={addIssue} issues={issues} isLoading={isIssuesLoading} />;
+            return <IssueForm addIssue={addIssue} issues={issues} isLoading={isIssuesLoading} qrParams={qrParams} />;
         }
 
         if (activeTab === 'access_request') {
             return <UserAccessRequestForm />;
+        }
+
+        if (activeTab === 'change_request') {
+            return <ChangeRequestForm />;
         }
 
         if (activeTab === 'manager_approval') {
@@ -380,6 +394,12 @@ function App() {
                                         <Key className="w-[18px] h-[18px] sm:w-4 sm:h-4" /> <span className="text-[11px] sm:text-sm whitespace-nowrap">ขอสิทธิ์</span>
                                     </button>
                                     <button
+                                        onClick={() => setAdminSubTab('change_requests')}
+                                        className={`px-1 sm:px-4 py-2 sm:py-1.5 rounded-lg font-medium transition-all flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 ${adminSubTab === 'change_requests' ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-md sm:shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
+                                    >
+                                        <Code className="w-[18px] h-[18px] sm:w-4 sm:h-4" /> <span className="text-[11px] sm:text-sm whitespace-nowrap">ขอพัฒนาโปรแกรม</span>
+                                    </button>
+                                    <button
                                         onClick={() => setAdminSubTab('stats')}
                                         className={`px-1 sm:px-4 py-2 sm:py-1.5 rounded-lg font-medium transition-all flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 ${adminSubTab === 'stats' ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-md sm:shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
                                     >
@@ -415,6 +435,8 @@ function App() {
                             <AssetInventory issues={issues} />
                         ) : adminSubTab === 'access_requests' ? (
                             <AdminAccessRequests />
+                        ) : adminSubTab === 'change_requests' ? (
+                            <AdminChangeRequests />
                         ) : adminSubTab === 'stats' ? (
                             <IssueStatistics issues={issues} />
                         ) : (
@@ -462,6 +484,12 @@ function App() {
                             <UserPlus className="w-4 h-4" /> ขอสิทธิ์ใช้งาน
                         </button>
                         <button
+                            onClick={() => setActiveTab('change_request')}
+                            className={`px-4 py-2 rounded-xl transition-all duration-300 font-medium flex items-center gap-2 ${activeTab === 'change_request' ? 'bg-white dark:bg-indigo-600 text-indigo-700 dark:text-white shadow-md' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-700/50'}`}
+                        >
+                            <Code className="w-4 h-4" /> ขอพัฒนาโปรแกรม
+                        </button>
+                        <button
                             onClick={() => { setActiveTab('admin'); fetchIssues(); }}
                             className={`px-4 py-2 rounded-xl transition-all duration-300 font-medium flex items-center gap-2 ${activeTab === 'admin' ? 'bg-white dark:bg-indigo-600 text-indigo-700 dark:text-white shadow-md' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-700/50'}`}
                         >
@@ -506,6 +534,13 @@ function App() {
                     >
                         <UserPlus className="w-6 h-6" strokeWidth={activeTab === 'access_request' ? 2.5 : 2} />
                         <span className="text-[10px] font-semibold">ขอสิทธิ์</span>
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('change_request')}
+                        className={`flex flex-col items-center justify-center w-16 h-full space-y-1 transition-colors ${activeTab === 'change_request' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500 dark:text-slate-500 hover:text-slate-900 dark:hover:text-slate-300'}`}
+                    >
+                        <Code className="w-6 h-6" strokeWidth={activeTab === 'change_request' ? 2.5 : 2} />
+                        <span className="text-[10px] font-semibold">ขอพัฒนา</span>
                     </button>
                     <button
                         onClick={() => { setActiveTab('admin'); fetchIssues(); }}

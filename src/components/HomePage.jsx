@@ -9,7 +9,8 @@ import {
     ArrowRight,
     Clock,
     Zap,
-    HeadphonesIcon
+    HeadphonesIcon,
+    Code
 } from 'lucide-react';
 
 const FeatureCard = ({ icon: Icon, title, desc, color }) => (
@@ -72,18 +73,24 @@ const HomePage = ({ onNavigateTo }) => {
                     <div className="flex flex-col sm:flex-row justify-center gap-3">
                         <button
                             onClick={() => onNavigateTo('user')}
-                            className="flex items-center justify-center gap-2 px-8 py-3.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold rounded-2xl shadow-lg shadow-indigo-300/50 dark:shadow-indigo-900/50 transform hover:-translate-y-0.5 transition-all duration-200"
+                            className="flex items-center justify-center gap-2 px-6 py-3.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold rounded-2xl shadow-lg shadow-indigo-300/50 dark:shadow-indigo-900/50 transform hover:-translate-y-0.5 transition-all duration-200"
                         >
                             <ClipboardList className="w-5 h-5" />
                             แจ้งซ่อมเดี๋ยวนี้
-                            <ArrowRight className="w-4 h-4" />
+                        </button>
+                        <button
+                            onClick={() => onNavigateTo('change_request')}
+                            className="flex items-center justify-center gap-2 px-6 py-3.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white font-bold rounded-2xl shadow-lg shadow-emerald-300/50 dark:shadow-emerald-900/50 transform hover:-translate-y-0.5 transition-all duration-200"
+                        >
+                            <Code className="w-5 h-5" />
+                            ใบขอพัฒนาโปรแกรม
                         </button>
                         <button
                             onClick={() => onNavigateTo('admin')}
-                            className="flex items-center justify-center gap-2 px-8 py-3.5 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold rounded-2xl shadow-md border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transform hover:-translate-y-0.5 transition-all duration-200"
+                            className="flex items-center justify-center gap-2 px-6 py-3.5 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold rounded-2xl shadow-md border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transform hover:-translate-y-0.5 transition-all duration-200"
                         >
                             <LayoutDashboard className="w-5 h-5 text-indigo-500" />
-                            เข้าสู่ระบบ Admin
+                            Admin
                         </button>
                     </div>
                 </div>
