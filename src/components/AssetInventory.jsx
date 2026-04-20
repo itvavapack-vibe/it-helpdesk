@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Monitor, RefreshCw, AlertCircle, Search, X, Tag, FileSpreadsheet, QrCode, Clock, Upload } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import * as XLSX from 'xlsx';
-import { withGlpiSession, getComputers, getUsers } from '../glpiClient';
+import { withGlpiSession, getComputers, getUsers, getComputerDetail, extractIpAddresses } from '../glpiClient';
 import { supabase } from '../supabaseClient';
 import { notifyGlpiSync } from '../telegramNotify';
 
@@ -15,6 +15,8 @@ const AssetInventory = ({ issues = [] }) => {
     const [qrComputer, setQrComputer] = useState(null);
     const [warning, setWarning] = useState(null);
     const [sourceFilter, setSourceFilter] = useState('all'); // all, buy, rent
+    const [ipAddresses, setIpAddresses] = useState([]);
+    const [ipLoading, setIpLoading] = useState(false);
 
     const [isSyncing, setIsSyncing] = useState(false);
     const [syncResult, setSyncResult] = useState(null);
@@ -476,7 +478,16 @@ const AssetInventory = ({ issues = [] }) => {
                                 const isRepairing = openIssues.length > 0;
                                 return (
                                     <div key={computer.id}
-                                        onClick={() => setSelectedComputer(computer)}
+                                        onClick={() => {
+                                            setSelectedComputer(computer);
+                                            // Fetch IP address
+                                            setIpAddresses([]);
+                                            setIpLoading(true);
+                                            withGlpiSession(async (token) => {
+                                                const detail = await getComputerDetail(token, computer.id);
+                                                return extractIpAddresses(detail);
+                                            }).then(ips => setIpAddresses(ips)).catch(() => setIpAddresses([])).finally(() => setIpLoading(false));
+                                        }}
                                         className={`glass-card rounded-2xl p-5 cursor-pointer hover:shadow-lg transition-all duration-200 group relative ${isRepairing ? 'border-amber-300 dark:border-amber-700 border' : 'hover:border-indigo-200 dark:hover:border-indigo-700'}`}>
                                         {/* กำลังซ่อม badge */}
                                         {isRepairing && (
@@ -567,6 +578,24 @@ const AssetInventory = ({ issues = [] }) => {
                                             <span className="text-slate-800 dark:text-slate-200 font-semibold text-right max-w-[60%]">{row.value}</span>
                                         </div>
                                     ))}
+
+                                    {/* IP Address */}
+                                    <div className="flex justify-between items-start text-sm">
+                                        <span className="text-slate-500 dark:text-slate-400 font-medium">IP Address</span>
+                                        <span className="text-right max-w-[60%]">
+                                            {ipLoading ? (
+                                                <span className="text-slate-400 dark:text-slate-500 text-xs animate-pulse">กำลังดึง IP...</span>
+                                            ) : ipAddresses.length > 0 ? (
+                                                <span className="flex flex-col items-end gap-0.5">
+                                                    {ipAddresses.map((ip, i) => (
+                                                        <span key={i} className="font-semibold text-slate-800 dark:text-slate-200 font-mono bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded text-xs">{ip}</span>
+                                                    ))}
+                                                </span>
+                                            ) : (
+                                                <span className="text-slate-400 dark:text-slate-500 text-xs">ไม่พบข้อมูล IP</span>
+                                            )}
+                                        </span>
+                                    </div>
 
                                     {/* Update Source (แหล่งที่มา) */}
                                     {selectedComputer.autoupdatesystems_id && (

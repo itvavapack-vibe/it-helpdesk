@@ -79,10 +79,10 @@ export const getComputers = async (sessionToken) => {
     return data;
 };
 
-// Get single computer detail
+// Get single computer detail (with network ports for IP)
 export const getComputerDetail = async (sessionToken, id) => {
     const res = await fetchWithTimeout(
-        `${BASE_URL}/Computer/${id}?expand_dropdowns=true`,
+        `${BASE_URL}/Computer/${id}?expand_dropdowns=true&with_networkports=true`,
         {
             headers: {
                 'App-Token': APP_TOKEN,
@@ -92,6 +92,47 @@ export const getComputerDetail = async (sessionToken, id) => {
     );
     if (!res.ok) throw new Error(`GLPI getComputerDetail failed: ${res.status}`);
     return res.json();
+};
+
+// Extract IP addresses from computer detail (with_networkports response)
+export const extractIpAddresses = (computerDetail) => {
+    const ips = [];
+    try {
+        const ports = computerDetail?._networkports;
+        if (!ports) return ips;
+
+        // NetworkPort อาจอยู่ใน key ต่างๆ เช่น NetworkPortEthernet, NetworkPortWifi ฯลฯ
+        const portTypes = Object.values(ports);
+        for (const portGroup of portTypes) {
+            const portList = Array.isArray(portGroup) ? portGroup : Object.values(portGroup || {});
+            for (const port of portList) {
+                // IP อาจอยู่ใน NetworkName → IPAddress
+                const networkName = port?.NetworkName;
+                if (networkName) {
+                    const ipAddresses = networkName?.IPAddress;
+                    if (Array.isArray(ipAddresses)) {
+                        ipAddresses.forEach(ip => {
+                            if (ip?.name && ip.name !== '0.0.0.0' && ip.name !== '::1') {
+                                ips.push(ip.name);
+                            }
+                        });
+                    } else if (typeof ipAddresses === 'object' && ipAddresses !== null) {
+                        Object.values(ipAddresses).forEach(ip => {
+                            if (ip?.name && ip.name !== '0.0.0.0' && ip.name !== '::1') {
+                                ips.push(ip.name);
+                            }
+                        });
+                    }
+                }
+                // บาง version IP อยู่ตรง port.ip / port.ipaddr เลย
+                if (port?.ip && port.ip !== '0.0.0.0') ips.push(port.ip);
+            }
+        }
+    } catch (e) {
+        console.warn('extractIpAddresses error:', e);
+    }
+    // ลบ duplicate
+    return [...new Set(ips)];
 };
 
 // Get users list (from AD usually linked in GLPI)
