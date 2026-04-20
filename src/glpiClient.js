@@ -131,8 +131,9 @@ export const extractIpAddresses = (computerDetail) => {
     } catch (e) {
         console.warn('extractIpAddresses error:', e);
     }
-    // ลบ duplicate
-    return [...new Set(ips)];
+    // ลบ duplicate + กรองเฉพาะ IPv4
+    const ipv4Regex = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/;
+    return [...new Set(ips)].filter(ip => ipv4Regex.test(ip));
 };
 
 // Get users list (from AD usually linked in GLPI)

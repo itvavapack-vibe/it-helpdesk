@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Monitor, RefreshCw, AlertCircle, Search, X, Tag, FileSpreadsheet, QrCode, Clock, Upload } from 'lucide-react';
+import { Monitor, RefreshCw, AlertCircle, Search, X, Tag, FileSpreadsheet, QrCode, Clock, Upload, Copy, Check } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import * as XLSX from 'xlsx';
 import { withGlpiSession, getComputers, getUsers, getComputerDetail, extractIpAddresses } from '../glpiClient';
@@ -17,6 +17,7 @@ const AssetInventory = ({ issues = [] }) => {
     const [sourceFilter, setSourceFilter] = useState('all'); // all, buy, rent
     const [ipAddresses, setIpAddresses] = useState([]);
     const [ipLoading, setIpLoading] = useState(false);
+    const [copiedIp, setCopiedIp] = useState(null);
 
     const [isSyncing, setIsSyncing] = useState(false);
     const [syncResult, setSyncResult] = useState(null);
@@ -586,9 +587,27 @@ const AssetInventory = ({ issues = [] }) => {
                                             {ipLoading ? (
                                                 <span className="text-slate-400 dark:text-slate-500 text-xs animate-pulse">กำลังดึง IP...</span>
                                             ) : ipAddresses.length > 0 ? (
-                                                <span className="flex flex-col items-end gap-0.5">
+                                                <span className="flex flex-col items-end gap-1">
                                                     {ipAddresses.map((ip, i) => (
-                                                        <span key={i} className="font-semibold text-slate-800 dark:text-slate-200 font-mono bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded text-xs">{ip}</span>
+                                                        <span key={i} className="inline-flex items-center gap-1.5 font-semibold text-slate-800 dark:text-slate-200 font-mono bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded text-xs">
+                                                            {ip}
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    navigator.clipboard.writeText(ip);
+                                                                    setCopiedIp(ip);
+                                                                    setTimeout(() => setCopiedIp(null), 1500);
+                                                                }}
+                                                                className="p-0.5 rounded hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                                                                title="คัดลอก IP"
+                                                            >
+                                                                {copiedIp === ip ? (
+                                                                    <Check className="w-3 h-3 text-emerald-500" />
+                                                                ) : (
+                                                                    <Copy className="w-3 h-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300" />
+                                                                )}
+                                                            </button>
+                                                        </span>
                                                     ))}
                                                 </span>
                                             ) : (
@@ -596,6 +615,7 @@ const AssetInventory = ({ issues = [] }) => {
                                             )}
                                         </span>
                                     </div>
+
 
                                     {/* Update Source (แหล่งที่มา) */}
                                     {selectedComputer.autoupdatesystems_id && (
