@@ -14,7 +14,7 @@ const AssetInventory = ({ issues = [] }) => {
     const [selectedComputer, setSelectedComputer] = useState(null);
     const [qrComputer, setQrComputer] = useState(null);
     const [warning, setWarning] = useState(null);
-    const [sourceFilter, setSourceFilter] = useState('all'); // all, buy, rent
+    const [sourceFilter, setSourceFilter] = useState('all'); // all, buy, rent, buyrent
     const [ipAddresses, setIpAddresses] = useState([]);
     const [ipLoading, setIpLoading] = useState(false);
     const [copiedIp, setCopiedIp] = useState(null);
@@ -29,11 +29,19 @@ const AssetInventory = ({ issues = [] }) => {
         try {
             const data = await withGlpiSession(getComputers);
             const all = Array.isArray(data) ? data : [];
+            console.log('GLPI returned', all.length, 'computers');
+            console.log('Sample states:', all.slice(0, 10).map(c => ({ name: c.name, state: c.states_id })));
+            
             const active = all.filter(c => {
                 const state = String(c.states_id || '').toLowerCase();
-                return !state.includes('deactive') && !state.includes('inactive') && !state.includes('จำหน่าย');
+                // Only count devices that are explicitly Active.
+                // GLPI may return state '0' for unknown/non-active entries,
+                // which should not be treated as Active.
+                return state === 'active';
             });
-            setComputers(active.length > 0 ? active : all);
+            console.log('Active computers (explicit Active state):', active.length);
+            
+            setComputers(active);
         } catch {
             // GLPI เข้าไม่ได้ → fallback ดึงจาก Supabase
             try {
@@ -260,12 +268,11 @@ const AssetInventory = ({ issues = [] }) => {
     };
 
     const isSourceMatch = (source, filterType) => {
-        if (filterType === 'all') return true;
-        
         const sourceStr = String(source || '').toLowerCase();
+        if (filterType === 'all') return true;
         if (filterType === 'buy') return sourceStr.includes('buy') || sourceStr.includes('ซื้อ');
         if (filterType === 'rent') return sourceStr.includes('rent') || sourceStr.includes('เช่า');
-        
+        if (filterType === 'buyrent') return sourceStr.includes('buy') || sourceStr.includes('ซื้อ') || sourceStr.includes('rent') || sourceStr.includes('เช่า');
         return false;
     };
 
@@ -288,7 +295,7 @@ const AssetInventory = ({ issues = [] }) => {
             if (isSourceMatch(c.autoupdatesystems_id, 'buy')) buy++;
             else if (isSourceMatch(c.autoupdatesystems_id, 'rent')) rent++;
         });
-        return { all: computers.length, buy, rent };
+        return { all: computers.length, buy, rent, buyrent: buy + rent };
     }, [computers]);
 
     const exportToExcel = () => {
@@ -416,11 +423,11 @@ const AssetInventory = ({ issues = [] }) => {
                 
                 {/* Source Filter Capsules */}
                 <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl w-full sm:w-auto">
-                    <button 
-                        onClick={() => setSourceFilter('all')}
-                        className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${sourceFilter === 'all' ? 'bg-white text-slate-800 shadow-sm dark:bg-slate-700 dark:text-white' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}
+                        <button 
+                        onClick={() => setSourceFilter('buyrent')}
+                        className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${sourceFilter === 'buyrent' ? 'bg-violet-500 text-white shadow-sm shadow-violet-200 dark:shadow-none' : 'text-slate-500 hover:text-violet-600 dark:text-slate-400 dark:hover:text-violet-400'}`}
                     >
-                        ทั้งหมด <span className="bg-slate-200 text-slate-600 dark:bg-slate-600 dark:text-slate-300 text-xs px-2 py-0.5 rounded-full">{filterCounts.all}</span>
+                        🧩 เช่า+ซื้อ <span className={`text-xs px-2 py-0.5 rounded-full ${sourceFilter === 'buyrent' ? 'bg-violet-600 text-violet-50' : 'bg-violet-100 text-violet-700 dark:bg-violet-900/50 dark:text-violet-300'}`}>{filterCounts.buyrent}</span>
                     </button>
                     <button 
                         onClick={() => setSourceFilter('buy')}

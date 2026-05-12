@@ -2,6 +2,33 @@ const GLPI_URL = import.meta.env.VITE_GLPI_URL;
 const APP_TOKEN = import.meta.env.VITE_GLPI_APP_TOKEN;
 const USER_TOKEN = import.meta.env.VITE_GLPI_USER_TOKEN;
 
+if (import.meta.env.DEV) {
+    console.debug('GLPI runtime config:', {
+        GLPI_URL,
+        hasAppToken: Boolean(APP_TOKEN),
+        hasUserToken: Boolean(USER_TOKEN),
+    });
+}
+
+const parseGlpiError = async (res) => {
+    const contentType = res.headers.get('Content-Type') || '';
+    try {
+        if (contentType.includes('application/json')) {
+            const data = await res.json();
+            return JSON.stringify(data);
+        }
+        return await res.text();
+    } catch {
+        return res.statusText || 'Unknown GLPI error';
+    }
+};
+
+const ensureGlpiAuth = () => {
+    if (!APP_TOKEN || !USER_TOKEN) {
+        throw new Error('Missing GLPI auth config: VITE_GLPI_APP_TOKEN and VITE_GLPI_USER_TOKEN are required.');
+    }
+};
+
 // ใน dev (localhost) ใช้ Vite proxy เพื่อ bypass CORS
 // ใน production ใช้ GLPI URL ตรง (ต้องตั้ง CORS บน Apache ฝั่ง GLPI)
 const BASE_URL = import.meta.env.DEV
@@ -18,15 +45,18 @@ const fetchWithTimeout = (url, options = {}, timeoutMs = 5000) => {
 
 // Initialize session → returns session_token
 export const initGlpiSession = async () => {
+    ensureGlpiAuth();
     const res = await fetchWithTimeout(`${BASE_URL}/initSession`, {
         method: 'GET',
         headers: {
-            'Content-Type': 'application/json',
             'App-Token': APP_TOKEN,
             'Authorization': `user_token ${USER_TOKEN}`,
         },
     });
-    if (!res.ok) throw new Error(`GLPI initSession failed: ${res.status}`);
+    if (!res.ok) {
+        const errorText = await parseGlpiError(res);
+        throw new Error(`GLPI initSession failed: ${res.status} ${errorText}`);
+    }
     const data = await res.json();
     return data.session_token;
 };
@@ -58,7 +88,7 @@ export const formatGlpiUserName = (nameStr) => {
 // Get computers list
 export const getComputers = async (sessionToken) => {
     const res = await fetchWithTimeout(
-        `${BASE_URL}/Computer?range=0-499&expand_dropdowns=true&is_deleted=false`,
+        `${BASE_URL}/Computer?range=0-999&expand_dropdowns=true&is_deleted=false`,
         {
             headers: {
                 'App-Token': APP_TOKEN,
