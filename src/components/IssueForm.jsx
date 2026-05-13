@@ -460,7 +460,7 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false, qrParams = null }
 
                                 {/* Dropdown Menu */}
                                 {isAssetDropdownOpen && (
-                                    <div className="absolute z-50 w-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl max-h-60 overflow-y-auto animate-fade-in custom-scrollbar">
+                                    <div className="absolute z-[200] w-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl max-h-40 sm:max-h-60 overflow-y-auto animate-fade-in custom-scrollbar will-change-transform">
                                         {filteredAssets.length === 0 ? (
                                             <div className="p-4 text-center text-sm text-slate-500 dark:text-slate-400">
                                                 ไม่พบอุปกรณ์ที่ค้นหา
