@@ -4,6 +4,7 @@ import IssueForm from './components/IssueForm';
 import IssueDashboard from './components/IssueDashboard';
 import AdminLogin from './components/AdminLogin';
 import UserManagement from './components/UserManagement';
+import EmployeeManagement from './components/EmployeeManagement';
 import HomePage from './components/HomePage';
 import AssetInventory from './components/AssetInventory';
 import IssueStatistics from './components/IssueStatistics';
@@ -411,6 +412,12 @@ function App() {
                                     >
                                         <Users className="w-[18px] h-[18px] sm:w-4 sm:h-4" /> <span className="text-[11px] sm:text-sm whitespace-nowrap">ผู้ใช้งาน</span>
                                     </button>
+                                    <button
+                                        onClick={() => setAdminSubTab('employees')}
+                                        className={`px-1 sm:px-4 py-2 sm:py-1.5 rounded-lg font-medium transition-all flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 ${adminSubTab === 'employees' ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-md sm:shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
+                                    >
+                                        <Users className="w-[18px] h-[18px] sm:w-4 sm:h-4" /> <span className="text-[11px] sm:text-sm whitespace-nowrap">พนักงาน</span>
+                                    </button>
                                 </div>
                                 <button
                                     onClick={handleAdminLogout}
@@ -439,6 +446,8 @@ function App() {
                             <AdminChangeRequests />
                         ) : adminSubTab === 'stats' ? (
                             <IssueStatistics issues={issues} />
+                        ) : adminSubTab === 'employees' ? (
+                            <EmployeeManagement />
                         ) : (
                             <UserManagement currentAdmin={isAdminAuth} />
                         )}
