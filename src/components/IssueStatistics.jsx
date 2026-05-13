@@ -2,6 +2,27 @@ import React, { useMemo } from 'react';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend } from 'recharts';
 import { BarChart3, PieChart as PieChartIcon, TrendingUp, Users } from 'lucide-react';
 
+const CATEGORIES = [
+    'แก้ไขปัญหาด้าน Software D365',
+    'ติดตั้งและแก้ไขปัญหาด้าน Hardware',
+    'ซ่อมบำรุงอุปกรณ์ต่อพ่วง Hardware & Network',
+    'ประชุม/อบรม/สัมนา',
+    'งานอื่น ๆ',
+    'กล้องวงจรปิด',
+    'แก้ไขปัญหาด้าน Printer',
+    'ติดตั้งและแก้ปัญหาด้าน Software ทั่วไป',
+    'แก้ไขปัญหาด้านอีเมล'
+];
+
+const DEPARTMENTS = [
+    'แอดมิน', 'บุคคลและธุรการ', 'วิศวกรรม', 'การตลาดและขาย (ในประเทศ)',
+    'การตลาดและขาย (ต่างประเทศ)', 'แอดมินการตลาด', 'บัญชี', 'การเงิน',
+    'จัดซื้อ', 'เทคโนโลยีสารสนเทศ และ ERP', 'วางแผน', 'ฝ่ายผลิต',
+    'ตรวจสอบคุณภาพ', 'ควบคุมคุณภาพ', 'บริหารระบบ และ จป.', 'ออกแบบ',
+    'วิจัยและพัฒนาผลิตภัณฑ์', 'คลังพัสดุและจัดส่ง', 'ตรวจสอบ', 'ซ่อมบำรุง',
+    'สำนักกรรมการ', 'อื่นๆ'
+];
+
 const IssueStatistics = ({ issues = [] }) => {
     // 1. คำนวณข้อมูลสำหรับ Pie Chart (สัดส่วนสถานะ)
     const statusData = useMemo(() => {
@@ -26,6 +47,7 @@ const IssueStatistics = ({ issues = [] }) => {
             counts[cat] = (counts[cat] || 0) + 1;
         });
         return Object.entries(counts)
+            .filter(([name]) => CATEGORIES.includes(name) || name === 'อื่นๆ')
             .map(([name, count]) => ({ name, count }))
             .sort((a, b) => b.count - a.count); // เรียงจากมากไปน้อย
     }, [issues]);
@@ -38,6 +60,7 @@ const IssueStatistics = ({ issues = [] }) => {
             counts[dept] = (counts[dept] || 0) + 1;
         });
         return Object.entries(counts)
+            .filter(([name]) => DEPARTMENTS.includes(name) || name === 'ไม่ระบุแผนก')
             .map(([name, count]) => ({ name, count }))
             .sort((a, b) => b.count - a.count)
             .slice(0, 5); // เอาแค่ Top 5
