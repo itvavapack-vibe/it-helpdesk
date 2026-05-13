@@ -9,6 +9,8 @@ const AdminChangeRequests = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('All');
+    const [dateRangeStart, setDateRangeStart] = useState('');
+    const [dateRangeEnd, setDateRangeEnd] = useState('');
     
     // For Preview / Form Actions
     const [selectedRequest, setSelectedRequest] = useState(null);
@@ -201,10 +203,25 @@ const AdminChangeRequests = () => {
     const filteredRequests = requests.filter(req => {
         const matchesSearch = req.requester_name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
                               req.department?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                              req.ticket_number?.toLowerCase().includes(searchTerm.toLowerCase());
+                              req.ticket_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                              req.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                              req.request_details?.toLowerCase().includes(searchTerm.toLowerCase());
                               
         const matchesStatus = statusFilter === 'All' || req.status === statusFilter;
-        return matchesSearch && matchesStatus;
+        
+        const reqDate = new Date(req.created_at);
+        let matchesDate = true;
+        if (dateRangeStart) {
+            const startDate = new Date(dateRangeStart);
+            matchesDate = matchesDate && reqDate >= startDate;
+        }
+        if (dateRangeEnd) {
+            const endDate = new Date(dateRangeEnd);
+            endDate.setHours(23, 59, 59, 999);
+            matchesDate = matchesDate && reqDate <= endDate;
+        }
+        
+        return matchesSearch && matchesStatus && matchesDate;
     });
 
     return (
@@ -222,19 +239,36 @@ const AdminChangeRequests = () => {
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
-                    <div className="relative w-full sm:w-64">
+                    <div className="relative w-full sm:w-80">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-                        <input type="text" placeholder="ค้นหาชื่อ, แผนก, เลขเอกสาร..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="input-modern !pl-9 w-full" />
+                        <input type="text" placeholder="ค้นหาชื่อ, แผนก, เลขเอกสาร, รายละเอียด..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="input-modern !pl-9 !py-2 !text-sm w-full" />
                     </div>
                     <div className="relative w-full sm:w-auto">
                         <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-                        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="input-modern !pl-9 w-full sm:w-auto appearance-none">
+                        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="input-modern !pl-9 !py-2 !text-sm w-full sm:w-auto appearance-none bg-white dark:bg-slate-800">
                             <option value="All">ทุกสถานะ</option>
                             <option value="Pending_IT">รออนุมัติ (IT Manager)</option>
                             <option value="In_Progress">กำลังพัฒนาโปรแกรม</option>
                             <option value="Pending_User_Acceptance">รอจัดการส่งมอบ (User)</option>
                             <option value="Completed">ปิดงานสมบูรณ์</option>
                         </select>
+                    </div>
+
+                    <div className="flex gap-2 w-full sm:w-auto">
+                        <input
+                            type="date"
+                            value={dateRangeStart}
+                            onChange={(e) => setDateRangeStart(e.target.value)}
+                            className="input-modern !py-2 !text-sm flex-1 sm:flex-auto"
+                            title="วันที่เริ่มต้น"
+                        />
+                        <input
+                            type="date"
+                            value={dateRangeEnd}
+                            onChange={(e) => setDateRangeEnd(e.target.value)}
+                            className="input-modern !py-2 !text-sm flex-1 sm:flex-auto"
+                            title="วันที่สิ้นสุด"
+                        />
                     </div>
                 </div>
             </div>
