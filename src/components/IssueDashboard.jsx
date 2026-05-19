@@ -1,8 +1,9 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
-import { Clock, CheckCircle2, Edit, FileSpreadsheet, Search, Filter, X, Save, MessageSquare, Trash2, Printer, AlertTriangle, ChevronLeft, ChevronRight, Monitor, ChevronDown } from 'lucide-react';
+import { Clock, CheckCircle2, Edit, FileSpreadsheet, Search, Filter, X, Save, MessageSquare, Trash2, Printer, AlertTriangle, ChevronLeft, ChevronRight, Monitor, ChevronDown, FileText } from 'lucide-react';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, Legend } from 'recharts';
 import PdfPreviewModal from './PdfPreviewModal';
+import MaintenanceReportPdfPreview from './MaintenanceReportPdfPreview';
 import Swal from 'sweetalert2';
 import { supabase } from '../supabaseClient';
 
@@ -42,6 +43,8 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
     });
     const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
     const [currentPdfIssue, setCurrentPdfIssue] = useState(null);
+    const [isMaintenanceReportOpen, setIsMaintenanceReportOpen] = useState(false);
+    const [currentMaintenanceIssue, setCurrentMaintenanceIssue] = useState(null);
 
     // Asset and User states (for Edit Modal)
     const [computers, setComputers] = useState([]);
@@ -309,6 +312,11 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
     const handleOpenPdfPreview = (issue) => {
         setCurrentPdfIssue(issue);
         setIsPdfModalOpen(true);
+    };
+
+    const handleOpenMaintenanceReport = (issue) => {
+        setCurrentMaintenanceIssue(issue);
+        setIsMaintenanceReportOpen(true);
     };
 
     const getSeverityText = (severity) => {
@@ -675,9 +683,9 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                                 <Edit className="w-4 h-4 group-hover:scale-110 transition-transform" />
                                             </button>
                                             <button
-                                                onClick={() => handleOpenPdfPreview(issue)}
-                                                className="w-9 h-9 flex items-center justify-center text-sky-600 dark:text-sky-400 hover:text-white bg-sky-50 dark:bg-slate-800 hover:bg-sky-600 dark:hover:bg-sky-600 border border-sky-200/80 dark:border-slate-700 hover:border-sky-600 rounded-xl transition-all shadow-sm group"
-                                                title="เปิดหน้าปรับแต่งใบแจ้งซ่อม"
+                                                onClick={() => handleOpenMaintenanceReport(issue)}
+                                                className="w-9 h-9 flex items-center justify-center text-amber-600 dark:text-amber-400 hover:text-white bg-amber-50 dark:bg-slate-800 hover:bg-amber-600 dark:hover:bg-amber-600 border border-amber-200/80 dark:border-slate-700 hover:border-amber-600 rounded-xl transition-all shadow-sm group"
+                                                title="ดูรายงานใบแจ้งซ่อม"
                                             >
                                                 <Printer className="w-4 h-4 group-hover:scale-110 transition-transform" />
                                             </button>
@@ -1004,6 +1012,13 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                 isOpen={isPdfModalOpen}
                 onClose={() => setIsPdfModalOpen(false)}
                 issue={currentPdfIssue}
+            />
+
+            {/* Maintenance Report PDF Modal */}
+            <MaintenanceReportPdfPreview
+                isOpen={isMaintenanceReportOpen}
+                onClose={() => setIsMaintenanceReportOpen(false)}
+                formData={currentMaintenanceIssue}
             />
 
             {/* Read More Modal */}

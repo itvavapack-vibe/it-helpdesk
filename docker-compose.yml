@@ -15,3 +15,21 @@ services:
       - /app/node_modules # ป้องกันไม่ให้ node_modules จากเครื่อง host ไปทับใน container
     env_file:
       - .env
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: helpdesk-api
+    command: ["npm", "run", "start:api"]
+    ports:
+      - "4000:4000"
+    environment:
+      - API_PORT=4000
+      - DB_HOST=192.168.40.130
+      - DB_PORT=3306
+      - DB_NAME=helpdsk_db
+      - DB_USER=fight
+      - DB_PASSWORD=vava1234
+    env_file:
+      - .env

@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "start:api": "node server.js"
   },
   "keywords": [],
   "author": "",
@@ -14,6 +15,10 @@
   "type": "module",
   "dependencies": {
     "@supabase/supabase-js": "^2.98.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.4",
+    "mysql2": "^3.6.0",
     "html2canvas-pro": "^2.0.2",
     "jspdf-autotable": "^5.0.7",
     "qrcode.react": "^4.2.0",
