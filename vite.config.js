@@ -17,15 +17,23 @@ export default ({ mode }) => {
       'process.env': {}
     },
     server: {
+      host: '0.0.0.0',
+      port: 5173,
+      strictPort: true,
       proxy: {
         '/glpi-proxy': {
           target: proxyTarget,
           changeOrigin: true,
           secure: false,
           rewrite: (path) => path.replace(/^\/glpi-proxy/, '/glpi'),
-        }
-      }
-    }
+        },
+      },
+    },
+    preview: {
+      host: '0.0.0.0',
+      port: 5173,
+      strictPort: true,
+    },
   })
 }
 

@@ -6,6 +6,19 @@ import { withGlpiSession, getComputers, getUsers, getComputerDetail, extractIpAd
 import { supabase } from '../supabaseClient';
 import { notifyGlpiSync } from '../telegramNotify';
 
+const mapAssetRowToComputer = (row) => ({ ...row, id: row.glpi_id });
+
+const isActiveComputer = (c) => String(c.states_id || '').toLowerCase() === 'active';
+
+async function batchDeleteIn(table, column, ids) {
+    const chunkSize = 80;
+    for (let i = 0; i < ids.length; i += chunkSize) {
+        const chunk = ids.slice(i, i + chunkSize);
+        const { error } = await supabase.from(table).delete().in(column, chunk);
+        if (error) throw new Error(typeof error === 'string' ? error : error.message || String(error));
+    }
+}
+
 const AssetInventory = ({ issues = [] }) => {
     const [computers, setComputers] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -22,44 +35,45 @@ const AssetInventory = ({ issues = [] }) => {
     const [isSyncing, setIsSyncing] = useState(false);
     const [syncResult, setSyncResult] = useState(null);
 
+    const loadAssetsFromMysql = useCallback(async () => {
+        const { data, error } = await supabase.from('assets').select('*').order('name');
+        if (error) throw new Error(error);
+        return (data || []).map(mapAssetRowToComputer).filter(isActiveComputer);
+    }, []);
+
     const fetchComputers = useCallback(async () => {
         setIsLoading(true);
         setError(null);
         setWarning(null);
+
+        let mysqlAssets = [];
+        try {
+            mysqlAssets = await loadAssetsFromMysql();
+            if (mysqlAssets.length > 0) {
+                setComputers(mysqlAssets);
+            }
+        } catch (mysqlErr) {
+            console.warn('โหลดทรัพย์สินจาก MySQL ไม่สำเร็จ:', mysqlErr);
+        }
+
         try {
             const data = await withGlpiSession(getComputers);
             const all = Array.isArray(data) ? data : [];
-            console.log('GLPI returned', all.length, 'computers');
-            console.log('Sample states:', all.slice(0, 10).map(c => ({ name: c.name, state: c.states_id })));
-            
-            const active = all.filter(c => {
-                const state = String(c.states_id || '').toLowerCase();
-                // Only count devices that are explicitly Active.
-                // GLPI may return state '0' for unknown/non-active entries,
-                // which should not be treated as Active.
-                return state === 'active';
-            });
-            console.log('Active computers (explicit Active state):', active.length);
-            
+            const active = all.filter(isActiveComputer);
+            console.log('GLPI active computers:', active.length, '/', all.length);
             setComputers(active);
+            setWarning(null);
         } catch {
-            // GLPI เข้าไม่ได้ → fallback ดึงจาก Supabase
-            try {
-                const { data: cached } = await supabase.from('assets').select('*').order('name');
-                if (cached && cached.length > 0) {
-                    // แปลง field ให้ตรงกับ GLPI format
-                    setComputers(cached.map(c => ({ ...c, id: c.glpi_id })));
-                    setWarning('ใช้ข้อมูลอัปเดตล่าสุดจากระบบคลาวด์ (ไม่สามารถเชื่อมต่อ GLPI Studio ได้ในขณะนี้)');
-                } else {
-                    setError('ไม่สามารถเชื่อมต่อ GLPI ได้ และยังไม่มีข้อมูลในระบบ (กรุณาให้ Admin กด Sync ขณะอยู่ใน Office)');
-                }
-            } catch {
-                setError('ไม่สามารถเชื่อมต่อ GLPI และ Supabase ได้');
+            if (mysqlAssets.length > 0) {
+                setComputers(mysqlAssets);
+                setWarning('ใช้ข้อมูลจาก MySQL (เชื่อมต่อ GLPI ไม่ได้ในขณะนี้ — กด Sync หลังเข้า Office ได้)');
+            } else {
+                setError('ไม่สามารถเชื่อมต่อ GLPI ได้ และยังไม่มีข้อมูลใน MySQL (กรุณา Sync จาก GLPI ครั้งแรก)');
             }
         } finally {
             setIsLoading(false);
         }
-    }, []);
+    }, [loadAssetsFromMysql]);
 
     useEffect(() => { fetchComputers(); }, [fetchComputers]);
 
@@ -106,14 +120,14 @@ const AssetInventory = ({ issues = [] }) => {
             stats.assetsUpdated = currentAssetsUpdated;
 
             const { error: assetUpsertError } = await supabase.from('assets').upsert(rows, { onConflict: 'glpi_id' });
-            if (assetUpsertError) throw assetUpsertError;
+            if (assetUpsertError) throw new Error(assetUpsertError);
 
             // --- ลบข้อมูลเครื่องเก่าที่ถูกลบออกจาก GLPI ไปแล้ว ---
             if (existingAssets) {
                 const currentGlpiIds = new Set(rows.map(r => r.glpi_id));
                 const staleAssetIds = existingAssets.filter(a => !currentGlpiIds.has(a.glpi_id)).map(a => a.glpi_id);
                 if (staleAssetIds.length > 0) {
-                    await supabase.from('assets').delete().in('glpi_id', staleAssetIds);
+                    await batchDeleteIn('assets', 'glpi_id', staleAssetIds);
                     stats.assetsDeleted = staleAssetIds.length;
                 }
             }
@@ -175,7 +189,7 @@ const AssetInventory = ({ issues = [] }) => {
                 stats.usersUpdated = currentUsersUpdated;
 
                 const { error: userError } = await supabase.from('glpi_users').upsert(userRows, { onConflict: 'id' });
-                if (userError) throw userError;
+                if (userError) throw new Error(userError);
             }
 
             // --- ลบข้อมูล User เก่าที่ไม่มีเครื่องหรือถูกลบออกจาก GLPI ไปแล้ว ---
@@ -183,7 +197,7 @@ const AssetInventory = ({ issues = [] }) => {
                 const currentUserIds = new Set(allSyncUsers.map(u => u.id));
                 const staleUserIds = existingUsers.filter(u => !currentUserIds.has(u.id)).map(u => u.id);
                 if (staleUserIds.length > 0) {
-                    await supabase.from('glpi_users').delete().in('id', staleUserIds);
+                    await batchDeleteIn('glpi_users', 'id', staleUserIds);
                     stats.usersDeleted = staleUserIds.length;
                 }
             }
@@ -202,11 +216,11 @@ const AssetInventory = ({ issues = [] }) => {
                 setSyncResult({ type: 'info', stats, time: new Date() });
                 setTimeout(() => setSyncResult(null), 10000);
             }
-            console.log(`Auto-sync completed: ${rows.length} computers, ${allSyncUsers.length} users`);
+            console.log(`Sync → MySQL: ${rows.length} assets, ${allSyncUsers.length} users`);
         } catch (err) {
-            console.error('Auto-sync failed:', err);
+            console.error('Sync to MySQL failed:', err);
             if (showSuccessAlert) {
-                setSyncResult({ type: 'error', message: err.message, time: new Date() });
+                setSyncResult({ type: 'error', message: err.message || String(err), time: new Date() });
                 setTimeout(() => setSyncResult(null), 10000);
             }
         } finally {
@@ -324,7 +338,7 @@ const AssetInventory = ({ issues = [] }) => {
         return `${base}?assetId=${computer.id}&assetName=${encodeURIComponent(computer.name || '')}`;
     };
 
-    const syncToSupabase = async () => {
+    const syncToMysql = async () => {
         await performSync(true);
     };
 
@@ -356,14 +370,14 @@ const AssetInventory = ({ issues = [] }) => {
                         </div>
                         <div>
                             <h2 className="text-xl font-bold text-slate-800 dark:text-white">ทรัพย์สิน IT</h2>
-                            <p className="text-sm text-slate-500 dark:text-slate-400">ข้อมูลจาก GLPI · {computers.length} เครื่อง</p>
+                            <p className="text-sm text-slate-500 dark:text-slate-400">GLPI + MySQL · {computers.length} เครื่อง (Active)</p>
                         </div>
                     </div>
                     <div className="flex gap-2 flex-wrap">
-                        <button onClick={syncToSupabase} disabled={isLoading || isSyncing || computers.length === 0}
+                        <button onClick={syncToMysql} disabled={isLoading || isSyncing || computers.length === 0}
                             className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-white dark:bg-slate-800 text-violet-600 dark:text-violet-400 border border-violet-200 dark:border-violet-700 rounded-full hover:bg-violet-50 dark:hover:bg-violet-900/40 transition-all disabled:opacity-40">
                             <Upload className={`w-4 h-4 ${isSyncing ? 'animate-bounce' : ''}`} />
-                            {isSyncing ? 'กำลัง Sync...' : 'Sync → Supabase'}
+                            {isSyncing ? 'กำลัง Sync...' : 'Sync → MySQL'}
                         </button>
                         <button onClick={exportToExcel} disabled={isLoading || computers.length === 0}
                             className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-700 rounded-full hover:bg-emerald-50 dark:hover:bg-emerald-900/40 transition-all disabled:opacity-40">
@@ -444,7 +458,7 @@ const AssetInventory = ({ issues = [] }) => {
                 </div>
             </div>
 
-            {/* Warning (Supabase Fallback) */}
+            {/* Warning (MySQL cache when GLPI unavailable) */}
             {warning && (
                 <div className="glass-card rounded-xl p-4 flex items-center gap-3 border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 text-sm">
                     <Clock className="w-5 h-5 flex-shrink-0" />

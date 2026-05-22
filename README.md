@@ -2,7 +2,56 @@
 
 ระบบแจ้งซ่อม IT + Admin panel (React + Vite) และ API เชื่อม MySQL
 
-## Deploy บน Vercel (แทนเซิร์ฟเวอร์เก่า)
+## รันในวง LAN (แนะนำก่อน — Windows Server นี้)
+
+MySQL อยู่บนเครื่องเดียวกัน (`DB_HOST=localhost`) เครื่องอื่นใน office เปิดผ่าน **IP วง LAN** ได้
+
+### 1. ตั้ง `.env` (บนเครื่อง Windows)
+
+```env
+DB_HOST=localhost
+DB_PORT=3306
+DB_NAME=helpdsk_db
+DB_USER=root
+DB_PASSWORD="VaVa#4322"
+API_PORT=4000
+VITE_GLPI_URL=https://192.168.10.9/glpi
+VITE_GLPI_APP_TOKEN=...
+VITE_GLPI_USER_TOKEN=...
+VITE_USE_GLPI_PROXY=true
+# ไม่ต้องใส่ VITE_API_URL — ระบบจะใช้ http://<IP-เครื่องนี้>:4000 อัตโนมัติ
+```
+
+### 2. รันครั้งเดียว (API + หน้าเว็บ)
+
+```bash
+npm install
+npm run lan
+```
+
+หรือแยก 2 terminal:
+
+```bash
+npm run start:api    # พอร์ต 4000
+npm run dev:lan      # พอร์ต 5173, เปิดทุก IP
+```
+
+### 3. เปิด Windows Firewall
+
+อนุญาต **Inbound TCP 4000** และ **5173**
+
+### 4. เข้าใช้งาน
+
+| จากเครื่อง | URL |
+|-----------|-----|
+| เครื่อง server เอง | http://localhost:5173 |
+| เครื่องอื่นใน LAN | http://\<IP-Windows\>:5173 (ดู IP จาก `ipconfig`) |
+
+ทดสอบ API: `http://<IP>:4000/api/health`
+
+---
+
+## Deploy บน Vercel (ภายหลัง)
 
 ### สิ่งที่เปลี่ยน
 

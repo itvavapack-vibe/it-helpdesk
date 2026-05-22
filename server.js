@@ -9,14 +9,18 @@ import {
   updateTable,
   upsertTable,
 } from './lib/handlers.js'
+import { proxyGlpiRequest } from './lib/glpi-proxy.js'
+import { getLanAddresses } from './lib/network.js'
 
 dotenv.config()
 
-const { API_PORT = '4000' } = process.env
+const { API_PORT = '4000', API_HOST = '0.0.0.0' } = process.env
 
 const app = express()
 app.use(cors())
-app.use(express.json())
+app.use(express.json({ limit: '10mb' }))
+
+app.use('/glpi-proxy', (req, res) => proxyGlpiRequest(req, res))
 
 app.get('/api/health', async (req, res) => {
   try {
@@ -68,6 +72,14 @@ app.delete('/api/:table', async (req, res) => {
   }
 })
 
-app.listen(Number(API_PORT), () => {
-  console.log(`MySQL API server running on port ${API_PORT}`)
+app.listen(Number(API_PORT), API_HOST, () => {
+  console.log(`MySQL API listening on http://${API_HOST}:${API_PORT}`)
+  console.log(`  Health: http://127.0.0.1:${API_PORT}/api/health`)
+  const lanIps = getLanAddresses()
+  if (lanIps.length) {
+    console.log('  LAN access (other devices on same network):')
+    for (const ip of lanIps) {
+      console.log(`    http://${ip}:${API_PORT}/api/health`)
+    }
+  }
 })

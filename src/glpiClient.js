@@ -29,8 +29,8 @@ const ensureGlpiAuth = () => {
     }
 };
 
-// ใช้ proxy เมื่อ dev หรือ deploy บน Vercel (VITE_USE_GLPI_PROXY=true)
-const useGlpiProxy = import.meta.env.DEV || import.meta.env.VITE_USE_GLPI_PROXY === 'true'
+// ใช้ proxy ใน LAN / dev (ค่าเริ่มต้น) — ปิดด้วย VITE_USE_GLPI_PROXY=false ถ้า GLPI เปิด CORS แล้ว
+const useGlpiProxy = import.meta.env.VITE_USE_GLPI_PROXY !== 'false'
 const BASE_URL = useGlpiProxy
     ? '/glpi-proxy/apirest.php'
     : `${GLPI_URL}/apirest.php`;

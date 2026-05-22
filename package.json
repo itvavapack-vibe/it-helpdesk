@@ -5,9 +5,12 @@
   "main": "index.js",
   "scripts": {
     "dev": "vite",
+    "dev:lan": "vite --host",
     "build": "vite build",
     "preview": "vite preview",
-    "start:api": "node server.js"
+    "preview:lan": "vite preview --host",
+    "start:api": "node server.js",
+    "lan": "concurrently -n api,web -c blue,green \"npm run start:api\" \"npm run dev:lan\""
   },
   "keywords": [],
   "author": "",
@@ -32,6 +35,7 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "concurrently": "^9.2.1",
     "@tailwindcss/vite": "^4.2.1",
     "@vitejs/plugin-react": "^5.1.4",
     "html2canvas": "^1.4.1",

@@ -1,8 +1,16 @@
 function resolveApiUrl() {
-  const configured = import.meta.env.VITE_API_URL
-  if (configured) return configured.replace(/\/+$/, '')
-  if (import.meta.env.PROD) return ''
-  return `${window.location.protocol}//${window.location.hostname}:4000`
+  const configured = import.meta.env.VITE_API_URL?.trim()
+  const pageHost = typeof window !== 'undefined' ? window.location.hostname : 'localhost'
+  const lanApi = `${typeof window !== 'undefined' ? window.location.protocol : 'http:'}//${pageHost}:4000`
+
+  if (configured) {
+    const isLocalhostConfig = /localhost|127\.0\.0\.1/i.test(configured)
+    const onRemoteLanHost = pageHost !== 'localhost' && pageHost !== '127.0.0.1'
+    if (isLocalhostConfig && onRemoteLanHost) return lanApi.replace(/\/+$/, '')
+    return configured.replace(/\/+$/, '')
+  }
+
+  return lanApi.replace(/\/+$/, '')
 }
 
 const API_URL = resolveApiUrl()

@@ -105,7 +105,7 @@ CREATE TABLE IF NOT EXISTS assets (
   otherserial VARCHAR(128),
   users_id VARCHAR(255),
   locations_id VARCHAR(128),
-  computermodels_id INT,
+  computermodels_id VARCHAR(255),
   states_id VARCHAR(64),
   autoupdatesystems_id VARCHAR(128),
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
