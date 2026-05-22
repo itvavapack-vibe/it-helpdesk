@@ -1,5 +1,11 @@
-const defaultHost = `${window.location.protocol}//${window.location.hostname}:4000`
-const API_URL = import.meta.env.VITE_API_URL || defaultHost
+function resolveApiUrl() {
+  const configured = import.meta.env.VITE_API_URL
+  if (configured) return configured.replace(/\/+$/, '')
+  if (import.meta.env.PROD) return ''
+  return `${window.location.protocol}//${window.location.hostname}:4000`
+}
+
+const API_URL = resolveApiUrl()
 
 function serializeFilters(filters) {
   const params = new URLSearchParams()
@@ -55,6 +61,7 @@ function createBuilder(table) {
     head: false,
     count: null,
     body: null,
+    single: false,
   }
 
   const execute = async () => {
@@ -77,7 +84,23 @@ function createBuilder(table) {
       init.method = 'GET'
     }
 
-    return await request(url, init)
+    const result = await request(url, init)
+    if (!state.single || state.action !== 'select') {
+      return result
+    }
+
+    const rows = Array.isArray(result.data) ? result.data : []
+    if (result.error) {
+      return result
+    }
+    if (rows.length !== 1) {
+      return {
+        data: null,
+        error: 'JSON object requested, multiple (or no) rows returned',
+        count: result.count ?? null,
+      }
+    }
+    return { data: rows[0], error: null, count: result.count ?? null }
   }
 
   const builder = {
@@ -110,6 +133,11 @@ function createBuilder(table) {
     },
     limit(count) {
       state.limit = count
+      return builder
+    },
+    single() {
+      state.single = true
+      state.limit = 1
       return builder
     },
     insert(rows) {

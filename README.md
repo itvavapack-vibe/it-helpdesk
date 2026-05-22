@@ -1,80 +1,97 @@
-# IT Helpdesk Deployment
+# IT Helpdesk
 
-## เป้าหมาย
+ระบบแจ้งซ่อม IT + Admin panel (React + Vite) และ API เชื่อม MySQL
 
-ให้ระบบนี้รันบน Ubuntu เป็น backend/app จบในเครื่องเดียว และใช้ Git ในการแก้ไขจากอีกเครื่องแล้ว Push ขึ้นมาได้
+## Deploy บน Vercel (แทนเซิร์ฟเวอร์เก่า)
 
-## โครงสร้างหลัก
+### สิ่งที่เปลี่ยน
 
-- `server.js` - Backend API ที่เชื่อม MySQL
-- `src/supabaseClient.js` - Proxy client สำหรับเรียก API แทน Supabase โดยตรง
-- `docker-compose.yml` - รันทั้ง frontend และ backend ใน container เดียวกัน
-- `.env` - ตั้งค่า environment สำหรับ MySQL, GLPI และ API
+- Frontend: build เป็น static ที่ `dist/`
+- API: Vercel Serverless Functions ในโฟลเดอร์ `api/` (แทน `server.js` แบบพอร์ต 4000)
+- GLPI: ใช้ `/glpi-proxy` ผ่าน `api/glpi/[...path].js` (ไม่ต้องตั้ง CORS ที่ Apache)
 
-## เรียกใช้งานบน Ubuntu
+### ข้อกำหนด MySQL
 
-1. Clone repository บน Ubuntu
+ฐานข้อมูลต้อง **เข้าถึงได้จากอินเทอร์เน็ต** (Vercel รันบน cloud ไม่ต่อ LAN `192.168.x.x` โดยตรง)
+
+ตัวเลือก:
+
+1. ใช้ MySQL บน Ubuntu เดิม แต่เปิดพอร์ต + firewall ให้เฉพาะ IP ที่จำเป็น หรือ VPN
+2. ย้ายไป cloud MySQL (Railway, Aiven, ฯลฯ) แล้ว import `schema_mysql.sql`
+
+### ขั้นตอนใน Vercel Dashboard
+
+1. Import โปรเจกต์จาก GitHub: `itvavapack-vibe/it-helpdesk`
+2. ถ้า repo อยู่ในโฟลเดอร์ย่อย ให้ตั้ง **Root Directory** = `it-helpdesk`
+3. Framework Preset: **Other** (ใช้ `vercel.json` ที่มีอยู่แล้ว)
+4. ตั้ง **Environment Variables** (Production + Preview):
+
+| ตัวแปร | ค่าตัวอย่าง |
+|--------|------------|
+| `DB_HOST` | host ของ MySQL |
+| `DB_PORT` | `3306` |
+| `DB_NAME` | `helpdsk_db` |
+| `DB_USER` | user สำหรับแอป |
+| `DB_PASSWORD` | รหัสผ่าน |
+| `DB_SSL` | `true` ถ้า provider บังคับ SSL |
+| `VITE_GLPI_URL` | `https://.../glpi` |
+| `VITE_GLPI_APP_TOKEN` | token จาก GLPI |
+| `VITE_GLPI_USER_TOKEN` | user token |
+| `VITE_USE_GLPI_PROXY` | `true` |
+| `VITE_API_URL` | *(เว้นว่าง)* |
+
+5. Deploy — หลังสำเร็จทดสอบ:
+   - `https://<your-app>.vercel.app/api/health`
+   - เปิดหน้าเว็บ → แท็บ Admin → ล็อกอิน
+
+### แทนที่ deployment เก่า
+
+ใน Vercel → Project → **Settings → Domains** ผูกโดเมนเดิมกับ deployment ใหม่ หรือลบโปรเจกต์เก่าแล้วชี้ DNS มาที่โปรเจกต์นี้
+
+### Deploy จากเครื่อง (CLI)
+
+```bash
+cd it-helpdesk
+npm install
+npx vercel login
+npx vercel --prod
+```
+
+---
+
+## รันบน Ubuntu / Docker (เดิม)
+
+### โครงสร้างหลัก
+
+- `server.js` — API สำหรับ dev/local (พอร์ต 4000)
+- `api/` + `lib/` — logic เดียวกันสำหรับ Vercel
+- `src/supabaseClient.js` — client เรียก `/api`
+- `docker-compose.yml` — frontend + API + MySQL
+
+### Ubuntu
 
 ```bash
 git clone <repository-url>
 cd it-helpdesk
-```
-
-2. สร้างไฟล์ `.env` โดยคัดลอกจาก `.env.example`
-
-```bash
 cp .env.example .env
-```
-
-3. แก้ค่าตามเครื่องของคุณ
-
-- `DB_HOST` = `192.168.40.130`
-- `DB_PORT` = `3306`
-- `DB_NAME` = `helpdsk_db`
-- `DB_USER` = `fight`
-- `DB_PASSWORD` = `vava1234`
-- `VITE_API_URL` = `http://<ubuntu-server-ip>:4000` (ถ้าเข้าจากเครื่องอื่น)
-
-4. สั่งรัน Docker Compose
-
-```bash
+# แก้ DB_*, VITE_API_URL=http://<server-ip>:4000
 docker-compose up --build -d
 ```
 
-5. เปิดหน้าเว็บจากเครื่องอื่น
+- Frontend: `http://<server-ip>:5173`
+- API health: `http://<server-ip>:4000/api/health`
 
-- Frontend: `http://<ubuntu-server-ip>:5173`
-- Backend health: `http://<ubuntu-server-ip>:4000/api/health`
-
-> ถ้าเข้าจากเครื่องอื่น ให้เปิด port 5173 และ 4000 ใน firewall ของ Ubuntu
-
-## ถ้าอยากแก้โค้ดจากอีกเครื่อง
-
-1. แก้ในเครื่องพัฒนา
-2. `git add .`
-3. `git commit -m "แก้ไข..."`
-4. `git push`
-
-## รีเฟรชบน Ubuntu
-
-บน Ubuntu server:
-
-```bash
-git pull
-
-docker-compose up --build -d
-```
-
-หรือถ้าไม่ใช้ Docker:
+### Local Windows
 
 ```bash
 npm install
-npm run start:api
-npm run dev
+npm run start:api   # terminal 1
+npm run dev         # terminal 2
 ```
+
+---
 
 ## หมายเหตุ
 
-- `.env` อยู่ใน `.gitignore` อยู่แล้ว ดังนั้นไม่ควร commit ข้อมูลความลับ
-- ควรใช้ `.env.example` เป็น template ของไฟล์ environment
-- ระบบนี้ยังเป็นแบบใช้งานได้ผ่าน Vite (สำหรับ dev) ถ้าต้องการ production แบบจริงจัง อาจต้องเพิ่ม web server สำหรับ static build ต่อไป
+- อย่า commit `.env` (อยู่ใน `.gitignore`)
+- รหัส admin เก็บใน MySQL แบบ plain text — ควร hash ใน production จริงจัง

@@ -29,9 +29,9 @@ const ensureGlpiAuth = () => {
     }
 };
 
-// ใน dev (localhost) ใช้ Vite proxy เพื่อ bypass CORS
-// ใน production ใช้ GLPI URL ตรง (ต้องตั้ง CORS บน Apache ฝั่ง GLPI)
-const BASE_URL = import.meta.env.DEV
+// ใช้ proxy เมื่อ dev หรือ deploy บน Vercel (VITE_USE_GLPI_PROXY=true)
+const useGlpiProxy = import.meta.env.DEV || import.meta.env.VITE_USE_GLPI_PROXY === 'true'
+const BASE_URL = useGlpiProxy
     ? '/glpi-proxy/apirest.php'
     : `${GLPI_URL}/apirest.php`;
 
