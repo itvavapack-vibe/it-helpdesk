@@ -96,6 +96,25 @@ CREATE TABLE IF NOT EXISTS access_requests (
 CREATE INDEX idx_access_requests_ticket ON access_requests(ticket_number);
 CREATE INDEX idx_access_requests_status ON access_requests(status);
 
+-- Employees
+CREATE TABLE IF NOT EXISTS employees (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  emp_id VARCHAR(6) NOT NULL UNIQUE,
+  name_th VARCHAR(255) NOT NULL,
+  department VARCHAR(255) NOT NULL,
+  start_date DATE NOT NULL,
+  status VARCHAR(64) NOT NULL,
+  end_date DATE,
+  transfer_date DATE,
+  resignation_link VARCHAR(1024),
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_employees_emp_id ON employees(emp_id);
+CREATE INDEX idx_employees_department ON employees(department);
+CREATE INDEX idx_employees_status ON employees(status);
+
 -- Assets (synced from GLPI)
 CREATE TABLE IF NOT EXISTS assets (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -139,6 +158,11 @@ CREATE TABLE IF NOT EXISTS issues (
   assigned_admin VARCHAR(255),
   asset_id INT,
   asset_name VARCHAR(512),
+  attachments_json LONGTEXT,
+  user_close_name VARCHAR(255),
+  user_close_note TEXT,
+  user_close_sign MEDIUMTEXT,
+  user_closed_at DATETIME,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

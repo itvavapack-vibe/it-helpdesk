@@ -114,7 +114,7 @@ npx vercel --prod
 
 - `server.js` — API สำหรับ dev/local (พอร์ต 4000)
 - `api/` + `lib/` — logic เดียวกันสำหรับ Vercel
-- `src/supabaseClient.js` — client เรียก `/api`
+- `src/mysqlClient.js` — client เรียก `/api`
 - `docker-compose.yml` — frontend + API + MySQL
 
 ### Ubuntu

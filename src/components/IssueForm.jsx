@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { CheckCircle, Clock, Edit, CheckCircle2, Monitor, ChevronDown, X } from 'lucide-react';
+import { CheckCircle, Clock, Edit, CheckCircle2, Monitor, ChevronDown, X, ImagePlus, Paperclip, FileSignature } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Combobox } from './ui/combobox';
 import Swal from 'sweetalert2';
-import { supabase } from '../supabaseClient';
+import { mysql, API_URL } from '../mysqlClient';
+import { buildCloseIssueLink, copyText } from '../utils/closeIssueLink';
 const STATUS_ORDER = ['Pending', 'In Progress', 'Resolved'];
 
 const DEPARTMENTS = [
@@ -36,6 +39,8 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false, qrParams = null }
         assetId: '',
         assetName: '',
     });
+    const [selectedFiles, setSelectedFiles] = useState([]);
+    const [isUploading, setIsUploading] = useState(false);
     const [computers, setComputers] = useState([]);
     const [glpiUsers, setGlpiUsers] = useState([]);
     const [glpiUsersRaw, setGlpiUsersRaw] = useState([]); // เก็บ object เต็มไว้แปลง AD Username เป็น ชื่อจริง
@@ -45,13 +50,14 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false, qrParams = null }
     // Autocomplete dropdown states
     const [assetSearchTerm, setAssetSearchTerm] = useState('');
     const [isAssetDropdownOpen, setIsAssetDropdownOpen] = useState(false);
+    const [recentSearchTerm, setRecentSearchTerm] = useState('');
 
     // Initial load effects
     useEffect(() => {
         const fetchAssets = async () => {
             setIsLoadingAssets(true);
             try {
-                const { data, error } = await supabase
+                const { data, error } = await mysql
                     .from('assets')
                     .select('glpi_id, name, serial, otherserial, users_id')
                     .order('name');
@@ -67,14 +73,14 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false, qrParams = null }
 
         const fetchUsers = async () => {
             try {
-                // ดึงข้อมูล User จาก Supabase (ที่ Admin เพิ่งจะ Sync มาจาก GLPI)
-                const { data, error } = await supabase.from('glpi_users').select('*');
+                // ดึงข้อมูล User จาก MySQL (ที่ Admin เพิ่งจะ Sync มาจาก GLPI)
+                const { data, error } = await mysql.from('glpi_users').select('*');
                 if (error) throw error;
                 
                 // เราไม่ต้อง filter เองแล้วเพราะรายชื่อที่ Sync มาใน db เลือกเฉพาะคนที่ active
                 setGlpiUsersRaw(data || []);
             } catch (error) {
-                console.error("Failed to load users from Supabase:", error);
+                console.error("Failed to load users from MySQL:", error);
                 setGlpiUsersRaw([]);
             }
         };
@@ -146,6 +152,58 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false, qrParams = null }
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [formData.assetName, formData.assetId]);
+
+    const handleFileChange = (e) => {
+        const files = Array.from(e.target.files);
+        // Limit to 5 files
+        if (selectedFiles.length + files.length > 5) {
+            Swal.fire('เกินกำหนด', 'สามารถแนบรูปภาพได้สูงสุด 5 รูป', 'warning');
+            return;
+        }
+
+        const newFiles = files.map(file => ({
+            id: Math.random().toString(36).substr(2, 9),
+            file,
+            preview: URL.createObjectURL(file)
+        }));
+
+        setSelectedFiles(prev => [...prev, ...newFiles]);
+    };
+
+    const removeFile = (id) => {
+        setSelectedFiles(prev => {
+            const filtered = prev.filter(f => f.id !== id);
+            // Cleanup preview URL
+            const removed = prev.find(f => f.id === id);
+            if (removed) URL.revokeObjectURL(removed.preview);
+            return filtered;
+        });
+    };
+
+    const uploadFiles = async () => {
+        if (selectedFiles.length === 0) return [];
+        
+        setIsUploading(true);
+        const formData = new FormData();
+        selectedFiles.forEach(f => {
+            formData.append('files', f.file);
+        });
+
+        try {
+            const response = await fetch(`${API_URL}/api/upload`, {
+                method: 'POST',
+                body: formData
+            });
+            const result = await response.json();
+            if (result.error) throw new Error(result.error);
+            return result.data; // [{name, url}]
+        } catch (error) {
+            console.error('Upload failed:', error);
+            throw error;
+        } finally {
+            setIsUploading(false);
+        }
+    };
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -242,7 +300,7 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false, qrParams = null }
         }
     };
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
         if (!formData.name || !formData.department || !formData.description) {
             Swal.fire({
@@ -264,7 +322,7 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false, qrParams = null }
             return;
         }
 
-        Swal.fire({
+        const confirm = await Swal.fire({
             title: 'ยืนยันการส่งข้อมูล?',
             text: "ตรวจสอบข้อมูลการแจ้งซ่อมของคุณให้ถูกต้องก่อนกดยืนยัน",
             icon: 'question',
@@ -274,12 +332,18 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false, qrParams = null }
             confirmButtonText: 'ยืนยันการส่ง',
             cancelButtonText: 'ยกเลิก',
             reverseButtons: true
-        }).then((result) => {
-            if (result.isConfirmed) {
+        });
+
+        if (confirm.isConfirmed) {
+            try {
+                // Upload files first
+                const attachments = await uploadFiles();
+
                 const newIssue = {
                     ...formData,
                     id: Date.now().toString(),
                     status: 'Pending',
+                    attachments: attachments,
                     createdAt: new Date().toISOString(),
                 };
 
@@ -293,6 +357,7 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false, qrParams = null }
                     assetId: '',
                     assetName: '',
                 });
+                setSelectedFiles([]);
 
                 Swal.fire({
                     title: 'ส่งข้อมูลสำเร็จ!',
@@ -301,14 +366,34 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false, qrParams = null }
                     timer: 2000,
                     showConfirmButton: false
                 });
+            } catch (error) {
+                Swal.fire('Error', 'ไม่สามารถอัปโหลดไฟล์ได้: ' + error.message, 'error');
             }
-        });
+        }
     };
 
     const formatDate = (dateString) => {
         if (!dateString) return '-';
         return new Date(dateString).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
     };
+
+    const filteredRecentIssues = issues
+        .filter((issue) => {
+            const term = recentSearchTerm.trim().toLowerCase();
+            if (!term) return true;
+            return [
+                issue.id,
+                issue.name,
+                issue.department,
+                issue.category,
+                issue.description,
+                issue.status,
+                issue.assignedAdmin,
+            ]
+                .filter(Boolean)
+                .some((value) => String(value).toLowerCase().includes(term));
+        })
+        .slice(0, 10);
 
     return (
         <div className="space-y-8">
@@ -320,80 +405,64 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false, qrParams = null }
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-2">
                             <label htmlFor="name" className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1 ml-1">ชื่อ-นามสกุล <span className="text-rose-500 dark:text-rose-400">*</span></label>
-                            <input
-                                type="text"
-                                id="name"
-                                name="name"
-                                list="name-list"
+                            <Combobox
+                                options={glpiUsers.map(name => ({ label: name, value: name }))}
                                 value={formData.name}
-                                onChange={handleChange}
-                                className="w-full input-modern"
+                                onValueChange={(value) => handleChange({ target: { name: 'name', value } })}
                                 placeholder="นาย สมชาย ใจดี"
-                                autoComplete="off"
+                                searchPlaceholder="ค้นหาชื่อ..."
                             />
-                            <datalist id="name-list">
-                                {glpiUsers.map(name => (
-                                    <option key={name} value={name} />
-                                ))}
-                            </datalist>
                         </div>
                         <div className="space-y-1">
                             <label htmlFor="department" className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1 ml-1">แผนก <span className="text-rose-500 dark:text-rose-400">*</span></label>
-                            <input
-                                type="text"
-                                id="department"
-                                name="department"
-                                list="department-list"
+                            <Combobox
+                                options={DEPARTMENTS.map(dept => ({ label: dept, value: dept }))}
                                 value={formData.department}
-                                onChange={handleChange}
-                                className="w-full input-modern"
+                                onValueChange={(value) => handleChange({ target: { name: 'department', value } })}
                                 placeholder="แอดมิน"
-                                autoComplete="off"
+                                searchPlaceholder="ค้นหาแผนก..."
                             />
-                            <datalist id="department-list">
-                                {DEPARTMENTS.map(dept => (
-                                    <option key={dept} value={dept} />
-                                ))}
-                            </datalist>
                         </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-1">
                             <label htmlFor="category" className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1 ml-1">หมวดหมู่ปัญหา</label>
-                            <select
-                                id="category"
-                                name="category"
+                            <Select
                                 value={formData.category}
-                                onChange={handleChange}
-                                className="w-full input-modern cursor-pointer appearance-none"
-                                style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: `right 0.5rem center`, backgroundRepeat: `no-repeat`, backgroundSize: `1.5em 1.5em`, paddingRight: `2.5rem` }}
+                                onValueChange={(value) => handleChange({ target: { name: 'category', value } })}
                             >
-                                <option value="แก้ไขปัญหาด้าน Software D365">แก้ไขปัญหาด้าน Software D365</option>
-                                <option value="ติดตั้งและแก้ไขปัญหาด้าน Hardware">ติดตั้งและแก้ไขปัญหาด้าน Hardware</option>
-                                <option value="ซ่อมบำรุงอุปกรณ์ต่อพ่วง Hardware & Network">ซ่อมบำรุงอุปกรณ์ต่อพ่วง Hardware & Network</option>
-                                <option value="ประชุม/อบรม/สัมนา">ประชุม/อบรม/สัมนา</option>
-                                <option value="งานอื่น ๆ">งานอื่น ๆ</option>
-                                <option value="กล้องวงจรปิด">กล้องวงจรปิด</option>
-                                <option value="แก้ไขปัญหาด้าน Printer">แก้ไขปัญหาด้าน Printer</option>
-                                <option value="ติดตั้งและแก้ปัญหาด้าน Software ทั่วไป">ติดตั้งและแก้ปัญหาด้าน Software ทั่วไป</option>
-                                <option value="แก้ไขปัญหาด้านอีเมล">แก้ไขปัญหาด้านอีเมล</option>
-                            </select>
+                                <SelectTrigger className="w-full">
+                                    <SelectValue placeholder="เลือกหมวดหมู่ปัญหา" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="แก้ไขปัญหาด้าน Software D365">แก้ไขปัญหาด้าน Software D365</SelectItem>
+                                    <SelectItem value="ติดตั้งและแก้ไขปัญหาด้าน Hardware">ติดตั้งและแก้ไขปัญหาด้าน Hardware</SelectItem>
+                                    <SelectItem value="ซ่อมบำรุงอุปกรณ์ต่อพ่วง Hardware & Network">ซ่อมบำรุงอุปกรณ์ต่อพ่วง Hardware & Network</SelectItem>
+                                    <SelectItem value="ประชุม/อบรม/สัมนา">ประชุม/อบรม/สัมนา</SelectItem>
+                                    <SelectItem value="งานอื่น ๆ">งานอื่น ๆ</SelectItem>
+                                    <SelectItem value="กล้องวงจรปิด">กล้องวงจรปิด</SelectItem>
+                                    <SelectItem value="แก้ไขปัญหาด้าน Printer">แก้ไขปัญหาด้าน Printer</SelectItem>
+                                    <SelectItem value="ติดตั้งและแก้ปัญหาด้าน Software ทั่วไป">ติดตั้งและแก้ปัญหาด้าน Software ทั่วไป</SelectItem>
+                                    <SelectItem value="แก้ไขปัญหาด้านอีเมล">แก้ไขปัญหาด้านอีเมล</SelectItem>
+                                </SelectContent>
+                            </Select>
                         </div>
                         <div className="space-y-1">
                             <label htmlFor="severity" className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1 ml-1">ระดับความรุนแรง</label>
-                            <select
-                                id="severity"
-                                name="severity"
+                            <Select
                                 value={formData.severity}
-                                onChange={handleChange}
-                                className="w-full input-modern cursor-pointer appearance-none"
-                                style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: `right 0.5rem center`, backgroundRepeat: `no-repeat`, backgroundSize: `1.5em 1.5em`, paddingRight: `2.5rem` }}
+                                onValueChange={(value) => handleChange({ target: { name: 'severity', value } })}
                             >
-                                <option value="Normal">ปกติ (Normal)</option>
-                                <option value="Urgent">ด่วน (Urgent)</option>
-                                <option value="Most Urgent">ด่วนที่สุด (Most Urgent)</option>
-                            </select>
+                                <SelectTrigger className="w-full">
+                                    <SelectValue placeholder="เลือกระดับความรุนแรง" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="Normal">ปกติ (Normal)</SelectItem>
+                                    <SelectItem value="Urgent">ด่วน (Urgent)</SelectItem>
+                                    <SelectItem value="Most Urgent">ด่วนที่สุด (Most Urgent)</SelectItem>
+                                </SelectContent>
+                            </Select>
                         </div>
                     </div>
 
@@ -409,120 +478,18 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false, qrParams = null }
                                 กำลังโหลดข้อมูลจาก GLPI...
                             </div>
                         ) : assetError || computers.length === 0 ? (
-                            <div className="input-modern text-sm text-slate-400">⚠️ ยังไม่มีข้อมูลอุปกรณ์ (Admin กรุณากด Sync → Supabase ในหน้าทรัพย์สินก่อน)</div>
+                            <div className="input-modern text-sm text-slate-400">⚠️ ยังไม่มีข้อมูลอุปกรณ์ (Admin กรุณากด Sync ในหน้าทรัพย์สินก่อน)</div>
                         ) : (
-                            <div className="relative asset-dropdown-container">
-                                {/* Searchable Input */}
-                                <div className="relative">
-                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                        <Monitor className="h-4 w-4 text-indigo-400" />
-                                    </div>
-                                    <input
-                                        type="text"
-                                        placeholder="พิมพ์ชื่อเครื่อง, รหัสทรัพย์สิน หรือผู้ใช้งานเพื่อค้นหา..."
-                                        className="w-full input-modern !pl-10 !pr-10"
-                                        value={assetSearchTerm}
-                                        onChange={(e) => {
-                                            setAssetSearchTerm(e.target.value);
-                                            setIsAssetDropdownOpen(true);
-                                            // หากลบข้อความค้นหาจนหมด ให้เคลียร์ค่าที่เลือกไว้ด้วย
-                                            if (e.target.value === '') {
-                                                setFormData(prev => ({ ...prev, assetId: '', assetName: '', name: '' }));
-                                            }
-                                        }}
-                                        onFocus={() => setIsAssetDropdownOpen(true)}
-                                    />
-                                    {/* Action Buttons inside Input */}
-                                    <div className="absolute inset-y-0 right-0 pr-3 flex items-center gap-1">
-                                        {formData.assetId && (
-                                            <button
-                                                type="button"
-                                                className="text-slate-400 hover:text-rose-500 transition-colors p-1"
-                                                onClick={() => {
-                                                    setFormData(prev => ({ ...prev, assetId: '', assetName: '', name: '' }));
-                                                    setAssetSearchTerm('');
-                                                    setIsAssetDropdownOpen(false);
-                                                }}
-                                                title="ยกเลิกการเลือก"
-                                            >
-                                                <X className="w-4 h-4" />
-                                            </button>
-                                        )}
-                                        <button
-                                            type="button"
-                                            className="text-slate-400 hover:text-indigo-500 transition-colors p-1"
-                                            onClick={() => setIsAssetDropdownOpen(!isAssetDropdownOpen)}
-                                        >
-                                            <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isAssetDropdownOpen ? 'rotate-180' : ''}`} />
-                                        </button>
-                                    </div>
-                                </div>
-
-                                {/* Dropdown Menu */}
-                                {isAssetDropdownOpen && (
-                                    <div className="absolute z-[200] w-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl max-h-40 sm:max-h-60 overflow-y-auto animate-fade-in custom-scrollbar will-change-transform">
-                                        {filteredAssets.length === 0 ? (
-                                            <div className="p-4 text-center text-sm text-slate-500 dark:text-slate-400">
-                                                ไม่พบอุปกรณ์ที่ค้นหา
-                                            </div>
-                                        ) : (
-                                            <ul className="py-1">
-                                                {/* Option: Clear Selection */}
-                                                <li
-                                                    className={`px-4 py-2 text-sm cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-700/50 ${!formData.assetId ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 font-medium' : ''}`}
-                                                    onClick={() => {
-                                                        setFormData(prev => ({ ...prev, assetId: '', assetName: '', name: '' }));
-                                                        setAssetSearchTerm('');
-                                                        setIsAssetDropdownOpen(false);
-                                                    }}
-                                                >
-                                                    -- ไม่ระบุอุปกรณ์ --
-                                                </li>
-                                                {/* Computer Options */}
-                                                {filteredAssets.map(c => {
-                                                    const isSelected = String(formData.assetId) === String(c.id);
-                                                    return (
-                                                        <li
-                                                            key={c.id}
-                                                            className={`px-4 py-2.5 text-sm cursor-pointer border-b border-slate-50 dark:border-slate-700/30 last:border-0 hover:bg-indigo-50 dark:hover:bg-indigo-900/40 transition-colors flex items-center justify-between group ${isSelected ? 'bg-indigo-50 dark:bg-indigo-900/40' : ''}`}
-                                                            onClick={() => {
-                                                                let ownerName = formData.name;
-                                                                if (c.users_id) {
-                                                                    const userObj = glpiUsersRaw.find(u => u.name === c.users_id);
-                                                                    ownerName = userObj ? (userObj.formattedName || userObj.name) : c.users_id;
-                                                                }
-
-                                                                setFormData(prev => ({ 
-                                                                    ...prev, 
-                                                                    assetId: c.id, 
-                                                                    assetName: c.name || '',
-                                                                    name: prev.name || ownerName
-                                                                }));
-                                                                setAssetSearchTerm(c.name || '');
-                                                                setIsAssetDropdownOpen(false);
-                                                            }}
-                                                        >
-                                                            <div className="flex flex-col min-w-0">
-                                                                <span className={`font-semibold truncate ${isSelected ? 'text-indigo-700 dark:text-indigo-300' : 'text-slate-700 dark:text-slate-200 group-hover:text-indigo-700 dark:group-hover:text-indigo-300'}`}>
-                                                                    {c.name}
-                                                                </span>
-                                                                {(c.serial || c.users_id) && (
-                                                                    <span className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                                                                        {c.serial ? `S/N: ${c.serial}` : ''}
-                                                                        {c.serial && c.users_id ? ' · ' : ''}
-                                                                        {c.users_id ? `👩‍💻 ${c.users_id}` : ''}
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                            {isSelected && <CheckCircle2 className="w-4 h-4 text-indigo-500 flex-shrink-0 ml-2" />}
-                                                        </li>
-                                                    );
-                                                })}
-                                            </ul>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
+                            <Combobox
+                                options={computers.map(c => ({
+                                    label: `${c.name} ${c.serial ? `(S/N: ${c.serial})` : ''} ${c.users_id ? `[👩‍💻 ${c.users_id}]` : ''}`,
+                                    value: String(c.id)
+                                }))}
+                                value={String(formData.assetId)}
+                                onValueChange={(value) => handleChange({ target: { name: 'assetId', value } })}
+                                placeholder="-- ไม่ระบุอุปกรณ์ --"
+                                searchPlaceholder="พิมพ์ค้นหาอุปกรณ์..."
+                            />
                         )}
                     </div>
 
@@ -539,12 +506,59 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false, qrParams = null }
                         ></textarea>
                     </div>
 
+                    <div className="space-y-2">
+                        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1 ml-1 flex items-center gap-1.5">
+                            <ImagePlus className="w-4 h-4 text-indigo-400" /> แนบรูปภาพประกอบ
+                            <span className="text-xs font-normal text-slate-400">(สูงสุด 5 รูป)</span>
+                        </label>
+                        
+                        <div className="flex flex-wrap gap-3">
+                            {selectedFiles.map(file => (
+                                <div key={file.id} className="relative group w-20 h-20 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm">
+                                    <img src={file.preview} alt="preview" className="w-full h-full object-cover" />
+                                    <button
+                                        type="button"
+                                        onClick={() => removeFile(file.id)}
+                                        className="absolute top-1 right-1 bg-rose-500 text-white rounded-full p-0.5 shadow-md opacity-0 group-hover:opacity-100 transition-opacity"
+                                    >
+                                        <X className="w-3 h-3" />
+                                    </button>
+                                </div>
+                            ))}
+                            
+                            {selectedFiles.length < 5 && (
+                                <label className="w-20 h-20 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors group">
+                                    <ImagePlus className="w-6 h-6 text-slate-400 group-hover:text-indigo-500 transition-colors" />
+                                    <span className="text-[10px] text-slate-400 mt-1">เพิ่มรูป</span>
+                                    <input
+                                        type="file"
+                                        multiple
+                                        accept="image/*"
+                                        className="hidden"
+                                        onChange={handleFileChange}
+                                        disabled={isUploading}
+                                    />
+                                </label>
+                            )}
+                        </div>
+                    </div>
+
                     <div className="pt-6 flex justify-center">
                         <button
                             type="submit"
-                            className="w-full sm:w-auto bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-semibold py-3 px-8 rounded-xl shadow-lg shadow-indigo-200/50 dark:shadow-indigo-900/30 transform hover:-translate-y-0.5 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 flex items-center justify-center gap-2"
+                            disabled={isUploading}
+                            className="w-full sm:w-auto bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-semibold py-3 px-8 rounded-xl shadow-lg shadow-indigo-200/50 dark:shadow-indigo-900/30 transform hover:-translate-y-0.5 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
                         >
-                            <CheckCircle className="w-5 h-5" /> ส่งข้อมูลแจ้งซ่อม
+                            {isUploading ? (
+                                <>
+                                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                    กำลังส่งข้อมูล...
+                                </>
+                            ) : (
+                                <>
+                                    <CheckCircle className="w-5 h-5" /> ส่งข้อมูลแจ้งซ่อม
+                                </>
+                            )}
                         </button>
                     </div>
                 </form>
@@ -557,6 +571,16 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false, qrParams = null }
                     รายการแจ้งซ่อมล่าสุด
                 </h3>
 
+                <div className="mb-4">
+                    <input
+                        type="text"
+                        value={recentSearchTerm}
+                        onChange={(e) => setRecentSearchTerm(e.target.value)}
+                        className="w-full input-modern"
+                        placeholder="ค้นหาจากชื่อ, รหัสแจ้งซ่อม, รายละเอียด, แผนก, หมวดหมู่ หรือสถานะ"
+                    />
+                </div>
+
                 {isLoading ? (
                     <div className="glass-card rounded-2xl p-10 flex justify-center items-center">
                         <div className="flex flex-col items-center gap-3">
@@ -564,13 +588,13 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false, qrParams = null }
                             <p className="text-sm text-slate-500 dark:text-slate-400 animate-pulse">กำลังโหลดข้อมูล...</p>
                         </div>
                     </div>
-                ) : issues.length === 0 ? (
+                ) : filteredRecentIssues.length === 0 ? (
                     <div className="glass-card rounded-2xl p-10 text-center text-slate-400 dark:text-slate-500">
                         ยังไม่มีรายการแจ้งซ่อม
                     </div>
                 ) : (
                     <div className="space-y-3">
-                        {issues.slice(0, 10).map((issue) => (
+                        {filteredRecentIssues.map((issue) => (
                             <div key={issue.id} className="glass-card rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center gap-4 hover:shadow-lg transition-shadow">
                                 {/* Left: ID + Date */}
                                 <div className="shrink-0">
@@ -593,9 +617,26 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false, qrParams = null }
                                     )}
                                 </div>
 
-                                {/* Right: Status */}
-                                <div className="shrink-0">
+                                {/* Right: Status + close link */}
+                                <div className="shrink-0 flex flex-col items-end gap-2">
                                     {getStatusBadge(issue.status)}
+                                    {issue.status === 'Resolved' && !issue.userCloseSign && (
+                                        <button
+                                            type="button"
+                                            onClick={async () => {
+                                                const link = buildCloseIssueLink(issue.id);
+                                                await copyText(link);
+                                                window.open(link, '_blank', 'noopener,noreferrer');
+                                            }}
+                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800"
+                                        >
+                                            <FileSignature className="w-3.5 h-3.5" />
+                                            เซ็นปิดจบงาน
+                                        </button>
+                                    )}
+                                    {issue.status === 'Resolved' && issue.userCloseSign && (
+                                        <span className="text-xs text-emerald-600 font-medium">✓ เซ็นปิดงานแล้ว</span>
+                                    )}
                                 </div>
                             </div>
                         ))}

@@ -13,18 +13,7 @@ function resolveApiUrl() {
   return lanApi.replace(/\/+$/, '')
 }
 
-const API_URL = resolveApiUrl()
-
-function serializeFilters(filters) {
-  const params = new URLSearchParams()
-  filters.forEach(({ op, column, value }) => {
-    if (op === 'eq') params.append(`eq[${column}]`, String(value))
-    if (op === 'in') params.append(`in[${column}]`, value.map(String).join(','))
-    if (op === 'is') params.append(`is[${column}]`, value === null ? 'null' : String(value))
-    if (op === 'not') params.append(`not[${column}]`, String(value))
-  })
-  return params.toString()
-}
+export const API_URL = resolveApiUrl()
 
 function buildUrl(table, state, endpoint = '') {
   const base = API_URL.endsWith('/') ? API_URL.slice(0, -1) : API_URL
@@ -43,6 +32,10 @@ function buildUrl(table, state, endpoint = '') {
     if (op === 'in') params.append(`in[${column}]`, value.map(String).join(','))
     if (op === 'is') params.append(`is[${column}]`, value === null ? 'null' : String(value))
     if (op === 'not') params.append(`not[${column}]`, String(value))
+    if (op === 'gte') params.append(`gte[${column}]`, String(value))
+    if (op === 'lte') params.append(`lte[${column}]`, String(value))
+    if (op === 'gt') params.append(`gt[${column}]`, String(value))
+    if (op === 'lt') params.append(`lt[${column}]`, String(value))
   })
 
   url.search = params.toString()
@@ -58,6 +51,38 @@ async function request(url, init) {
   return { data: payload?.data ?? null, error: payload?.error ?? null, count: payload?.count ?? null }
 }
 
+async function fetchInsertedRows(table, state, insertedResult) {
+  const insertedId = insertedResult?.insertedId
+  const affectedRows = insertedResult?.affectedRows || 1
+  const firstRow = state.body?.rows?.[0] || {}
+
+  const returningState = {
+    ...state,
+    action: 'select',
+    filters: [],
+    limit: affectedRows,
+    head: false,
+    count: null,
+    body: null,
+  }
+
+  if (insertedId) {
+    returningState.filters = [
+      { op: 'gte', column: 'id', value: insertedId },
+      { op: 'lt', column: 'id', value: Number(insertedId) + Number(affectedRows) },
+    ]
+  } else if (firstRow.id != null) {
+    returningState.filters = [{ op: 'eq', column: 'id', value: firstRow.id }]
+  } else {
+    return { data: null, error: 'Inserted rows cannot be selected without an id', count: null }
+  }
+
+  return request(buildUrl(table, returningState), {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json' },
+  })
+}
+
 function createBuilder(table) {
   const state = {
     action: 'select',
@@ -70,6 +95,7 @@ function createBuilder(table) {
     count: null,
     body: null,
     single: false,
+    returning: false,
   }
 
   const execute = async () => {
@@ -93,6 +119,10 @@ function createBuilder(table) {
     }
 
     const result = await request(url, init)
+    if (state.action === 'insert' && state.returning && !result.error) {
+      return fetchInsertedRows(table, state, result.data)
+    }
+
     if (!state.single || state.action !== 'select') {
       return result
     }
@@ -116,6 +146,7 @@ function createBuilder(table) {
       state.select = Array.isArray(columns) ? columns.join(',') : columns
       if (options.count) state.count = options.count
       if (options.head) state.head = true
+      if (state.action !== 'select') state.returning = true
       return builder
     },
     order(column, opts = {}) {
@@ -137,6 +168,22 @@ function createBuilder(table) {
     },
     not(column, value) {
       state.filters.push({ op: 'not', column, value })
+      return builder
+    },
+    gte(column, value) {
+      state.filters.push({ op: 'gte', column, value })
+      return builder
+    },
+    lte(column, value) {
+      state.filters.push({ op: 'lte', column, value })
+      return builder
+    },
+    gt(column, value) {
+      state.filters.push({ op: 'gt', column, value })
+      return builder
+    },
+    lt(column, value) {
+      state.filters.push({ op: 'lt', column, value })
       return builder
     },
     limit(count) {
@@ -175,12 +222,21 @@ function createBuilder(table) {
   return builder
 }
 
+export async function loginAdmin(username, password) {
+  const base = API_URL.endsWith('/') ? API_URL.slice(0, -1) : API_URL
+  return request(new URL(`${base}/api/auth/login`, window.location.origin).toString(), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+  })
+}
+
 function createChannel(name) {
   return {
     on(_event, _options, _callback) {
       return {
         subscribe: async () => {
-          console.warn(`Realtime channel ${name} is not supported in MySQL proxy mode.`)
+          console.warn(`Realtime channel ${name} is not supported in MySQL API mode.`)
           return { id: name }
         },
       }
@@ -188,7 +244,7 @@ function createChannel(name) {
   }
 }
 
-export const supabase = {
+export const mysql = {
   from(table) {
     return createBuilder(table)
   },

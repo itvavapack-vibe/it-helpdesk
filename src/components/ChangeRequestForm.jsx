@@ -1,9 +1,10 @@
-import React, { useState, useRef } from 'react';
-import { Code, Save, LayoutGrid, AlertCircle, Briefcase, Building2, User, FileText, Printer } from 'lucide-react';
+﻿import React, { useState, useRef } from 'react';
+import { Code, Save, LayoutGrid, AlertCircle, Briefcase, User, FileText, Printer } from 'lucide-react';
 import Swal from 'sweetalert2';
-import { supabase } from '../supabaseClient';
+import { mysql } from '../mysqlClient';
 import SignatureCanvas from 'react-signature-canvas';
 import Fmit15PdfPreview from './Fmit15PdfPreview';
+import { Combobox } from './ui/combobox';
 
 const DEPARTMENTS = [
     'แอดมิน', 'บุคคลและธุรการ', 'วิศวกรรม', 'การตลาดและขาย (ในประเทศ)',
@@ -72,7 +73,7 @@ const ChangeRequestForm = ({ onCancel }) => {
             const startOfDay = new Date(today.setHours(0,0,0,0)).toISOString();
             const endOfDay = new Date(today.setHours(23,59,59,999)).toISOString();
             
-            const { count } = await supabase
+            const { count } = await mysql
                 .from('change_requests')
                 .select('*', { count: 'exact', head: true })
                 .gte('created_at', startOfDay)
@@ -86,7 +87,7 @@ const ChangeRequestForm = ({ onCancel }) => {
             const generatedTicket = `ITC ${dd}${mm}${yy}/${sequenceNum}`;
 
             // Save to Supabase
-            const { data: insertedData, error } = await supabase.from('change_requests').insert([{
+            const { data: insertedData, error } = await mysql.from('change_requests').insert([{
                 ticket_number: generatedTicket,
                 req_type: formData.reqType,
                 req_type_other: formData.reqTypeOther,
@@ -240,23 +241,13 @@ const ChangeRequestForm = ({ onCancel }) => {
                             <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
                                 แผนก/ฝ่าย ผู้ร้องขอ <span className="text-red-500">*</span>
                             </label>
-                            <div className="relative">
-                                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
-                                    <Building2 className="w-4 h-4" />
-                                </span>
-                                <input
-                                    type="text"
-                                    name="department"
-                                    list="dept-list-cr"
-                                    value={formData.department}
-                                    onChange={handleChange}
-                                    className="input-modern !pl-10 w-full"
-                                    placeholder="ระบุแผนก..."
-                                />
-                                <datalist id="dept-list-cr">
-                                    {DEPARTMENTS.map(dept => <option key={dept} value={dept} />)}
-                                </datalist>
-                            </div>
+                            <Combobox
+                                options={DEPARTMENTS.map(dept => ({ label: dept, value: dept }))}
+                                value={formData.department}
+                                onValueChange={(value) => setFormData(prev => ({ ...prev, department: value }))}
+                                placeholder="ระบุแผนก..."
+                                searchPlaceholder="ค้นหาแผนก..."
+                            />
                         </div>
                     </div>
 
@@ -382,3 +373,4 @@ const ChangeRequestForm = ({ onCancel }) => {
 };
 
 export default ChangeRequestForm;
+

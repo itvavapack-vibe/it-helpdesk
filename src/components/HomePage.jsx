@@ -7,32 +7,19 @@ import {
     ClipboardList,
     ShieldCheck,
     ArrowRight,
-    Clock,
-    Zap,
-    HeadphonesIcon,
     Code
 } from 'lucide-react';
+import { Badge, Button, Card } from '@/components/ui';
+import { HOME_QUICK_ACTIONS, canSee } from '../config/navigation';
 
 const FeatureCard = ({ icon: Icon, title, desc, color }) => (
-    <div className="glass-card p-6 rounded-2xl flex flex-col gap-3 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-default group">
+    <Card className="p-6 rounded-2xl flex flex-col gap-3 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-default">
         <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-md ${color}`}>
             <Icon className="w-6 h-6 text-white" />
         </div>
         <h3 className="font-bold text-slate-800 dark:text-slate-100 text-lg">{title}</h3>
         <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">{desc}</p>
-    </div>
-);
-
-const StatBadge = ({ icon: Icon, value, label, color }) => (
-    <div className="flex items-center gap-3 glass-card px-5 py-4 rounded-2xl">
-        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${color}`}>
-            <Icon className="w-5 h-5 text-white" />
-        </div>
-        <div>
-            <p className="text-xl font-extrabold text-slate-800 dark:text-white">{value}</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400">{label}</p>
-        </div>
-    </div>
+    </Card>
 );
 
 const StepCard = ({ num, title, desc }) => (
@@ -47,20 +34,35 @@ const StepCard = ({ num, title, desc }) => (
     </div>
 );
 
-const HomePage = ({ onNavigateTo }) => {
+const HomePage = ({ onNavigateTo, currentRole = 'public' }) => {
+    const visibleActions = HOME_QUICK_ACTIONS.filter(
+        (item) => item.id === 'repair' && canSee(item.roles, currentRole)
+    );
+
+    const getButtonClassName = (id) => {
+        if (id === 'admin') {
+            return 'rounded-2xl';
+        }
+
+        const gradients = {
+            repair: 'from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 shadow-lg shadow-indigo-300/50 dark:shadow-indigo-900/50',
+            access: 'from-sky-600 to-cyan-600 hover:from-sky-500 hover:to-cyan-500 shadow-lg shadow-sky-300/50 dark:shadow-sky-900/50',
+            change: 'from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 shadow-lg shadow-emerald-300/50 dark:shadow-emerald-900/50',
+        };
+
+        return `rounded-2xl bg-gradient-to-r ${gradients[id] || gradients.repair}`;
+    };
+
     return (
         <div className="space-y-12 animate-fade-in">
-
-            {/* Hero Section */}
-            <section className="relative text-center py-12 px-4 overflow-hidden rounded-3xl glass-card">
-                {/* Decorative blobs */}
+            <Card className="relative text-center py-12 px-4 overflow-hidden rounded-3xl">
                 <div className="absolute -top-10 -left-10 w-64 h-64 bg-indigo-400/20 dark:bg-indigo-600/20 rounded-full blur-3xl pointer-events-none" />
                 <div className="absolute -bottom-10 -right-10 w-64 h-64 bg-violet-400/20 dark:bg-violet-600/20 rounded-full blur-3xl pointer-events-none" />
 
                 <div className="relative z-10">
-                    <span className="inline-block px-4 py-1.5 mb-5 text-xs font-bold uppercase tracking-widest text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-900/50 rounded-full border border-indigo-200 dark:border-indigo-800">
+                    <Badge variant="outline" className="px-4 py-1.5 mb-5 uppercase tracking-widest text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-900/50 border-indigo-200 dark:border-indigo-800">
                         IT Support System
-                    </span>
+                    </Badge>
                     <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-slate-800 dark:text-white mb-5 leading-tight">
                         ระบบแจ้งซ่อม<br />
                         <span className="bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">
@@ -70,33 +72,27 @@ const HomePage = ({ onNavigateTo }) => {
                     <p className="text-lg text-slate-500 dark:text-slate-400 max-w-xl mx-auto mb-8 leading-relaxed">
                         แจ้งปัญหาคอมพิวเตอร์และอุปกรณ์ IT ของคุณได้อย่างง่ายดาย ทีมงานของเราพร้อมช่วยเหลือคุณทุกวัน
                     </p>
-                    <div className="flex flex-col sm:flex-row justify-center gap-3">
-                        <button
-                            onClick={() => onNavigateTo('user')}
-                            className="flex items-center justify-center gap-2 px-6 py-3.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold rounded-2xl shadow-lg shadow-indigo-300/50 dark:shadow-indigo-900/50 transform hover:-translate-y-0.5 transition-all duration-200"
-                        >
-                            <ClipboardList className="w-5 h-5" />
-                            แจ้งซ่อมเดี๋ยวนี้
-                        </button>
-                        <button
-                            onClick={() => onNavigateTo('change_request')}
-                            className="flex items-center justify-center gap-2 px-6 py-3.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white font-bold rounded-2xl shadow-lg shadow-emerald-300/50 dark:shadow-emerald-900/50 transform hover:-translate-y-0.5 transition-all duration-200"
-                        >
-                            <Code className="w-5 h-5" />
-                            ใบขอพัฒนาโปรแกรม
-                        </button>
-                        <button
-                            onClick={() => onNavigateTo('admin')}
-                            className="flex items-center justify-center gap-2 px-6 py-3.5 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold rounded-2xl shadow-md border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transform hover:-translate-y-0.5 transition-all duration-200"
-                        >
-                            <LayoutDashboard className="w-5 h-5 text-indigo-500" />
-                            Admin
-                        </button>
+                    <div className="flex flex-col sm:flex-row flex-wrap justify-center gap-3">
+                        {visibleActions.map((action) => {
+                            const Icon = action.icon;
+                            const isAdminAction = action.id === 'admin';
+                            return (
+                                <Button
+                                    key={action.id}
+                                    onClick={() => onNavigateTo(action.tab)}
+                                    size="lg"
+                                    variant={isAdminAction ? 'outline' : 'default'}
+                                    className={getButtonClassName(action.id)}
+                                >
+                                    <Icon className="w-5 h-5" />
+                                    {action.label}
+                                </Button>
+                            );
+                        })}
                     </div>
                 </div>
-            </section>
+            </Card>
 
-            {/* Features */}
             <section>
                 <div className="text-center mb-8">
                     <h2 className="text-2xl font-extrabold text-slate-800 dark:text-white mb-2">บริการของเรา</h2>
@@ -142,11 +138,10 @@ const HomePage = ({ onNavigateTo }) => {
                 </div>
             </section>
 
-            {/* How it works */}
-            <section className="glass-card rounded-3xl p-8">
+            <Card className="rounded-3xl p-8">
                 <div className="text-center mb-8">
                     <h2 className="text-2xl font-extrabold text-slate-800 dark:text-white mb-2">วิธีแจ้งซ่อม</h2>
-                    <p className="text-slate-500 dark:text-slate-400 text-sm">ง่ายๆ แค่ 3 ขั้นตอน</p>
+                    <p className="text-slate-500 dark:text-slate-400 text-sm">ง่าย ๆ แค่ 3 ขั้นตอน</p>
                 </div>
                 <div className="max-w-lg mx-auto space-y-8">
                     <StepCard
@@ -168,17 +163,17 @@ const HomePage = ({ onNavigateTo }) => {
                     />
                 </div>
                 <div className="text-center mt-10">
-                    <button
+                    <Button
                         onClick={() => onNavigateTo('user')}
-                        className="inline-flex items-center gap-2 px-8 py-3.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold rounded-2xl shadow-lg shadow-indigo-200/60 dark:shadow-indigo-900/50 transform hover:-translate-y-0.5 transition-all"
+                        size="lg"
+                        className="rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 shadow-lg shadow-indigo-200/60 dark:shadow-indigo-900/50"
                     >
                         <ClipboardList className="w-5 h-5" />
                         เริ่มต้นแจ้งซ่อมเลย
                         <ArrowRight className="w-4 h-4" />
-                    </button>
+                    </Button>
                 </div>
-            </section>
-
+            </Card>
         </div>
     );
 };

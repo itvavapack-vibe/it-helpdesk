@@ -1,6 +1,7 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import path from 'node:path'
 
 // https://vite.dev/config/
 export default ({ mode }) => {
@@ -13,6 +14,11 @@ export default ({ mode }) => {
       react(),
       tailwindcss(),
     ],
+    resolve: {
+      alias: {
+        '@': path.resolve(process.cwd(), './src'),
+      },
+    },
     define: {
       'process.env': {}
     },
@@ -20,6 +26,7 @@ export default ({ mode }) => {
       host: '0.0.0.0',
       port: 5173,
       strictPort: true,
+      allowedHosts: true,
       proxy: {
         '/glpi-proxy': {
           target: proxyTarget,

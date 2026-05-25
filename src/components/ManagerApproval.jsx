@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { supabase } from '../supabaseClient';
+import { mysql } from '../mysqlClient';
 import Swal from 'sweetalert2';
 import { CheckCircle, XCircle, ShieldCheck, FileText, User, Building2, Briefcase, Phone, LayoutGrid } from 'lucide-react';
 import { notifyNewAccessRequest } from '../telegramNotify';
@@ -15,7 +15,7 @@ const ManagerApproval = ({ requestId }) => {
         const fetchRequest = async () => {
             if (!requestId) return;
             try {
-                const { data, error } = await supabase
+                const { data, error } = await mysql
                     .from('access_requests')
                     .select('*')
                     .eq('id', requestId)
@@ -81,7 +81,7 @@ const ManagerApproval = ({ requestId }) => {
                     updatePayload.manager_sign = signatureRef.current.getCanvas().toDataURL('image/png');
                 }
 
-                const { error } = await supabase
+                const { error } = await mysql
                     .from('access_requests')
                     .update(updatePayload)
                     .eq('id', requestId);

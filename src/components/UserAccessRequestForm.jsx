@@ -1,10 +1,11 @@
-import React, { useState, useRef } from 'react';
-import { UserPlus, Save, LayoutGrid, AlertCircle, Phone, Briefcase, Building2, User, Globe, FileText, Printer } from 'lucide-react';
+﻿import React, { useState, useRef } from 'react';
+import { UserPlus, Save, LayoutGrid, AlertCircle, Phone, Briefcase, User, Globe, FileText, Printer } from 'lucide-react';
 import Swal from 'sweetalert2';
 import Fmit12PdfPreview from './Fmit12PdfPreview';
 import { notifyNewAccessRequest } from '../telegramNotify';
-import { supabase } from '../supabaseClient';
+import { mysql } from '../mysqlClient';
 import SignatureCanvas from 'react-signature-canvas';
+import { Combobox } from './ui/combobox';
 
 const DEPARTMENTS = [
     'แอดมิน', 'บุคคลและธุรการ', 'วิศวกรรม', 'การตลาดและขาย (ในประเทศ)',
@@ -113,7 +114,7 @@ const UserAccessRequestForm = ({ onCancel }) => {
             const startOfDay = new Date(today.setHours(0,0,0,0)).toISOString();
             const endOfDay = new Date(today.setHours(23,59,59,999)).toISOString();
             
-            const { count } = await supabase
+            const { count } = await mysql
                 .from('access_requests')
                 .select('*', { count: 'exact', head: true })
                 .gte('created_at', startOfDay)
@@ -127,7 +128,7 @@ const UserAccessRequestForm = ({ onCancel }) => {
             const generatedTicket = `ITU ${dd}${mm}${yy}/${sequenceNum}`;
 
             // Save to Supabase
-            const { data: insertedData, error } = await supabase.from('access_requests').insert([{
+            const { data: insertedData, error } = await mysql.from('access_requests').insert([{
                 ticket_number: generatedTicket,
                 name_th: formData.nameTh,
                 name_en: formData.nameEn,
@@ -249,26 +250,13 @@ const UserAccessRequestForm = ({ onCancel }) => {
                             <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
                                 แผนก / ฝ่าย <span className="text-red-500">*</span>
                             </label>
-                            <div className="relative">
-                                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
-                                    <Building2 className="w-4 h-4" />
-                                </span>
-                                <input
-                                    type="text"
-                                    name="department"
-                                    list="department-list"
-                                    value={formData.department}
-                                    onChange={handleChange}
-                                    className="input-modern !pl-10 w-full"
-                                    placeholder="ระบุแผนก..."
-                                    autoComplete="off"
-                                />
-                                <datalist id="department-list">
-                                    {DEPARTMENTS.map(dept => (
-                                        <option key={dept} value={dept} />
-                                    ))}
-                                </datalist>
-                            </div>
+                            <Combobox
+                                options={DEPARTMENTS.map(dept => ({ label: dept, value: dept }))}
+                                value={formData.department}
+                                onValueChange={(value) => setFormData(prev => ({ ...prev, department: value }))}
+                                placeholder="ระบุแผนก..."
+                                searchPlaceholder="ค้นหาแผนก..."
+                            />
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
@@ -475,3 +463,4 @@ const UserAccessRequestForm = ({ onCancel }) => {
 };
 
 export default UserAccessRequestForm;
+

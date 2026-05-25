@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { supabase } from '../supabaseClient';
+import { mysql } from '../mysqlClient';
 import { Key, CheckCircle, Clock } from 'lucide-react';
 import Swal from 'sweetalert2';
 import SignatureCanvas from 'react-signature-canvas';
@@ -15,7 +15,7 @@ const ITManagerApproval = ({ requestId, onBack }) => {
         const fetchRequest = async () => {
             setIsLoading(true);
             try {
-                const { data, error } = await supabase
+                const { data, error } = await mysql
                     .from('access_requests')
                     .select('*')
                     .eq('id', requestId)
@@ -51,7 +51,7 @@ const ITManagerApproval = ({ requestId, onBack }) => {
         const signData = signatureRef.current.getCanvas().toDataURL('image/png');
 
         try {
-            const { error } = await supabase
+            const { error } = await mysql
                 .from('access_requests')
                 .update({ status: 'Completed', it_manager_sign: signData })
                 .eq('id', requestId);

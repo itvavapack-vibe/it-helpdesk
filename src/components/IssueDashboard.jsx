@@ -1,13 +1,35 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
-import { Clock, CheckCircle2, Edit, FileSpreadsheet, Search, Filter, X, Save, MessageSquare, Trash2, Printer, AlertTriangle, ChevronLeft, ChevronRight, Monitor, ChevronDown, FileText } from 'lucide-react';
+import { Clock, Edit, CheckCircle2, FileSpreadsheet, Trash2, Search, Filter, AlertTriangle, Eye, Printer, FileSignature, MessageSquare, Monitor, ChevronDown, X, Copy, ChevronLeft, ChevronRight, Settings, Save, ImagePlus, Paperclip, Link2 } from 'lucide-react';
+import { showCloseIssueLinkDialog } from '../utils/closeIssueLink';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Combobox } from './ui/combobox';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, Legend } from 'recharts';
 import PdfPreviewModal from './PdfPreviewModal';
 import MaintenanceReportPdfPreview from './MaintenanceReportPdfPreview';
 import Swal from 'sweetalert2';
-import { supabase } from '../supabaseClient';
+import { mysql, API_URL } from '../mysqlClient';
 
 const ITEMS_PER_PAGE = 10;
+const STATUS_FLOW = ['Pending', 'In Progress', 'External Repair', 'Waiting for Parts', 'Resolved', 'Cancelled'];
+
+const getStatusLabel = (status) => {
+    switch (status) {
+        case 'Pending': return 'รอดำเนินการ';
+        case 'In Progress': return 'กำลังแก้ไข';
+        case 'Resolved': return 'เสร็จสิ้น';
+        case 'External Repair': return 'ส่งซ่อมภายนอก';
+        case 'Waiting for Parts': return 'รออะไหล่';
+        case 'Cancelled': return 'ยกเลิก';
+        default: return status || '-';
+    }
+};
+
+const getAllowedStatusOptions = (currentStatus) => {
+    const startIndex = Math.max(0, STATUS_FLOW.indexOf(currentStatus));
+    const options = startIndex >= 0 ? STATUS_FLOW.slice(startIndex) : [currentStatus].filter(Boolean);
+    return Array.from(new Set(options));
+};
 
 const DEPARTMENTS = [
     'แอดมิน', 'บุคคลและธุรการ', 'วิศวกรรม', 'การตลาดและขาย (ในประเทศ)',
@@ -38,6 +60,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
         severity: '',
         description: '',
         repairDetails: '',
+        status: '',
         assetId: '',
         assetName: ''
     });
@@ -58,11 +81,14 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
     // For read more modal
     const [readMoreIssue, setReadMoreIssue] = useState(null);
 
+    // For image preview
+    const [previewImage, setPreviewImage] = useState(null);
+
     useEffect(() => {
         const fetchAssets = async () => {
             setIsLoadingAssets(true);
             try {
-                const { data, error } = await supabase
+                const { data, error } = await mysql
                     .from('assets')
                     .select('glpi_id, name, serial, otherserial, users_id')
                     .order('name');
@@ -77,11 +103,11 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
 
         const fetchUsers = async () => {
             try {
-                const { data, error } = await supabase.from('glpi_users').select('*');
+                const { data, error } = await mysql.from('glpi_users').select('*');
                 if (error) throw error;
                 setGlpiUsersRaw(data || []);
             } catch (error) {
-                console.error("Failed to load users from Supabase:", error);
+                console.error("Failed to load users from MySQL:", error);
                 setGlpiUsersRaw([]);
             }
         };
@@ -213,6 +239,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
             severity: issue.severity || '',
             description: issue.description || '',
             repairDetails: issue.repairDetails || '',
+            status: issue.status || 'Pending',
             assetId: issue.assetId || '',
             assetName: issue.assetName || ''
         });
@@ -276,12 +303,30 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
         }
     };
 
-    const handleSaveRepairDetails = () => {
-        if (currentRepairIssue) {
-            updateIssueFullDetails(currentRepairIssue.id, editFormData);
-            setIsRepairModalOpen(false);
-            setCurrentRepairIssue(null);
+    const handleSaveRepairDetails = async () => {
+        if (!currentRepairIssue) return;
+
+        const allowedStatuses = getAllowedStatusOptions(currentRepairIssue.status);
+        if (editFormData.status && !allowedStatuses.includes(editFormData.status)) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'สถานะย้อนกลับไม่ได้',
+                text: 'กรุณาเลือกสถานะที่เป็นขั้นถัดไปหรือสถานะปัจจุบันเท่านั้น',
+                confirmButtonColor: '#4f46e5'
+            });
+            return;
         }
+
+        const { status, ...fieldsToSave } = editFormData;
+        await updateIssueFullDetails(currentRepairIssue.id, fieldsToSave);
+
+        if (editFormData.status && editFormData.status !== currentRepairIssue.status) {
+            const adminName = (editFormData.status === 'In Progress' && !currentRepairIssue.assignedAdmin) ? currentAdmin?.name : null;
+            await updateIssueStatus(currentRepairIssue.id, editFormData.status, adminName);
+        }
+
+        setIsRepairModalOpen(false);
+        setCurrentRepairIssue(null);
     };
 
     const handleDelete = (id) => {
@@ -318,6 +363,8 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
         setCurrentMaintenanceIssue(issue);
         setIsMaintenanceReportOpen(true);
     };
+
+    const allowedStatusOptions = currentRepairIssue ? getAllowedStatusOptions(currentRepairIssue.status) : [];
 
     const getSeverityText = (severity) => {
         switch (severity) {
@@ -358,7 +405,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
             case 'Cancelled':
                 return <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-slate-100/80 text-slate-700 border border-slate-200/50"><X className="w-3 h-3 mr-1.5" /> ยกเลิก</span>;
             default:
-                return <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-slate-100/80 text-slate-700 border border-slate-200/50">{status}</span>;
+                return <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-slate-100/80 text-slate-700 border border-slate-200/50">{getStatusLabel(status)}</span>;
         }
     };
 
@@ -437,35 +484,37 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                     <div className="flex items-center gap-1.5 mr-1 text-sm font-semibold text-slate-500 dark:text-slate-400">
                         <Filter className="w-4 h-4" /> <span className="hidden sm:inline">ตัวกรอง:</span>
                     </div>
-                    <select
-                        value={filterStatus}
-                        onChange={(e) => setFilterStatus(e.target.value)}
-                        className="flex-1 sm:flex-none sm:w-[130px] input-modern cursor-pointer py-1.5 px-3 text-sm appearance-none"
-                    >
-                        <option value="All">ทุกสถานะ</option>
-                        <option value="Pending">รอดำเนินการ</option>
-                        <option value="In Progress">กำลังแก้ไข</option>
-                        <option value="External Repair">ส่งซ่อมภายนอก</option>
-                        <option value="Waiting for Parts">รออะไหล่</option>
-                        <option value="Resolved">เสร็จสิ้น</option>
-                        <option value="Cancelled">ยกเลิก</option>
-                    </select>
-                    <select
-                        value={filterCategory}
-                        onChange={(e) => setFilterCategory(e.target.value)}
-                        className="flex-1 sm:flex-none sm:w-[170px] input-modern cursor-pointer py-1.5 px-3 text-sm appearance-none"
-                    >
-                        <option value="All">ทุกหมวดหมู่</option>
-                        <option value="แก้ไขปัญหาด้าน Software D365">แก้ไขปัญหาด้าน Software D365</option>
-                        <option value="ติดตั้งและแก้ไขปัญหาด้าน Hardware">ติดตั้งและแก้ไขปัญหาด้าน Hardware</option>
-                        <option value="ซ่อมบำรุงอุปกรณ์ต่อพ่วง Hardware & Network">ซ่อมบำรุงอุปกรณ์ต่อพ่วง Hardware & Network</option>
-                        <option value="ประชุม/อบรม/สัมนา">ประชุม/อบรม/สัมนา</option>
-                        <option value="งานอื่น ๆ">งานอื่น ๆ</option>
-                        <option value="กล้องวงจรปิด">กล้องวงจรปิด</option>
-                        <option value="แก้ไขปัญหาด้าน Printer">แก้ไขปัญหาด้าน Printer</option>
-                        <option value="ติดตั้งและแก้ปัญหาด้าน Software ทั่วไป">ติดตั้งและแก้ปัญหาด้าน Software ทั่วไป</option>
-                        <option value="แก้ไขปัญหาด้านอีเมล">แก้ไขปัญหาด้านอีเมล</option>
-                    </select>
+                    <Select value={filterStatus} onValueChange={setFilterStatus}>
+                        <SelectTrigger className="flex-1 sm:flex-none sm:w-[130px] h-9">
+                            <SelectValue placeholder="ทุกสถานะ" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="All">ทุกสถานะ</SelectItem>
+                            <SelectItem value="Pending">รอดำเนินการ</SelectItem>
+                            <SelectItem value="In Progress">กำลังแก้ไข</SelectItem>
+                            <SelectItem value="External Repair">ส่งซ่อมภายนอก</SelectItem>
+                            <SelectItem value="Waiting for Parts">รออะไหล่</SelectItem>
+                            <SelectItem value="Resolved">เสร็จสิ้น</SelectItem>
+                            <SelectItem value="Cancelled">ยกเลิก</SelectItem>
+                        </SelectContent>
+                    </Select>
+                    <Select value={filterCategory} onValueChange={setFilterCategory}>
+                        <SelectTrigger className="flex-1 sm:flex-none sm:w-[170px] h-9">
+                            <SelectValue placeholder="ทุกหมวดหมู่" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="All">ทุกหมวดหมู่</SelectItem>
+                            <SelectItem value="แก้ไขปัญหาด้าน Software D365">แก้ไขปัญหาด้าน Software D365</SelectItem>
+                            <SelectItem value="ติดตั้งและแก้ไขปัญหาด้าน Hardware">ติดตั้งและแก้ไขปัญหาด้าน Hardware</SelectItem>
+                            <SelectItem value="ซ่อมบำรุงอุปกรณ์ต่อพ่วง Hardware & Network">ซ่อมบำรุงอุปกรณ์ต่อพ่วง Hardware & Network</SelectItem>
+                            <SelectItem value="ประชุม/อบรม/สัมนา">ประชุม/อบรม/สัมนา</SelectItem>
+                            <SelectItem value="งานอื่น ๆ">งานอื่น ๆ</SelectItem>
+                            <SelectItem value="กล้องวงจรปิด">กล้องวงจรปิด</SelectItem>
+                            <SelectItem value="แก้ไขปัญหาด้าน Printer">แก้ไขปัญหาด้าน Printer</SelectItem>
+                            <SelectItem value="ติดตั้งและแก้ปัญหาด้าน Software ทั่วไป">ติดตั้งและแก้ปัญหาด้าน Software ทั่วไป</SelectItem>
+                            <SelectItem value="แก้ไขปัญหาด้านอีเมล">แก้ไขปัญหาด้านอีเมล</SelectItem>
+                        </SelectContent>
+                    </Select>
                     
                     <div className="flex items-center gap-2 w-full sm:w-auto">
                         <input
@@ -487,17 +536,17 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                         />
                     </div>
                     
-                    <select
-                        value={filterAdmin}
-                        onChange={(e) => setFilterAdmin(e.target.value)}
-                        className="flex-1 sm:flex-none sm:w-[140px] input-modern cursor-pointer py-1.5 px-3 text-sm appearance-none"
-                        title="กรองตามผู้รับงาน"
-                    >
-                        <option value="">ผู้รับงานทั้งหมด</option>
-                        {[...new Set(issues.map(i => i.assignedAdmin).filter(Boolean))].map(admin => (
-                            <option key={admin} value={admin}>{admin}</option>
-                        ))}
-                    </select>
+                    <Select value={filterAdmin || 'All'} onValueChange={(val) => setFilterAdmin(val === 'All' ? '' : val)}>
+                        <SelectTrigger className="flex-1 sm:flex-none sm:w-[140px] h-9">
+                            <SelectValue placeholder="ผู้รับงานทั้งหมด" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="All">ผู้รับงานทั้งหมด</SelectItem>
+                            {[...new Set(issues.map(i => i.assignedAdmin).filter(Boolean))].map(admin => (
+                                <SelectItem key={admin} value={admin}>{admin}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
                     {(filterStatus !== 'All' || filterCategory !== 'All' || filterDateFrom || filterDateTo || filterAdmin) && (
                         <button
                             onClick={() => { setFilterStatus('All'); setFilterCategory('All'); setFilterDateFrom(''); setFilterDateTo(''); setFilterAdmin(''); }}
@@ -611,70 +660,41 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                                 <span className="italic whitespace-pre-wrap line-clamp-2" title={issue.repairDetails}>{issue.repairDetails}</span>
                                             </div>
                                         )}
-                                    </td>
-                                    <td className="hidden lg:table-cell px-4 lg:px-5 py-4 whitespace-nowrap align-top">
-                                        {issue.status === 'Resolved' || issue.status === 'Cancelled' ? (
-                                            getStatusBadge(issue.status)
-                                        ) : (
-                                            <div className="relative inline-block">
-                                                <select
-                                                    value={issue.status}
-                                                    onChange={(e) => {
-                                                        const newStatus = e.target.value;
-                                                        const adminName = (newStatus === 'In Progress' && !issue.assignedAdmin) ? currentAdmin?.name : null;
-                                                        updateIssueStatus(issue.id, newStatus, adminName);
-                                                    }}
-                                                    className={`block w-full sm:w-36 pl-3.5 pr-8 py-1.5 text-xs font-semibold border shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 rounded-full hover:shadow-md transition-all appearance-none cursor-pointer ${
-                                                        issue.status === 'External Repair' ? 'bg-violet-100/80 text-violet-800 border-violet-300 dark:bg-violet-900/40 dark:text-violet-300 dark:border-violet-700' 
-                                                        : issue.status === 'Waiting for Parts' ? 'bg-pink-100/80 text-pink-800 border-pink-300 dark:bg-pink-900/40 dark:text-pink-300 dark:border-pink-700' 
-                                                        : issue.status === 'In Progress' ? 'bg-indigo-100/80 text-indigo-800 border-indigo-300 dark:bg-indigo-900/40 dark:text-indigo-300 dark:border-indigo-700'
-                                                        : 'bg-amber-100/80 text-amber-800 border-amber-300 dark:bg-amber-900/40 dark:text-amber-300 dark:border-amber-700'
-                                                    }`}
-                                                    style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2364748b' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M5 8l5 5 5-5'/%3e%3c/svg%3e")`, backgroundPosition: `right 0.6rem center`, backgroundRepeat: `no-repeat`, backgroundSize: `1.2em 1.2em` }}
-                                                >
-                                                    <option value="Pending">รอดำเนินการ</option>
-                                                    <option value="In Progress">กำลังแก้ไข</option>
-                                                    <option value="External Repair">ส่งซ่อมภายนอก</option>
-                                                    <option value="Waiting for Parts">รออะไหล่</option>
-                                                    <option value="Resolved">เสร็จสิ้น</option>
-                                                    <option value="Cancelled">ยกเลิก</option>
-                                                </select>
+                                        {/* Attachment section */}
+                                        {issue.attachments && issue.attachments.length > 0 && (
+                                            <div className="mt-3 flex flex-wrap gap-2">
+                                                {issue.attachments.map((file, idx) => (
+                                                    <button
+                                                        key={idx}
+                                                        onClick={() => setPreviewImage(file.url)}
+                                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-100 dark:border-indigo-800/50 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-all shadow-sm"
+                                                    >
+                                                        <Paperclip className="w-3.5 h-3.5" />
+                                                        <span>ไฟล์แนบ {issue.attachments.length > 1 ? idx + 1 : ''}</span>
+                                                    </button>
+                                                ))}
                                             </div>
                                         )}
+                                    </td>
+                                    <td className="hidden lg:table-cell px-4 lg:px-5 py-4 whitespace-nowrap align-top">
+                                        {getStatusBadge(issue.status)}
                                     </td>
                                     <td className="block lg:table-cell px-4 lg:px-5 py-3 lg:py-4 whitespace-nowrap text-right text-sm font-medium align-top bg-slate-50/50 dark:bg-slate-700/20 lg:bg-transparent rounded-b-2xl lg:rounded-none">
                                         <div className="flex items-center justify-between lg:justify-end gap-2">
                                             <div className="lg:hidden text-left flex-1 items-center flex">
-                                                {issue.status === 'Resolved' || issue.status === 'Cancelled' ? (
-                                                    <span className="opacity-0 w-0"></span> /* hidden when resolved in td footer */
-                                                ) : (
-                                                    <div className="relative inline-block">
-                                                        <select
-                                                            value={issue.status}
-                                                            onChange={(e) => {
-                                                                const newStatus = e.target.value;
-                                                                const adminName = (newStatus === 'In Progress' && !issue.assignedAdmin) ? currentAdmin?.name : null;
-                                                                updateIssueStatus(issue.id, newStatus, adminName);
-                                                            }}
-                                                            className={`block w-[130px] pl-3.5 pr-8 py-1.5 text-xs font-semibold border shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 rounded-full hover:shadow-md transition-all appearance-none cursor-pointer ${
-                                                                issue.status === 'External Repair' ? 'bg-violet-100/80 text-violet-800 border-violet-300 dark:bg-violet-900/40 dark:text-violet-300 dark:border-violet-700' 
-                                                                : issue.status === 'Waiting for Parts' ? 'bg-pink-100/80 text-pink-800 border-pink-300 dark:bg-pink-900/40 dark:text-pink-300 dark:border-pink-700' 
-                                                                : issue.status === 'In Progress' ? 'bg-indigo-100/80 text-indigo-800 border-indigo-300 dark:bg-indigo-900/40 dark:text-indigo-300 dark:border-indigo-700'
-                                                                : 'bg-amber-100/80 text-amber-800 border-amber-300 dark:bg-amber-900/40 dark:text-amber-300 dark:border-amber-700'
-                                                            }`}
-                                                            style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2364748b' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M5 8l5 5 5-5'/%3e%3c/svg%3e")`, backgroundPosition: `right 0.6rem center`, backgroundRepeat: `no-repeat`, backgroundSize: `1.2em 1.2em` }}
-                                                        >
-                                                            <option value="Pending">รอดำเนินการ</option>
-                                                            <option value="In Progress">กำลังแก้ไข</option>
-                                                            <option value="External Repair">ส่งซ่อมภายนอก</option>
-                                                            <option value="Waiting for Parts">รออะไหล่</option>
-                                                            <option value="Resolved">เสร็จสิ้น</option>
-                                                            <option value="Cancelled">ยกเลิก</option>
-                                                        </select>
-                                                    </div>
-                                                )}
+                                                <span className="opacity-0 w-0"></span>
                                             </div>
                                             <div className="flex items-center justify-end gap-2">
+                                                {issue.status === 'Resolved' && !issue.userCloseSign && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => showCloseIssueLinkDialog(issue)}
+                                                        className="w-9 h-9 flex items-center justify-center text-emerald-600 dark:text-emerald-400 hover:text-white bg-emerald-50 dark:bg-slate-800 hover:bg-emerald-600 dark:hover:bg-emerald-600 border border-emerald-200/80 dark:border-slate-700 hover:border-emerald-600 rounded-xl transition-all shadow-sm"
+                                                        title="คัดลอกลิงก์เซ็นปิดจบงาน"
+                                                    >
+                                                        <Link2 className="w-4 h-4" />
+                                                    </button>
+                                                )}
                                                 <button
                                                 onClick={() => openRepairModal(issue)}
                                                 className="w-9 h-9 flex items-center justify-center text-indigo-600 dark:text-indigo-400 hover:text-white bg-indigo-50 dark:bg-slate-800 hover:bg-indigo-600 dark:hover:bg-indigo-600 border border-indigo-200/80 dark:border-slate-700 hover:border-indigo-600 rounded-xl transition-all shadow-sm group"
@@ -793,7 +813,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                 </div>
                                 <div className="space-y-1">
                                     <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 ml-1">แผนก <span className="text-rose-500">*</span></label>
-                                    <select
+                                    {false && <select
                                         name="department"
                                         value={editFormData.department}
                                         onChange={handleEditFormChange}
@@ -804,14 +824,27 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                         {DEPARTMENTS.map(dept => (
                                             <option key={dept} value={dept}>{dept}</option>
                                         ))}
-                                    </select>
+                                    </select>}
+                                    <Select
+                                        value={editFormData.department}
+                                        onValueChange={(value) => handleEditFormChange({ target: { name: 'department', value } })}
+                                    >
+                                        <SelectTrigger className="w-full input-modern">
+                                            <SelectValue placeholder="Select department" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {DEPARTMENTS.map(dept => (
+                                                <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
                                 </div>
                             </div>
                             
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="space-y-1">
                                     <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 ml-1">หมวดหมู่ปัญหา</label>
-                                    <select
+                                    {false && <select
                                         name="category"
                                         value={editFormData.category}
                                         onChange={handleEditFormChange}
@@ -827,11 +860,30 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                         <option value="แก้ไขปัญหาด้าน Printer">แก้ไขปัญหาด้าน Printer</option>
                                         <option value="ติดตั้งและแก้ปัญหาด้าน Software ทั่วไป">ติดตั้งและแก้ปัญหาด้าน Software ทั่วไป</option>
                                         <option value="แก้ไขปัญหาด้านอีเมล">แก้ไขปัญหาด้านอีเมล</option>
-                                    </select>
+                                    </select>}
+                                    <Select
+                                        value={editFormData.category}
+                                        onValueChange={(value) => handleEditFormChange({ target: { name: 'category', value } })}
+                                    >
+                                        <SelectTrigger className="w-full input-modern">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="เนเธเนเนเธเธเธฑเธเธซเธฒเธ”เนเธฒเธ Software D365">Software D365</SelectItem>
+                                            <SelectItem value="เธ•เธดเธ”เธ•เธฑเนเธเนเธฅเธฐเนเธเนเนเธเธเธฑเธเธซเธฒเธ”เนเธฒเธ Hardware">Hardware</SelectItem>
+                                            <SelectItem value="เธเนเธญเธกเธเธณเธฃเธธเธเธญเธธเธเธเธฃเธ“เนเธ•เนเธญเธเนเธงเธ Hardware & Network">Hardware & Network</SelectItem>
+                                            <SelectItem value="เธเธฃเธฐเธเธธเธก/เธญเธเธฃเธก/เธชเธฑเธกเธเธฒ">Meeting/Training</SelectItem>
+                                            <SelectItem value="เธเธฒเธเธญเธทเนเธ เน">Other</SelectItem>
+                                            <SelectItem value="เธเธฅเนเธญเธเธงเธเธเธฃเธเธดเธ”">CCTV</SelectItem>
+                                            <SelectItem value="เนเธเนเนเธเธเธฑเธเธซเธฒเธ”เนเธฒเธ Printer">Printer</SelectItem>
+                                            <SelectItem value="เธ•เธดเธ”เธ•เธฑเนเธเนเธฅเธฐเนเธเนเธเธฑเธเธซเธฒเธ”เนเธฒเธ Software เธ—เธฑเนเธงเนเธ">General Software</SelectItem>
+                                            <SelectItem value="เนเธเนเนเธเธเธฑเธเธซเธฒเธ”เนเธฒเธเธญเธตเน€เธกเธฅ">Email</SelectItem>
+                                        </SelectContent>
+                                    </Select>
                                 </div>
                                 <div className="space-y-1">
                                     <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 ml-1">ระดับความรุนแรง</label>
-                                    <select
+                                    {false && <select
                                         name="severity"
                                         value={editFormData.severity}
                                         onChange={handleEditFormChange}
@@ -841,10 +893,47 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                         <option value="Normal">ปกติ (Normal)</option>
                                         <option value="Urgent">ด่วน (Urgent)</option>
                                         <option value="Most Urgent">ด่วนที่สุด (Most Urgent)</option>
-                                    </select>
+                                    </select>}
+                                    <Select
+                                        value={editFormData.severity}
+                                        onValueChange={(value) => handleEditFormChange({ target: { name: 'severity', value } })}
+                                    >
+                                        <SelectTrigger className="w-full input-modern">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="Normal">Normal</SelectItem>
+                                            <SelectItem value="Urgent">Urgent</SelectItem>
+                                            <SelectItem value="Most Urgent">Most Urgent</SelectItem>
+                                        </SelectContent>
+                                    </Select>
                                 </div>
                             </div>
                             
+                            <div className="space-y-1">
+                                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 ml-1">
+                                    สถานะการซ่อม <span className="text-rose-500">*</span>
+                                </label>
+                                <Select
+                                    value={editFormData.status}
+                                    onValueChange={(value) => setEditFormData(prev => ({ ...prev, status: value }))}
+                                >
+                                    <SelectTrigger className="w-full input-modern">
+                                        <SelectValue placeholder="เลือกสถานะ" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {allowedStatusOptions.map(status => (
+                                            <SelectItem key={status} value={status}>
+                                                {getStatusLabel(status)}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <p className="text-xs text-slate-400 dark:text-slate-500 ml-1">
+                                    เลือกได้เฉพาะสถานะปัจจุบันหรือสถานะถัดไปเท่านั้น
+                                </p>
+                            </div>
+
                             {/* GLPI Asset Selector for Edit form */}
                             <div className="space-y-1 mt-4">
                                 <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1 ml-1 flex items-center gap-1.5">
@@ -857,7 +946,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                         กำลังโหลดข้อมูลจาก GLPI...
                                     </div>
                                 ) : assetError || computers.length === 0 ? (
-                                    <div className="input-modern text-sm text-slate-400">⚠️ ยังไม่มีข้อมูลอุปกรณ์ (Admin กรุณากด Sync → Supabase ในหน้าทรัพย์สินก่อน)</div>
+                                    <div className="input-modern text-sm text-slate-400">⚠️ ยังไม่มีข้อมูลอุปกรณ์ (Admin กรุณากด Sync ในหน้าทรัพย์สินก่อน)</div>
                                 ) : (
                                     <div className="relative asset-dropdown-container-edit">
                                         <div className="relative">
@@ -1041,6 +1130,32 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                             <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl text-slate-700 dark:text-slate-300 text-sm whitespace-pre-wrap leading-relaxed border border-slate-100 dark:border-slate-700">
                                 {readMoreIssue.description}
                             </div>
+
+                            {readMoreIssue.attachments && readMoreIssue.attachments.length > 0 && (
+                                <div className="mt-6">
+                                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-2">
+                                        <ImagePlus className="w-4 h-4 text-indigo-500" /> รูปภาพประกอบ ({readMoreIssue.attachments.length})
+                                    </p>
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                                        {readMoreIssue.attachments.map((file, idx) => (
+                                            <button 
+                                                key={idx} 
+                                                onClick={() => setPreviewImage(file.url)}
+                                                className="group relative aspect-video rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-all"
+                                            >
+                                                <img 
+                                                    src={`${API_URL}${file.url}`} 
+                                                    alt={file.name} 
+                                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
+                                                />
+                                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                    <Eye className="w-6 h-6 text-white" />
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                         <div className="px-6 py-4 bg-slate-50 dark:bg-slate-700/30 flex justify-end gap-3 border-t border-slate-100 dark:border-slate-700">
                             <button
@@ -1050,6 +1165,29 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                 ปิด
                             </button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Image Preview Modal */}
+            {previewImage && (
+                <div 
+                    className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-sm animate-fade-in"
+                    onClick={() => setPreviewImage(null)}
+                >
+                    <div className="relative max-w-5xl w-full max-h-[90vh] flex items-center justify-center">
+                        <button
+                            onClick={() => setPreviewImage(null)}
+                            className="absolute -top-12 right-0 text-white hover:text-rose-400 transition-colors bg-white/10 p-2 rounded-full backdrop-blur-md"
+                        >
+                            <X className="w-8 h-8" />
+                        </button>
+                        <img 
+                            src={`${API_URL}${previewImage}`} 
+                            alt="Preview" 
+                            className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl"
+                            onClick={(e) => e.stopPropagation()}
+                        />
                     </div>
                 </div>
             )}

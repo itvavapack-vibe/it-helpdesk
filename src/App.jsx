@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from './supabaseClient';
+import { mysql } from './mysqlClient';
 import IssueForm from './components/IssueForm';
 import IssueDashboard from './components/IssueDashboard';
 import AdminLogin from './components/AdminLogin';
@@ -14,9 +14,12 @@ import ManagerApproval from './components/ManagerApproval';
 import ITManagerApproval from './components/ITManagerApproval';
 import ChangeRequestForm from './components/ChangeRequestForm';
 import AdminChangeRequests from './components/AdminChangeRequests';
-import { Home, Settings, LogOut, Users, Ticket, ClipboardList, Monitor, TrendingUp, UserPlus, Key, Code } from 'lucide-react';
+import IssueCloseSignature from './components/IssueCloseSignature';
+import { Settings, LogOut } from 'lucide-react';
+import { ADMIN_SUB_TABS, MAIN_NAV_ITEMS, canSee, normalizeRole, NAV_ROLES } from './config/navigation';
 import Swal from 'sweetalert2';
 import { notifyNewIssue, notifyStatusChange, notifyRepairUpdate } from './telegramNotify';
+import { buildCloseIssueLink, showCloseIssueLinkDialog } from './utils/closeIssueLink';
 
 function App() {
     const [activeTab, setActiveTab] = useState(() => {
@@ -24,6 +27,7 @@ function App() {
         const params = new URLSearchParams(window.location.search);
         if (params.has('approveRequest')) return 'manager_approval';
         if (params.has('itApproveRequest')) return 'it_manager_approval';
+        if (params.has('closeIssue')) return 'issue_close';
         return params.has('assetId') ? 'user' : 'home';
     });
     // เก็บค่า QR params ไว้ก่อนที่จะถูกลบออกจาก URL
@@ -42,10 +46,17 @@ function App() {
         const params = new URLSearchParams(window.location.search);
         return params.get('itApproveRequest');
     });
+    const [closeIssueId] = useState(() => {
+        const params = new URLSearchParams(window.location.search);
+        return params.get('closeIssue');
+    });
     const [adminSubTab, setAdminSubTab] = useState('issues'); // 'issues' or 'users'
     const [issues, setIssues] = useState([]);
     const [isIssuesLoading, setIsIssuesLoading] = useState(true);
     const [isAdminAuth, setIsAdminAuth] = useState(null);
+    const currentRole = normalizeRole(isAdminAuth);
+    const visibleMainNavItems = MAIN_NAV_ITEMS.filter((item) => canSee(item.roles, currentRole));
+    const visibleAdminSubTabs = ADMIN_SUB_TABS.filter((item) => canSee(item.roles, currentRole));
 
     // Clean up URL to avoid sticking on refresh
     useEffect(() => {
@@ -72,21 +83,21 @@ function App() {
         }
     }, []);
 
-    // Fetch issues from Supabase
+    // Fetch issues from mysql
     useEffect(() => {
         fetchIssues();
     }, []);
 
-    // Supabase Realtime: อัพเดตข้อมูลอัตโนมัติเมื่อมีการเปลี่ยนแปลง
+    // mysql Realtime: อัพเดตข้อมูลอัตโนมัติเมื่อมีการเปลี่ยนแปลง
     useEffect(() => {
-        const channel = supabase
+        const channel = mysql
             .channel('issues-realtime')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'issues' }, () => {
+            .on('mysql_changes', { event: '*', schema: 'public', table: 'issues' }, () => {
                 fetchIssues();
             })
             .subscribe();
 
-        return () => supabase.removeChannel(channel);
+        return () => mysql.removeChannel(channel);
     }, []);
 
     // Time-based Dark Mode Logic (18:00 - 05:59 is Dark)
@@ -114,7 +125,7 @@ function App() {
         // Add a slight artificial delay (min 500ms) for better UX with the spinner
         const startTime = Date.now();
 
-        const { data, error } = await supabase
+        const { data, error } = await mysql
             .from('issues')
             .select('*')
             .order('created_at', { ascending: false });
@@ -125,11 +136,18 @@ function App() {
         }
 
         if (error) {
-            console.error("Error fetching issues from Supabase:", error);
+            console.error("Error fetching issues from mysql:", error);
             Swal.fire('Error', 'ไม่สามารถโหลดข้อมูลแจ้งซ่อมได้', 'error');
         } else {
             // Map snake_case from DB to camelCase for frontend
-            const formattedIssues = data.map(issue => ({
+            const formattedIssues = data.map(issue => {
+                let attachments = [];
+                try {
+                    attachments = issue.attachments_json ? JSON.parse(issue.attachments_json) : [];
+                } catch {
+                    attachments = [];
+                }
+                return ({
                 id: issue.id,
                 name: issue.name,
                 department: issue.department,
@@ -141,8 +159,14 @@ function App() {
                 assignedAdmin: issue.assigned_admin || null,
                 assetId: issue.asset_id || null,
                 assetName: issue.asset_name || null,
+                attachments,
+                userCloseName: issue.user_close_name || null,
+                userCloseNote: issue.user_close_note || null,
+                userCloseSign: issue.user_close_sign || null,
+                userClosedAt: issue.user_closed_at || null,
                 createdAt: issue.created_at
-            }));
+                });
+            });
             setIssues(formattedIssues);
         }
         setIsIssuesLoading(false);
@@ -173,17 +197,25 @@ function App() {
         return `${datePrefix}${seqStr}`;
     };
 
+    const toMysqlDateTime = (value = new Date()) => {
+        const date = value instanceof Date ? value : new Date(value);
+        if (Number.isNaN(date.getTime())) return null;
+        const pad = (num) => String(num).padStart(2, '0');
+        return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+    };
+
     const addIssue = async (newIssue) => {
         const issueId = generateDocId();
         const issueWithId = {
             ...newIssue,
             id: issueId,
             repairDetails: '',
-            assignedAdmin: null
+            assignedAdmin: null,
+            attachments: newIssue.attachments || []
         };
 
-        // Insert into Supabase
-        const { error } = await supabase
+        // Insert into mysql
+        const { error } = await mysql
             .from('issues')
             .insert([
                 {
@@ -197,7 +229,8 @@ function App() {
                     repair_details: '',
                     asset_id: newIssue.assetId || null,
                     asset_name: newIssue.assetName || null,
-                    created_at: newIssue.createdAt
+                    attachments_json: JSON.stringify(newIssue.attachments || []),
+                    created_at: toMysqlDateTime(newIssue.createdAt)
                 }
             ]);
 
@@ -215,7 +248,7 @@ function App() {
     };
 
     const updateIssueRepairDetails = async (id, details) => {
-        const { error } = await supabase
+        const { error } = await mysql
             .from('issues')
             .update({ repair_details: details })
             .eq('id', id);
@@ -246,8 +279,9 @@ function App() {
         if (updatedFields.severity !== undefined) dbFields.severity = updatedFields.severity;
         if (updatedFields.description !== undefined) dbFields.description = updatedFields.description;
         if (updatedFields.repairDetails !== undefined) dbFields.repair_details = updatedFields.repairDetails;
+        if (updatedFields.attachments !== undefined) dbFields.attachments_json = JSON.stringify(updatedFields.attachments || []);
 
-        const { error } = await supabase
+        const { error } = await mysql
             .from('issues')
             .update(dbFields)
             .eq('id', id);
@@ -277,7 +311,7 @@ function App() {
             updateData.assigned_admin = adminName;
         }
 
-        const { error } = await supabase
+        const { error } = await mysql
             .from('issues')
             .update(updateData)
             .eq('id', id);
@@ -296,18 +330,54 @@ function App() {
         });
         setIssues(updatedIssues);
 
-        // Send Telegram notification
-        const updatedIssue = issues.find(i => i.id === id);
-        if (updatedIssue) {
-            notifyStatusChange(
-                { ...updatedIssue, ...(adminName && { assignedAdmin: adminName }) },
-                newStatus
-            );
+        const updatedIssue = {
+            ...issues.find(i => i.id === id),
+            status: newStatus,
+            ...(adminName && { assignedAdmin: adminName }),
+        };
+
+        if (updatedIssue?.id) {
+            const closeLink =
+                newStatus === 'Resolved' ? buildCloseIssueLink(id) : null;
+            notifyStatusChange(updatedIssue, newStatus, closeLink);
+
+            if (newStatus === 'Resolved' && !updatedIssue.userCloseSign) {
+                await showCloseIssueLinkDialog(updatedIssue);
+            }
         }
     };
 
+    const closeIssueByUser = async (id, closeData) => {
+        const payload = {
+            user_close_name: closeData.name,
+            user_close_note: closeData.note || '',
+            user_close_sign: closeData.signature,
+            user_closed_at: new Date().toISOString().slice(0, 19).replace('T', ' ')
+        };
+
+        const { error } = await mysql
+            .from('issues')
+            .update(payload)
+            .eq('id', id);
+
+        if (error) {
+            console.error("Error closing issue by user:", error);
+            Swal.fire('Error', 'ไม่สามารถบันทึกลายเซ็นปิดงานได้', 'error');
+            return false;
+        }
+
+        setIssues(issues.map(issue => issue.id === id ? {
+            ...issue,
+            userCloseName: closeData.name,
+            userCloseNote: closeData.note || '',
+            userCloseSign: closeData.signature,
+            userClosedAt: payload.user_closed_at
+        } : issue));
+        return true;
+    };
+
     const deleteIssue = async (id) => {
-        const { error } = await supabase
+        const { error } = await mysql
             .from('issues')
             .delete()
             .eq('id', id);
@@ -336,7 +406,7 @@ function App() {
 
     const renderContent = () => {
         if (activeTab === 'home') {
-            return <HomePage onNavigateTo={setActiveTab} />;
+            return <HomePage onNavigateTo={setActiveTab} currentRole={currentRole} />;
         }
 
         if (activeTab === 'user') {
@@ -349,6 +419,10 @@ function App() {
 
         if (activeTab === 'change_request') {
             return <ChangeRequestForm />;
+        }
+
+        if (activeTab === 'issue_close') {
+            return <IssueCloseSignature issueId={closeIssueId} onCloseIssue={closeIssueByUser} />;
         }
 
         if (activeTab === 'manager_approval') {
@@ -376,48 +450,21 @@ function App() {
 
                             <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                                 <div className="grid grid-cols-3 sm:flex flex-wrap bg-slate-100/80 dark:bg-slate-800/80 p-1 rounded-xl w-full sm:w-auto gap-1">
-                                    <button
-                                        onClick={() => { setAdminSubTab('issues'); fetchIssues(); }}
-                                        className={`px-1 sm:px-4 py-2 sm:py-1.5 rounded-lg font-medium transition-all flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 ${adminSubTab === 'issues' ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-md sm:shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
-                                    >
-                                        <Ticket className="w-[18px] h-[18px] sm:w-4 sm:h-4" /> <span className="text-[11px] sm:text-sm whitespace-nowrap">แจ้งซ่อม</span>
-                                    </button>
-                                    <button
-                                        onClick={() => setAdminSubTab('assets')}
-                                        className={`px-1 sm:px-4 py-2 sm:py-1.5 rounded-lg font-medium transition-all flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 ${adminSubTab === 'assets' ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-md sm:shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
-                                    >
-                                        <Monitor className="w-[18px] h-[18px] sm:w-4 sm:h-4" /> <span className="text-[11px] sm:text-sm whitespace-nowrap">ทรัพย์สิน</span>
-                                    </button>
-                                    <button
-                                        onClick={() => setAdminSubTab('access_requests')}
-                                        className={`px-1 sm:px-4 py-2 sm:py-1.5 rounded-lg font-medium transition-all flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 ${adminSubTab === 'access_requests' ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-md sm:shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
-                                    >
-                                        <Key className="w-[18px] h-[18px] sm:w-4 sm:h-4" /> <span className="text-[11px] sm:text-sm whitespace-nowrap">ขอสิทธิ์</span>
-                                    </button>
-                                    <button
-                                        onClick={() => setAdminSubTab('change_requests')}
-                                        className={`px-1 sm:px-4 py-2 sm:py-1.5 rounded-lg font-medium transition-all flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 ${adminSubTab === 'change_requests' ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-md sm:shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
-                                    >
-                                        <Code className="w-[18px] h-[18px] sm:w-4 sm:h-4" /> <span className="text-[11px] sm:text-sm whitespace-nowrap">ขอพัฒนาโปรแกรม</span>
-                                    </button>
-                                    <button
-                                        onClick={() => setAdminSubTab('stats')}
-                                        className={`px-1 sm:px-4 py-2 sm:py-1.5 rounded-lg font-medium transition-all flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 ${adminSubTab === 'stats' ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-md sm:shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
-                                    >
-                                        <TrendingUp className="w-[18px] h-[18px] sm:w-4 sm:h-4" /> <span className="text-[11px] sm:text-sm whitespace-nowrap">สถิติ</span>
-                                    </button>
-                                    <button
-                                        onClick={() => setAdminSubTab('users')}
-                                        className={`px-1 sm:px-4 py-2 sm:py-1.5 rounded-lg font-medium transition-all flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 ${adminSubTab === 'users' ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-md sm:shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
-                                    >
-                                        <Users className="w-[18px] h-[18px] sm:w-4 sm:h-4" /> <span className="text-[11px] sm:text-sm whitespace-nowrap">ผู้ใช้งาน</span>
-                                    </button>
-                                    <button
-                                        onClick={() => setAdminSubTab('employees')}
-                                        className={`px-1 sm:px-4 py-2 sm:py-1.5 rounded-lg font-medium transition-all flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 ${adminSubTab === 'employees' ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-md sm:shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
-                                    >
-                                        <Users className="w-[18px] h-[18px] sm:w-4 sm:h-4" /> <span className="text-[11px] sm:text-sm whitespace-nowrap">พนักงาน</span>
-                                    </button>
+                                    {visibleAdminSubTabs.map((item) => {
+                                        const Icon = item.icon;
+                                        return (
+                                            <button
+                                                key={item.id}
+                                                onClick={() => {
+                                                    if (item.id === 'issues') fetchIssues();
+                                                    setAdminSubTab(item.id);
+                                                }}
+                                                className={`px-1 sm:px-4 py-2 sm:py-1.5 rounded-lg font-medium transition-all flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 ${adminSubTab === item.id ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-md sm:shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
+                                            >
+                                                <Icon className="w-[18px] h-[18px] sm:w-4 sm:h-4" /> <span className="text-[11px] sm:text-sm whitespace-nowrap">{item.label}</span>
+                                            </button>
+                                        );
+                                    })}
                                 </div>
                                 <button
                                     onClick={handleAdminLogout}
@@ -459,6 +506,11 @@ function App() {
         }
     };
 
+    const handleNavClick = (item) => {
+        if (item.needsRefresh) fetchIssues();
+        setActiveTab(item.tab);
+    };
+
     return (
         <div className="min-h-screen font-sans text-slate-800 dark:text-slate-200 flex flex-col relative w-full overflow-hidden">
             <header className="fixed w-full z-50 top-0 transition-all duration-300 glass-panel border-b border-white/40 dark:border-slate-700/50">
@@ -474,36 +526,18 @@ function App() {
                     </div>
 
                     <nav className="hidden sm:flex bg-slate-100/80 dark:bg-slate-800/80 backdrop-blur-md p-1.5 rounded-2xl border border-white dark:border-slate-700 shadow-inner">
-                        <button
-                            onClick={() => setActiveTab('home')}
-                            className={`px-4 py-2 rounded-xl transition-all duration-300 font-medium flex items-center gap-2 ${activeTab === 'home' ? 'bg-white dark:bg-indigo-600 text-indigo-700 dark:text-white shadow-md' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-700/50'}`}
-                        >
-                            <Home className="w-4 h-4" /> หน้าแรก
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('user')}
-                            className={`px-4 py-2 rounded-xl transition-all duration-300 font-medium flex items-center gap-2 ${activeTab === 'user' ? 'bg-white dark:bg-indigo-600 text-indigo-700 dark:text-white shadow-md' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-700/50'}`}
-                        >
-                            <ClipboardList className="w-4 h-4" /> แจ้งซ่อม
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('access_request')}
-                            className={`px-4 py-2 rounded-xl transition-all duration-300 font-medium flex items-center gap-2 ${activeTab === 'access_request' ? 'bg-white dark:bg-indigo-600 text-indigo-700 dark:text-white shadow-md' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-700/50'}`}
-                        >
-                            <UserPlus className="w-4 h-4" /> ขอสิทธิ์ใช้งาน
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('change_request')}
-                            className={`px-4 py-2 rounded-xl transition-all duration-300 font-medium flex items-center gap-2 ${activeTab === 'change_request' ? 'bg-white dark:bg-indigo-600 text-indigo-700 dark:text-white shadow-md' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-700/50'}`}
-                        >
-                            <Code className="w-4 h-4" /> ขอพัฒนาโปรแกรม
-                        </button>
-                        <button
-                            onClick={() => { setActiveTab('admin'); fetchIssues(); }}
-                            className={`px-4 py-2 rounded-xl transition-all duration-300 font-medium flex items-center gap-2 ${activeTab === 'admin' ? 'bg-white dark:bg-indigo-600 text-indigo-700 dark:text-white shadow-md' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-700/50'}`}
-                        >
-                            <Settings className="w-4 h-4" /> จัดการข้อมูล
-                        </button>
+                        {visibleMainNavItems.map((item) => {
+                            const Icon = item.icon;
+                            return (
+                                <button
+                                    key={item.id}
+                                    onClick={() => handleNavClick(item)}
+                                    className={`px-4 py-2 rounded-xl transition-all duration-300 font-medium flex items-center gap-2 ${activeTab === item.tab ? 'bg-white dark:bg-indigo-600 text-indigo-700 dark:text-white shadow-md' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-700/50'}`}
+                                >
+                                    <Icon className="w-4 h-4" /> {item.label}
+                                </button>
+                            );
+                        })}
                     </nav>
                 </div>
             </header>
@@ -523,41 +557,19 @@ function App() {
             {/* Mobile Bottom Navigation Bar limit sm:hidden */}
             <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/90 dark:bg-slate-900/90 backdrop-blur-lg border-t border-slate-200 dark:border-slate-800 pb-safe pt-2 px-2 pb-2">
                 <div className="flex justify-around items-center h-14">
-                    <button
-                        onClick={() => setActiveTab('home')}
-                        className={`flex flex-col items-center justify-center w-16 h-full space-y-1 transition-colors ${activeTab === 'home' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500 dark:text-slate-500 hover:text-slate-900 dark:hover:text-slate-300'}`}
-                    >
-                        <Home className="w-6 h-6" strokeWidth={activeTab === 'home' ? 2.5 : 2} />
-                        <span className="text-[10px] font-semibold">หน้าแรก</span>
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('user')}
-                        className={`flex flex-col items-center justify-center w-16 h-full space-y-1 transition-colors ${activeTab === 'user' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500 dark:text-slate-500 hover:text-slate-900 dark:hover:text-slate-300'}`}
-                    >
-                        <ClipboardList className="w-6 h-6" strokeWidth={activeTab === 'user' ? 2.5 : 2} />
-                        <span className="text-[10px] font-semibold">แจ้งซ่อม</span>
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('access_request')}
-                        className={`flex flex-col items-center justify-center w-16 h-full space-y-1 transition-colors ${activeTab === 'access_request' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500 dark:text-slate-500 hover:text-slate-900 dark:hover:text-slate-300'}`}
-                    >
-                        <UserPlus className="w-6 h-6" strokeWidth={activeTab === 'access_request' ? 2.5 : 2} />
-                        <span className="text-[10px] font-semibold">ขอสิทธิ์</span>
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('change_request')}
-                        className={`flex flex-col items-center justify-center w-16 h-full space-y-1 transition-colors ${activeTab === 'change_request' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500 dark:text-slate-500 hover:text-slate-900 dark:hover:text-slate-300'}`}
-                    >
-                        <Code className="w-6 h-6" strokeWidth={activeTab === 'change_request' ? 2.5 : 2} />
-                        <span className="text-[10px] font-semibold">ขอพัฒนา</span>
-                    </button>
-                    <button
-                        onClick={() => { setActiveTab('admin'); fetchIssues(); }}
-                        className={`flex flex-col items-center justify-center w-16 h-full space-y-1 transition-colors ${activeTab === 'admin' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500 dark:text-slate-500 hover:text-slate-900 dark:hover:text-slate-300'}`}
-                    >
-                        <Settings className="w-6 h-6" strokeWidth={activeTab === 'admin' ? 2.5 : 2} />
-                        <span className="text-[10px] font-semibold">จัดการ</span>
-                    </button>
+                    {visibleMainNavItems.map((item) => {
+                        const Icon = item.icon;
+                        return (
+                            <button
+                                key={item.id}
+                                onClick={() => handleNavClick(item)}
+                                className={`flex flex-col items-center justify-center w-16 h-full space-y-1 transition-colors ${activeTab === item.tab ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500 dark:text-slate-500 hover:text-slate-900 dark:hover:text-slate-300'}`}
+                            >
+                                <Icon className="w-6 h-6" strokeWidth={activeTab === item.tab ? 2.5 : 2} />
+                                <span className="text-[10px] font-semibold">{item.label}</span>
+                            </button>
+                        );
+                    })}
                 </div>
             </nav>
         </div>

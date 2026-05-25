@@ -1,11 +1,10 @@
-version: '3.8'
-
 services:
   helpdesk-app:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: helpdesk-web
+    restart: unless-stopped
     ports:
       - "5173:5173"
     environment:
@@ -21,6 +20,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: helpdesk-api
+    restart: unless-stopped
     command: ["npm", "run", "start:api"]
     ports:
       - "4000:4000"
@@ -34,7 +34,8 @@ services:
     env_file:
       - .env
     depends_on:
-      - mysql
+      mysql:
+        condition: service_healthy
 
   mysql:
     image: mysql:8
@@ -49,6 +50,7 @@ services:
       - "3306:3306"
     volumes:
       - mysql-data:/var/lib/mysql
+      - ./schema_mysql.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 10s

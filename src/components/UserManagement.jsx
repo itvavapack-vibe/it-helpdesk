@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { supabase } from '../supabaseClient';
+import { mysql } from '../mysqlClient';
 import { Users, UserPlus, Search, Edit2, Trash2, Shield, User, X, Check, Mail } from 'lucide-react';
 import Swal from 'sweetalert2';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
 const UserManagement = ({ currentAdmin }) => {
     const [users, setUsers] = useState([]);
@@ -29,7 +30,7 @@ const UserManagement = ({ currentAdmin }) => {
         setIsLoading(true);
 
         const startTime = Date.now();
-        const { data, error } = await supabase
+        const { data, error } = await mysql
             .from('admins')
             .select('id, username, name, role, created_at')
             .order('created_at', { ascending: false });
@@ -97,7 +98,7 @@ const UserManagement = ({ currentAdmin }) => {
             }
 
             // check if username exists
-            const { data: existingUser } = await supabase
+            const { data: existingUser } = await mysql
                 .from('admins')
                 .select('username')
                 .eq('username', formData.username)
@@ -108,7 +109,7 @@ const UserManagement = ({ currentAdmin }) => {
                 return;
             }
 
-            const { error } = await supabase
+            const { error } = await mysql
                 .from('admins')
                 .insert([{
                     username: formData.username,
@@ -147,7 +148,7 @@ const UserManagement = ({ currentAdmin }) => {
                 updateData.password = formData.password;
             }
 
-            const { error } = await supabase
+            const { error } = await mysql
                 .from('admins')
                 .update(updateData)
                 .eq('id', formData.id);
@@ -193,7 +194,7 @@ const UserManagement = ({ currentAdmin }) => {
             reverseButtons: true
         }).then(async (result) => {
             if (result.isConfirmed) {
-                const { error } = await supabase
+                const { error } = await mysql
                     .from('admins')
                     .delete()
                     .eq('id', id);
@@ -404,7 +405,7 @@ const UserManagement = ({ currentAdmin }) => {
 
                             <div className="space-y-2">
                                 <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 ml-1">ระดับสิทธิ์ (Role)</label>
-                                <select
+                                {false && <select
                                     name="role"
                                     value={formData.role}
                                     onChange={handleInputChange}
@@ -413,7 +414,20 @@ const UserManagement = ({ currentAdmin }) => {
                                 >
                                     <option value="admin">Admin (จัดการระบบทั่วไป)</option>
                                     <option value="superadmin">Super Admin (สามารถลบบัญชีอื่นได้)</option>
-                                </select>
+                                </select>}
+                                <Select
+                                    value={formData.role}
+                                    onValueChange={(value) => setFormData(prev => ({ ...prev, role: value }))}
+                                    disabled={currentAdmin?.role !== 'superadmin' && modalMode === 'edit'}
+                                >
+                                    <SelectTrigger className="w-full input-modern cursor-pointer">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="admin">Admin</SelectItem>
+                                        <SelectItem value="superadmin">Super Admin</SelectItem>
+                                    </SelectContent>
+                                </Select>
                             </div>
 
                             <div className="pt-4 flex gap-3 border-t border-slate-100 dark:border-slate-700 mt-6">

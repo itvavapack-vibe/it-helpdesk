@@ -3,7 +3,7 @@ import { Monitor, RefreshCw, AlertCircle, Search, X, Tag, FileSpreadsheet, QrCod
 import { QRCodeSVG } from 'qrcode.react';
 import * as XLSX from 'xlsx';
 import { withGlpiSession, getComputers, getUsers, getComputerDetail, extractIpAddresses } from '../glpiClient';
-import { supabase } from '../supabaseClient';
+import { mysql } from '../mysqlClient';
 import { notifyGlpiSync } from '../telegramNotify';
 
 const mapAssetRowToComputer = (row) => ({ ...row, id: row.glpi_id });
@@ -14,7 +14,7 @@ async function batchDeleteIn(table, column, ids) {
     const chunkSize = 80;
     for (let i = 0; i < ids.length; i += chunkSize) {
         const chunk = ids.slice(i, i + chunkSize);
-        const { error } = await supabase.from(table).delete().in(column, chunk);
+        const { error } = await mysql.from(table).delete().in(column, chunk);
         if (error) throw new Error(typeof error === 'string' ? error : error.message || String(error));
     }
 }
@@ -36,7 +36,7 @@ const AssetInventory = ({ issues = [] }) => {
     const [syncResult, setSyncResult] = useState(null);
 
     const loadAssetsFromMysql = useCallback(async () => {
-        const { data, error } = await supabase.from('assets').select('*').order('name');
+        const { data, error } = await mysql.from('assets').select('*').order('name');
         if (error) throw new Error(error);
         return (data || []).map(mapAssetRowToComputer).filter(isActiveComputer);
     }, []);
@@ -105,7 +105,7 @@ const AssetInventory = ({ issues = [] }) => {
             }));
             
             // Fetch existing assets to calculate added/updated stats
-            const { data: existingAssets } = await supabase.from('assets').select('glpi_id, updated_at');
+            const { data: existingAssets } = await mysql.from('assets').select('glpi_id, updated_at');
             const existingAssetIds = new Set(existingAssets?.map(a => a.glpi_id) || []);
             
             let currentAssetsAdded = 0;
@@ -119,7 +119,7 @@ const AssetInventory = ({ issues = [] }) => {
             stats.assetsAdded = currentAssetsAdded;
             stats.assetsUpdated = currentAssetsUpdated;
 
-            const { error: assetUpsertError } = await supabase.from('assets').upsert(rows, { onConflict: 'glpi_id' });
+            const { error: assetUpsertError } = await mysql.from('assets').upsert(rows, { onConflict: 'glpi_id' });
             if (assetUpsertError) throw new Error(assetUpsertError);
 
             // --- ลบข้อมูลเครื่องเก่าที่ถูกลบออกจาก GLPI ไปแล้ว ---
@@ -165,7 +165,7 @@ const AssetInventory = ({ issues = [] }) => {
 
             const allSyncUsers = [...activeUsers, ...extraLocalUsers];
 
-            const { data: existingUsers } = await supabase.from('glpi_users').select('id');
+            const { data: existingUsers } = await mysql.from('glpi_users').select('id');
             const existingUserIds = new Set(existingUsers?.map(u => u.id) || []);
 
             let currentUsersAdded = 0;
@@ -188,7 +188,7 @@ const AssetInventory = ({ issues = [] }) => {
                 stats.usersAdded = currentUsersAdded;
                 stats.usersUpdated = currentUsersUpdated;
 
-                const { error: userError } = await supabase.from('glpi_users').upsert(userRows, { onConflict: 'id' });
+                const { error: userError } = await mysql.from('glpi_users').upsert(userRows, { onConflict: 'id' });
                 if (userError) throw new Error(userError);
             }
 

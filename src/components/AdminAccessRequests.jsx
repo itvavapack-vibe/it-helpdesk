@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { supabase } from '../supabaseClient';
+import { mysql } from '../mysqlClient';
 import { Search, Filter, Key, CheckCircle, XCircle, Clock, Trash2 } from 'lucide-react';
 import Fmit12PdfPreview from './Fmit12PdfPreview';
 import Swal from 'sweetalert2';
 import SignatureCanvas from 'react-signature-canvas';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
 const AdminAccessRequests = () => {
     const [requests, setRequests] = useState([]);
@@ -31,9 +32,9 @@ const AdminAccessRequests = () => {
         fetchRequests();
 
         // Subscribe to real-time changes
-        const subscription = supabase
+        const subscription = mysql
             .channel('access_requests_changes')
-            .on('postgres_changes', 
+            .on('mysql_changes', 
                 { event: '*', schema: 'public', table: 'access_requests' }, 
                 () => {
                     fetchRequests(); // Re-fetch on any change
@@ -42,14 +43,14 @@ const AdminAccessRequests = () => {
             .subscribe();
 
         return () => {
-            supabase.removeChannel(subscription);
+            mysql.removeChannel(subscription);
         };
     }, []);
 
     const fetchRequests = async () => {
         setIsLoading(true);
         try {
-            const { data, error } = await supabase
+            const { data, error } = await mysql
                 .from('access_requests')
                 .select('*')
                 .order('created_at', { ascending: false });
@@ -61,7 +62,7 @@ const AdminAccessRequests = () => {
             // It might fail if table doesn't exist yet
             Swal.fire({
                 title: 'ไม่พบตารางข้อมูล',
-                text: 'กรุณาสร้างตาราง access_requests ใน Supabase ก่อน',
+                text: 'กรุณาสร้างตาราง access_requests ใน mysql ก่อน',
                 icon: 'warning',
                 confirmButtonColor: '#4f46e5'
             });
@@ -91,7 +92,7 @@ const AdminAccessRequests = () => {
         }
 
         try {
-            const { error } = await supabase
+            const { error } = await mysql
                 .from('access_requests')
                 .update({ status: nextStatus })
                 .eq('id', id);
@@ -117,7 +118,7 @@ const AdminAccessRequests = () => {
         const signData = adminSignatureRef.current.getCanvas().toDataURL('image/png');
 
         try {
-            const { error } = await supabase
+            const { error } = await mysql
                 .from('access_requests')
                 .update({ 
                     status: signingStatusTarget, 
@@ -155,7 +156,7 @@ const AdminAccessRequests = () => {
 
         if (result.isConfirmed) {
             try {
-                const { error } = await supabase
+                const { error } = await mysql
                     .from('access_requests')
                     .delete()
                     .eq('id', id);
@@ -280,7 +281,7 @@ const AdminAccessRequests = () => {
                     
                     <div className="relative w-full sm:w-auto">
                         <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-                        <select
+                        {false && <select
                             value={statusFilter}
                             onChange={(e) => setStatusFilter(e.target.value)}
                             className="input-modern !pl-9 !py-2 !text-sm w-full sm:w-40 appearance-none bg-white dark:bg-slate-800"
@@ -291,7 +292,20 @@ const AdminAccessRequests = () => {
                             <option value="Pending_IT_Manager">รอลงนาม (หัวหน้า IT)</option>
                             <option value="Completed">เสร็จสิ้น</option>
                             <option value="Rejected">ไม่อนุมัติ</option>
-                        </select>
+                        </select>}
+                        <Select value={statusFilter} onValueChange={setStatusFilter}>
+                            <SelectTrigger className="input-modern !pl-9 !py-2 !text-sm w-full sm:w-40 bg-white dark:bg-slate-800">
+                                <SelectValue placeholder="All" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="All">All</SelectItem>
+                                <SelectItem value="Pending_Manager">Pending Manager</SelectItem>
+                                <SelectItem value="Pending_IT">Pending IT</SelectItem>
+                                <SelectItem value="Pending_IT_Manager">Pending IT Manager</SelectItem>
+                                <SelectItem value="Completed">Completed</SelectItem>
+                                <SelectItem value="Rejected">Rejected</SelectItem>
+                            </SelectContent>
+                        </Select>
                     </div>
 
                     <div className="flex gap-2 w-full sm:w-auto">

@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { supabase } from '../supabaseClient';
+import { mysql } from '../mysqlClient';
 import { Search, Filter, Code, CheckCircle, XCircle, Clock, Trash2, Edit } from 'lucide-react';
 import Swal from 'sweetalert2';
 import SignatureCanvas from 'react-signature-canvas';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
 const AdminChangeRequests = () => {
     const [requests, setRequests] = useState([]);
@@ -36,21 +37,21 @@ const AdminChangeRequests = () => {
     useEffect(() => {
         fetchRequests();
 
-        const subscription = supabase
+        const subscription = mysql
             .channel('change_requests_changes')
-            .on('postgres_changes', 
+            .on('mysql_changes', 
                 { event: '*', schema: 'public', table: 'change_requests' }, 
                 () => { fetchRequests(); }
             )
             .subscribe();
 
-        return () => supabase.removeChannel(subscription);
+        return () => mysql.removeChannel(subscription);
     }, []);
 
     const fetchRequests = async () => {
         setIsLoading(true);
         try {
-            const { data, error } = await supabase
+            const { data, error } = await mysql
                 .from('change_requests')
                 .select('*')
                 .order('created_at', { ascending: false });
@@ -61,7 +62,7 @@ const AdminChangeRequests = () => {
             console.error('Error fetching change requests:', error);
             Swal.fire({
                 title: 'ไม่พบตารางข้อมูล',
-                text: 'กรุณาสร้างตาราง change_requests ใน Supabase ก่อน',
+                text: 'กรุณาสร้างตาราง change_requests ใน mysql ก่อน',
                 icon: 'warning',
                 confirmButtonColor: '#10b981'
             });
@@ -101,7 +102,7 @@ const AdminChangeRequests = () => {
         const nextStatus = statuses[(currentIndex + 1) % statuses.length];
 
         try {
-            const { error } = await supabase
+            const { error } = await mysql
                 .from('change_requests')
                 .update({ status: nextStatus })
                 .eq('id', id);
@@ -134,7 +135,7 @@ const AdminChangeRequests = () => {
                     status: itStatus === 'Rejected' ? 'Rejected' : 'In_Progress'
                 };
                 
-                const { error } = await supabase.from('change_requests').update(updateData).eq('id', reqId);
+                const { error } = await mysql.from('change_requests').update(updateData).eq('id', reqId);
                 if (error) throw error;
 
             } else if (actionType === 'it_staff') {
@@ -151,7 +152,7 @@ const AdminChangeRequests = () => {
                     status: 'Pending_User_Acceptance'
                 };
                 
-                const { error } = await supabase.from('change_requests').update(updateData).eq('id', reqId);
+                const { error } = await mysql.from('change_requests').update(updateData).eq('id', reqId);
                 if (error) throw error;
             }
 
@@ -177,7 +178,7 @@ const AdminChangeRequests = () => {
 
         if (result.isConfirmed) {
             try {
-                const { error } = await supabase.from('change_requests').delete().eq('id', id);
+                const { error } = await mysql.from('change_requests').delete().eq('id', id);
                 if (error) throw error;
                 fetchRequests();
                 Swal.fire('Deleted!', 'ลบคำร้องเรียบร้อยแล้ว', 'success');
@@ -245,13 +246,25 @@ const AdminChangeRequests = () => {
                     </div>
                     <div className="relative w-full sm:w-auto">
                         <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-                        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="input-modern !pl-9 !py-2 !text-sm w-full sm:w-auto appearance-none bg-white dark:bg-slate-800">
+                        {false && <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="input-modern !pl-9 !py-2 !text-sm w-full sm:w-auto appearance-none bg-white dark:bg-slate-800">
                             <option value="All">ทุกสถานะ</option>
                             <option value="Pending_IT">รออนุมัติ (IT Manager)</option>
                             <option value="In_Progress">กำลังพัฒนาโปรแกรม</option>
                             <option value="Pending_User_Acceptance">รอจัดการส่งมอบ (User)</option>
                             <option value="Completed">ปิดงานสมบูรณ์</option>
-                        </select>
+                        </select>}
+                        <Select value={statusFilter} onValueChange={setStatusFilter}>
+                            <SelectTrigger className="input-modern !pl-9 !py-2 !text-sm w-full sm:w-auto bg-white dark:bg-slate-800">
+                                <SelectValue placeholder="All statuses" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="All">All</SelectItem>
+                                <SelectItem value="Pending_IT">Pending IT Manager</SelectItem>
+                                <SelectItem value="In_Progress">In Progress</SelectItem>
+                                <SelectItem value="Pending_User_Acceptance">Pending User Acceptance</SelectItem>
+                                <SelectItem value="Completed">Completed</SelectItem>
+                            </SelectContent>
+                        </Select>
                     </div>
 
                     <div className="flex gap-2 w-full sm:w-auto">

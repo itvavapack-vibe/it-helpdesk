@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { supabase } from '../supabaseClient';
-import { Users, UserPlus, Search, Edit2, Trash2, X, AlertCircle } from 'lucide-react';
+import { mysql } from '../mysqlClient';
+import { Users, UserPlus, Search, Edit2, Trash2, X, CalendarDays, UserMinus, MoveRight, CheckCircle2, Link as LinkIcon } from 'lucide-react';
 import Swal from 'sweetalert2';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
 const EmployeeManagement = () => {
     const [employees, setEmployees] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('All');
+    const [monthFilter, setMonthFilter] = useState(() => new Date().toISOString().slice(0, 7));
 
     // Modal states
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -20,6 +22,9 @@ const EmployeeManagement = () => {
         name_th: '',
         department: '',
         start_date: '',
+        end_date: '',
+        transfer_date: '',
+        resignation_link: '',
         status: 'ทำงาน'
     });
 
@@ -32,15 +37,15 @@ const EmployeeManagement = () => {
         'สำนักกรรมการ', 'อื่นๆ'
     ];
 
-    const STATUSES = ['ทำงาน', 'โอนย้าย', 'ลาออก'];
+    const STATUSES = ['ทำงาน', 'โอนย้าย', 'ลาออก', 'ปิดจบ'];
 
     useEffect(() => {
         fetchEmployees();
 
         // Subscribe to real-time changes
-        const subscription = supabase
+        const subscription = mysql
             .channel('employees_changes')
-            .on('postgres_changes', 
+            .on('mysql_changes', 
                 { event: '*', schema: 'public', table: 'employees' }, 
                 () => {
                     fetchEmployees();
@@ -49,14 +54,14 @@ const EmployeeManagement = () => {
             .subscribe();
 
         return () => {
-            supabase.removeChannel(subscription);
+            mysql.removeChannel(subscription);
         };
     }, []);
 
     const fetchEmployees = async () => {
         setIsLoading(true);
         try {
-            const { data, error } = await supabase
+            const { data, error } = await mysql
                 .from('employees')
                 .select('*')
                 .order('emp_id', { ascending: true });
@@ -67,7 +72,7 @@ const EmployeeManagement = () => {
             console.error('Error fetching employees:', error);
             Swal.fire({
                 title: 'ไม่พบตารางข้อมูล',
-                text: 'กรุณาสร้างตาราง employees ใน Supabase ก่อน',
+                text: 'กรุณาสร้างตาราง employees ใน mysql ก่อน',
                 icon: 'warning',
                 confirmButtonColor: '#4f46e5'
             });
@@ -86,6 +91,20 @@ const EmployeeManagement = () => {
         });
     }, [employees, searchTerm, statusFilter]);
 
+    const isSameMonth = (dateValue) => {
+        if (!dateValue || !monthFilter) return false;
+        return String(dateValue).slice(0, 7) === monthFilter;
+    };
+
+    const monthlyStats = useMemo(() => {
+        const newJoiners = employees.filter(emp => isSameMonth(emp.start_date));
+        const exits = employees.filter(emp => emp.status === 'ลาออก' && isSameMonth(emp.end_date));
+        const transfers = employees.filter(emp => emp.status === 'โอนย้าย' && isSameMonth(emp.transfer_date || emp.updated_at));
+        const completed = employees.filter(emp => emp.status === 'ปิดจบ' && isSameMonth(emp.updated_at));
+
+        return { newJoiners, exits, transfers, completed };
+    }, [employees, monthFilter]);
+
     const handleOpenModal = (employee = null) => {
         if (employee) {
             setModalMode('edit');
@@ -95,6 +114,9 @@ const EmployeeManagement = () => {
                 name_th: employee.name_th,
                 department: employee.department,
                 start_date: employee.start_date,
+                end_date: employee.end_date || '',
+                transfer_date: employee.transfer_date || '',
+                resignation_link: employee.resignation_link || '',
                 status: employee.status
             });
         } else {
@@ -105,6 +127,9 @@ const EmployeeManagement = () => {
                 name_th: '',
                 department: '',
                 start_date: '',
+                end_date: '',
+                transfer_date: '',
+                resignation_link: '',
                 status: 'ทำงาน'
             });
         }
@@ -140,26 +165,32 @@ const EmployeeManagement = () => {
 
         try {
             if (modalMode === 'add') {
-                const { error } = await supabase
+                const { error } = await mysql
                     .from('employees')
                     .insert([{
                         emp_id: formData.emp_id,
                         name_th: formData.name_th,
                         department: formData.department,
                         start_date: formData.start_date,
+                        end_date: formData.end_date || null,
+                        transfer_date: formData.transfer_date || null,
+                        resignation_link: formData.resignation_link || null,
                         status: formData.status
                     }]);
 
                 if (error) throw error;
                 Swal.fire('สำเร็จ!', 'เพิ่มพนักงานเรียบร้อย', 'success');
             } else {
-                const { error } = await supabase
+                const { error } = await mysql
                     .from('employees')
                     .update({
                         emp_id: formData.emp_id,
                         name_th: formData.name_th,
                         department: formData.department,
                         start_date: formData.start_date,
+                        end_date: formData.end_date || null,
+                        transfer_date: formData.transfer_date || null,
+                        resignation_link: formData.resignation_link || null,
                         status: formData.status
                     })
                     .eq('id', formData.id);
@@ -190,7 +221,7 @@ const EmployeeManagement = () => {
 
         if (result.isConfirmed) {
             try {
-                const { error } = await supabase
+                const { error } = await mysql
                     .from('employees')
                     .delete()
                     .eq('id', id);
@@ -209,7 +240,8 @@ const EmployeeManagement = () => {
         const badges = {
             'ทำงาน': <span className="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-semibold">ทำงาน</span>,
             'โอนย้าย': <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-semibold">โอนย้าย</span>,
-            'ลาออก': <span className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs font-semibold">ลาออก</span>
+            'ลาออก': <span className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs font-semibold">ลาออก</span>,
+            'ปิดจบ': <span className="px-3 py-1 bg-slate-100 text-slate-700 rounded-full text-xs font-semibold">ปิดจบ</span>
         };
         return badges[status] || <span className="px-3 py-1 bg-slate-100 text-slate-700 rounded-full text-xs font-semibold">{status}</span>;
     };
@@ -245,7 +277,7 @@ const EmployeeManagement = () => {
                         />
                     </div>
 
-                    <select
+                    {false && <select
                         value={statusFilter}
                         onChange={(e) => setStatusFilter(e.target.value)}
                         className="input-modern !py-2 !text-sm w-full sm:w-40"
@@ -254,7 +286,26 @@ const EmployeeManagement = () => {
                         {STATUSES.map(status => (
                             <option key={status} value={status}>{status}</option>
                         ))}
-                    </select>
+                    </select>}
+                    <Select value={statusFilter} onValueChange={setStatusFilter}>
+                        <SelectTrigger className="input-modern !py-2 !text-sm w-full sm:w-40">
+                            <SelectValue placeholder="All statuses" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="All">All</SelectItem>
+                            {STATUSES.map(status => (
+                                <SelectItem key={status} value={status}>{status}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+
+                    <input
+                        type="month"
+                        value={monthFilter}
+                        onChange={(e) => setMonthFilter(e.target.value)}
+                        className="input-modern !py-2 !text-sm w-full sm:w-40"
+                        title="เลือกเดือนสำหรับแดชบอร์ด"
+                    />
 
                     <button
                         onClick={() => handleOpenModal()}
@@ -263,6 +314,45 @@ const EmployeeManagement = () => {
                         <UserPlus className="w-4 h-4" />
                         เพิ่มพนักงาน
                     </button>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+                <div className="glass-card rounded-2xl p-5 flex items-center gap-4">
+                    <div className="p-3 rounded-xl bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-300">
+                        <UserPlus className="w-6 h-6" />
+                    </div>
+                    <div>
+                        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">เข้าใหม่เดือนนี้</p>
+                        <p className="text-2xl font-extrabold text-slate-800 dark:text-white">{monthlyStats.newJoiners.length}</p>
+                    </div>
+                </div>
+                <div className="glass-card rounded-2xl p-5 flex items-center gap-4">
+                    <div className="p-3 rounded-xl bg-rose-100 text-rose-600 dark:bg-rose-900/40 dark:text-rose-300">
+                        <UserMinus className="w-6 h-6" />
+                    </div>
+                    <div>
+                        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">ออกเดือนนี้</p>
+                        <p className="text-2xl font-extrabold text-slate-800 dark:text-white">{monthlyStats.exits.length}</p>
+                    </div>
+                </div>
+                <div className="glass-card rounded-2xl p-5 flex items-center gap-4">
+                    <div className="p-3 rounded-xl bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300">
+                        <MoveRight className="w-6 h-6" />
+                    </div>
+                    <div>
+                        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">ย้ายเดือนนี้</p>
+                        <p className="text-2xl font-extrabold text-slate-800 dark:text-white">{monthlyStats.transfers.length}</p>
+                    </div>
+                </div>
+                <div className="glass-card rounded-2xl p-5 flex items-center gap-4">
+                    <div className="p-3 rounded-xl bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-200">
+                        <CheckCircle2 className="w-6 h-6" />
+                    </div>
+                    <div>
+                        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">ปิดจบหลังดำเนินการ</p>
+                        <p className="text-2xl font-extrabold text-slate-800 dark:text-white">{monthlyStats.completed.length}</p>
+                    </div>
                 </div>
             </div>
 
@@ -287,6 +377,8 @@ const EmployeeManagement = () => {
                                     <th className="p-4 whitespace-nowrap">ชื่อ-นามสกุล</th>
                                     <th className="p-4 whitespace-nowrap">แผนก</th>
                                     <th className="p-4 whitespace-nowrap">วันที่เริ่มงาน</th>
+                                    <th className="p-4 whitespace-nowrap">วันที่ออก/ย้าย</th>
+                                    <th className="p-4 whitespace-nowrap">ใบแจ้งลาออก</th>
                                     <th className="p-4 whitespace-nowrap">สถานะ</th>
                                     <th className="p-4 text-right whitespace-nowrap">จัดการ</th>
                                 </tr>
@@ -305,6 +397,17 @@ const EmployeeManagement = () => {
                                         </td>
                                         <td className="p-4 align-middle whitespace-nowrap text-slate-600 dark:text-slate-400 text-sm">
                                             {formatDate(emp.start_date)}
+                                        </td>
+                                        <td className="p-4 align-middle whitespace-nowrap text-slate-600 dark:text-slate-400 text-sm">
+                                            {emp.status === 'ลาออก' ? formatDate(emp.end_date) : emp.status === 'โอนย้าย' ? formatDate(emp.transfer_date) : '-'}
+                                        </td>
+                                        <td className="p-4 align-middle whitespace-nowrap text-sm">
+                                            {emp.resignation_link ? (
+                                                <a href={emp.resignation_link} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-800 font-semibold">
+                                                    <LinkIcon className="w-4 h-4" />
+                                                    เปิดลิงก์
+                                                </a>
+                                            ) : '-'}
                                         </td>
                                         <td className="p-4 align-middle whitespace-nowrap">
                                             {getStatusBadge(emp.status)}
@@ -338,7 +441,7 @@ const EmployeeManagement = () => {
             {/* Modal */}
             {isModalOpen && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
-                    <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl w-full max-w-lg p-8 space-y-6 border border-slate-200 dark:border-slate-700 max-h-96 overflow-y-auto custom-scrollbar">
+                    <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl w-full max-w-lg p-8 space-y-6 border border-slate-200 dark:border-slate-700 max-h-[85vh] overflow-y-auto custom-scrollbar">
                         <div className="flex items-center justify-between">
                             <h3 className="text-2xl font-bold text-slate-800 dark:text-white">
                                 {modalMode === 'add' ? 'เพิ่มพนักงานใหม่' : 'แก้ไขข้อมูลพนักงาน'}
@@ -385,7 +488,7 @@ const EmployeeManagement = () => {
                                 <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
                                     แผนก <span className="text-red-500">*</span>
                                 </label>
-                                <select
+                                {false && <select
                                     name="department"
                                     value={formData.department}
                                     onChange={handleFormChange}
@@ -395,7 +498,20 @@ const EmployeeManagement = () => {
                                     {DEPARTMENTS.map(dept => (
                                         <option key={dept} value={dept}>{dept}</option>
                                     ))}
-                                </select>
+                                </select>}
+                                <Select
+                                    value={formData.department}
+                                    onValueChange={(value) => setFormData(prev => ({ ...prev, department: value }))}
+                                >
+                                    <SelectTrigger className="input-modern w-full">
+                                        <SelectValue placeholder="Select department" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {DEPARTMENTS.map(dept => (
+                                            <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             </div>
 
                             <div>
@@ -411,11 +527,52 @@ const EmployeeManagement = () => {
                                 />
                             </div>
 
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                                        วันที่ออก
+                                    </label>
+                                    <input
+                                        type="date"
+                                        name="end_date"
+                                        value={formData.end_date}
+                                        onChange={handleFormChange}
+                                        className="input-modern w-full"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                                        วันที่ย้าย
+                                    </label>
+                                    <input
+                                        type="date"
+                                        name="transfer_date"
+                                        value={formData.transfer_date}
+                                        onChange={handleFormChange}
+                                        className="input-modern w-full"
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                                    ลิงก์ใบแจ้งลาออก
+                                </label>
+                                <input
+                                    type="url"
+                                    name="resignation_link"
+                                    value={formData.resignation_link}
+                                    onChange={handleFormChange}
+                                    placeholder="https://..."
+                                    className="input-modern w-full"
+                                />
+                            </div>
+
                             <div>
                                 <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
                                     สถานะ <span className="text-red-500">*</span>
                                 </label>
-                                <select
+                                {false && <select
                                     name="status"
                                     value={formData.status}
                                     onChange={handleFormChange}
@@ -424,7 +581,20 @@ const EmployeeManagement = () => {
                                     {STATUSES.map(status => (
                                         <option key={status} value={status}>{status}</option>
                                     ))}
-                                </select>
+                                </select>}
+                                <Select
+                                    value={formData.status}
+                                    onValueChange={(value) => setFormData(prev => ({ ...prev, status: value }))}
+                                >
+                                    <SelectTrigger className="input-modern w-full">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {STATUSES.map(status => (
+                                            <SelectItem key={status} value={status}>{status}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             </div>
                         </div>
 

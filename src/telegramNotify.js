@@ -46,7 +46,7 @@ export const notifyNewIssue = (issue) => {
     return sendTelegramMessage(message);
 };
 
-export const notifyStatusChange = (issue, newStatus) => {
+export const notifyStatusChange = (issue, newStatus, closeLink = null) => {
     const statusMap = {
         'Pending': '⏳ รอดำเนินการ',
         'In Progress': '🔧 กำลังแก้ไข',
@@ -62,7 +62,10 @@ export const notifyStatusChange = (issue, newStatus) => {
         `👤 <b>ผู้แจ้ง:</b> ${issue.name}\n` +
         `📌 <b>สถานะใหม่:</b> ${statusMap[newStatus] || newStatus}` +
         (issue.assignedAdmin ? `\n👨‍💻 <b>ผู้รับงาน:</b> ${issue.assignedAdmin}` : '');
-    return sendTelegramMessage(message);
+    const closeSection = closeLink
+        ? `\n\n✍️ <b>ลิงก์เซ็นปิดจบงาน (ส่งให้ผู้แจ้ง):</b>\n<a href="${closeLink}">${closeLink}</a>`
+        : '';
+    return sendTelegramMessage(message + closeSection);
 };
 
 export const notifyRepairUpdate = (issue, details) => {
