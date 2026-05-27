@@ -19,7 +19,7 @@ VITE_GLPI_URL=https://192.168.10.9/glpi
 VITE_GLPI_APP_TOKEN=...
 VITE_GLPI_USER_TOKEN=...
 VITE_USE_GLPI_PROXY=true
-# ไม่ต้องใส่ VITE_API_URL — ระบบจะใช้ http://<IP-เครื่องนี้>:4000 อัตโนมัติ
+# VITE_API_URL เว้นว่างได้ — หน้าเว็บจะเรียก /api ผ่าน Vite proxy ไป API_PORT
 ```
 
 ### 2. รันครั้งเดียว (API + หน้าเว็บ)
@@ -87,7 +87,7 @@ npm run dev:lan      # พอร์ต 5173, เปิดทุก IP
 | `VITE_GLPI_APP_TOKEN` | token จาก GLPI |
 | `VITE_GLPI_USER_TOKEN` | user token |
 | `VITE_USE_GLPI_PROXY` | `true` |
-| `VITE_API_URL` | *(เว้นว่าง)* |
+| `VITE_API_URL` | *(เว้นว่าง หรือใช้ `http://localhost:4000` เฉพาะเครื่อง dev)* |
 
 5. Deploy — หลังสำเร็จทดสอบ:
    - `https://<your-app>.vercel.app/api/health`
@@ -123,7 +123,7 @@ npx vercel --prod
 git clone <repository-url>
 cd it-helpdesk
 cp .env.example .env
-# แก้ DB_*, VITE_API_URL=http://<server-ip>:4000
+# แก้ DB_* และปล่อย VITE_API_URL ว่างได้ถ้าใช้ Vite proxy
 docker-compose up --build -d
 ```
 
@@ -143,4 +143,4 @@ npm run dev         # terminal 2
 ## หมายเหตุ
 
 - อย่า commit `.env` (อยู่ใน `.gitignore`)
-- รหัส admin เก็บใน MySQL แบบ plain text — ควร hash ใน production จริงจัง
+- รหัสผู้ดูแลระบบถูก hash ด้วย scrypt ก่อนเก็บใน MySQL และบัญชีเก่าแบบ plain text จะถูก migrate เป็น hash หลัง login สำเร็จครั้งแรก

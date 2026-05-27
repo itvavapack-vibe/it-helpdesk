@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { UserPlus, Save, LayoutGrid, AlertCircle, Phone, Briefcase, User, Globe, FileText, Printer } from 'lucide-react';
 import Swal from 'sweetalert2';
 import Fmit12PdfPreview from './Fmit12PdfPreview';
@@ -6,6 +6,7 @@ import { notifyNewAccessRequest } from '../telegramNotify';
 import { mysql } from '../mysqlClient';
 import SignatureCanvas from 'react-signature-canvas';
 import { Combobox } from './ui/combobox';
+import { copyText } from '../utils/closeIssueLink';
 
 const DEPARTMENTS = [
     'แอดมิน', 'บุคคลและธุรการ', 'วิศวกรรม', 'การตลาดและขาย (ในประเทศ)',
@@ -15,31 +16,42 @@ const DEPARTMENTS = [
     'วิจัยและพัฒนาผลิตภัณฑ์', 'คลังพัสดุและจัดส่ง', 'ตรวจสอบ', 'ซ่อมบำรุง',
     'สำนักกรรมการ', 'อื่นๆ'
 ];
+
+const INITIAL_FORM_DATA = {
+    employeeId: '',
+    nameTh: '',
+    nameEn: '',
+    department: '',
+    position: '',
+    internalPhone: '',
+    systems: {
+        userComputer: false,
+        email: false,
+        dataAll: false,
+        vpn: false,
+        allWeb: false,
+        wms: false,
+        msDynamics365: false,
+        cyberHrm: false,
+        other: false
+    },
+    otherSystemDetails: '',
+    requestDetails: ''
+};
+
+const toDateInputValue = (value = new Date()) => {
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    const pad = (num) => String(num).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+};
+
 const UserAccessRequestForm = ({ onCancel }) => {
     const signatureRef = useRef(null);
     const [signatureData, setSignatureData] = useState(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
-    const [formData, setFormData] = useState({
-        nameTh: '',
-        nameEn: '',
-        department: '',
-        position: '',
-        internalPhone: '',
-        systems: {
-            userComputer: false,
-            email: false,
-            dataAll: false,
-            vpn: false,
-            allWeb: false,
-            wms: false,
-            msDynamics365: false,
-            cyberHrm: false,
-            other: false
-        },
-        otherSystemDetails: '',
-        requestDetails: ''
-    });
+    const [formData, setFormData] = useState(INITIAL_FORM_DATA);
 
     const handleSystemChange = (systemName) => {
         setFormData(prev => ({
@@ -63,11 +75,21 @@ const UserAccessRequestForm = ({ onCancel }) => {
         e.preventDefault();
         
         // Basic validation
-        if (!formData.nameTh || !formData.department || !formData.position) {
+        if (!formData.employeeId || !formData.nameTh || !formData.department || !formData.position) {
             Swal.fire({
                 icon: 'warning',
                 title: 'ข้อมูลไม่ครบถ้วน',
                 text: 'กรุณากรอกข้อมูลที่มีเครื่องหมาย * ให้ครบทุกช่อง',
+                confirmButtonColor: '#4f46e5'
+            });
+            return;
+        }
+
+        if (!/^\d{6}$/.test(formData.employeeId)) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'รหัสพนักงานไม่ถูกต้อง',
+                text: 'กรุณากรอกรหัสพนักงาน 6 หลัก',
                 confirmButtonColor: '#4f46e5'
             });
             return;
@@ -127,15 +149,16 @@ const UserAccessRequestForm = ({ onCancel }) => {
             const sequenceNum = String((count || 0) + 1).padStart(3, '0');
             const generatedTicket = `ITU ${dd}${mm}${yy}/${sequenceNum}`;
 
-            // Save to Supabase
+            // Save to MySQL
             const { data: insertedData, error } = await mysql.from('access_requests').insert([{
                 ticket_number: generatedTicket,
                 name_th: formData.nameTh,
                 name_en: formData.nameEn,
+                employee_id: formData.employeeId,
                 department: formData.department,
                 position: formData.position,
                 internal_phone: formData.internalPhone,
-                systems: formData.systems,
+                systems: JSON.stringify(formData.systems),
                 other_system_details: formData.otherSystemDetails,
                 request_details: formData.requestDetails,
                 status: 'Pending_Manager',
@@ -143,6 +166,34 @@ const UserAccessRequestForm = ({ onCancel }) => {
             }]).select();
 
             if (error) throw error;
+
+            const { data: existingEmployees } = await mysql
+                .from('employees')
+                .select('id, status')
+                .eq('emp_id', formData.employeeId)
+                .limit(1);
+
+            if (existingEmployees?.length) {
+                const { error: employeeUpdateError } = await mysql
+                    .from('employees')
+                    .update({
+                        name_th: formData.nameTh,
+                        department: formData.department
+                    })
+                    .eq('emp_id', formData.employeeId);
+
+                if (employeeUpdateError) throw employeeUpdateError;
+            } else {
+                const { error: employeeInsertError } = await mysql.from('employees').insert([{
+                    emp_id: formData.employeeId,
+                    name_th: formData.nameTh,
+                    department: formData.department,
+                    start_date: toDateInputValue(),
+                    status: 'ทำงาน'
+                }]);
+
+                if (employeeInsertError) throw employeeInsertError;
+            }
             
             const reqId = insertedData[0].id;
             const approvalLink = `${window.location.origin}/?approveRequest=${reqId}`;
@@ -163,12 +214,29 @@ const UserAccessRequestForm = ({ onCancel }) => {
                 `,
                 confirmButtonColor: '#10b981',
                 confirmButtonText: 'ปิดหน้าต่าง',
-                allowOutsideClick: false
-            }).then(() => {
-                if (onCancel) onCancel(); // Return to previous screen or clear form
-                else {
-                    window.location.reload(); 
+                allowOutsideClick: false,
+                didOpen: () => {
+                    const input = document.getElementById('approval-link');
+                    input?.addEventListener('click', () => input.select());
+                    const copyButton = input?.nextElementSibling;
+                    copyButton?.addEventListener('click', async (event) => {
+                        event.preventDefault();
+                        await copyText(approvalLink);
+                        copyButton.textContent = 'คัดลอกแล้ว!';
+                        copyButton.style.background = '#10b981';
+                    });
+                },
+                preConfirm: async () => {
+                    await copyText(approvalLink);
                 }
+            }).then(() => {
+                if (onCancel) {
+                    onCancel();
+                    return;
+                }
+                setFormData(INITIAL_FORM_DATA);
+                setSignatureData(null);
+                signatureRef.current?.clear();
             });
         } catch (error) {
             console.error('Error submitting form:', error);
@@ -208,6 +276,27 @@ const UserAccessRequestForm = ({ onCancel }) => {
                     </h3>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <div className="space-y-1.5">
+                            <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                                รหัสพนักงาน <span className="text-red-500">*</span>
+                            </label>
+                            <div className="relative">
+                                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+                                    <User className="w-4 h-4" />
+                                </span>
+                                <input
+                                    type="text"
+                                    name="employeeId"
+                                    value={formData.employeeId}
+                                    onChange={handleChange}
+                                    maxLength="6"
+                                    inputMode="numeric"
+                                    className="input-modern !pl-10 w-full"
+                                    placeholder="เช่น 001234"
+                                />
+                            </div>
+                        </div>
+
                         <div className="space-y-1.5">
                             <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
                                 ชื่อ-สกุล (ภาษาไทย) <span className="text-red-500">*</span>

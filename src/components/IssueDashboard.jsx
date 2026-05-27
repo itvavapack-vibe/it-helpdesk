@@ -9,6 +9,7 @@ import PdfPreviewModal from './PdfPreviewModal';
 import MaintenanceReportPdfPreview from './MaintenanceReportPdfPreview';
 import Swal from 'sweetalert2';
 import { mysql, API_URL } from '../mysqlClient';
+import { ISSUE_CATEGORIES } from '../config/issueOptions';
 
 const ITEMS_PER_PAGE = 10;
 const STATUS_FLOW = ['Pending', 'In Progress', 'External Repair', 'Waiting for Parts', 'Resolved', 'Cancelled'];
@@ -365,6 +366,13 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
     };
 
     const allowedStatusOptions = currentRepairIssue ? getAllowedStatusOptions(currentRepairIssue.status) : [];
+    const repairCategoryOptions = useMemo(() => {
+        const currentCategory = editFormData.category || currentRepairIssue?.category;
+        if (currentCategory && !ISSUE_CATEGORIES.includes(currentCategory)) {
+            return [currentCategory, ...ISSUE_CATEGORIES];
+        }
+        return ISSUE_CATEGORIES;
+    }, [editFormData.category, currentRepairIssue?.category]);
 
     const getSeverityText = (severity) => {
         switch (severity) {
@@ -869,15 +877,9 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                             <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="เนเธเนเนเธเธเธฑเธเธซเธฒเธ”เนเธฒเธ Software D365">Software D365</SelectItem>
-                                            <SelectItem value="เธ•เธดเธ”เธ•เธฑเนเธเนเธฅเธฐเนเธเนเนเธเธเธฑเธเธซเธฒเธ”เนเธฒเธ Hardware">Hardware</SelectItem>
-                                            <SelectItem value="เธเนเธญเธกเธเธณเธฃเธธเธเธญเธธเธเธเธฃเธ“เนเธ•เนเธญเธเนเธงเธ Hardware & Network">Hardware & Network</SelectItem>
-                                            <SelectItem value="เธเธฃเธฐเธเธธเธก/เธญเธเธฃเธก/เธชเธฑเธกเธเธฒ">Meeting/Training</SelectItem>
-                                            <SelectItem value="เธเธฒเธเธญเธทเนเธ เน">Other</SelectItem>
-                                            <SelectItem value="เธเธฅเนเธญเธเธงเธเธเธฃเธเธดเธ”">CCTV</SelectItem>
-                                            <SelectItem value="เนเธเนเนเธเธเธฑเธเธซเธฒเธ”เนเธฒเธ Printer">Printer</SelectItem>
-                                            <SelectItem value="เธ•เธดเธ”เธ•เธฑเนเธเนเธฅเธฐเนเธเนเธเธฑเธเธซเธฒเธ”เนเธฒเธ Software เธ—เธฑเนเธงเนเธ">General Software</SelectItem>
-                                            <SelectItem value="เนเธเนเนเธเธเธฑเธเธซเธฒเธ”เนเธฒเธเธญเธตเน€เธกเธฅ">Email</SelectItem>
+                                            {repairCategoryOptions.map(category => (
+                                                <SelectItem key={category} value={category}>{category}</SelectItem>
+                                            ))}
                                         </SelectContent>
                                     </Select>
                                 </div>
@@ -902,9 +904,9 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                             <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="Normal">Normal</SelectItem>
-                                            <SelectItem value="Urgent">Urgent</SelectItem>
-                                            <SelectItem value="Most Urgent">Most Urgent</SelectItem>
+                                            <SelectItem value="Normal">ปกติ (Normal)</SelectItem>
+                                            <SelectItem value="Urgent">ด่วน (Urgent)</SelectItem>
+                                            <SelectItem value="Most Urgent">ด่วนที่สุด (Most Urgent)</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>

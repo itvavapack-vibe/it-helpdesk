@@ -48,8 +48,28 @@ const AdminChangeRequests = () => {
         return () => mysql.removeChannel(subscription);
     }, []);
 
-    const fetchRequests = async () => {
-        setIsLoading(true);
+    useEffect(() => {
+        const intervalId = setInterval(() => {
+            if (document.visibilityState === 'visible') {
+                fetchRequests({ silent: true });
+            }
+        }, 7000);
+
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                fetchRequests({ silent: true });
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        return () => {
+            clearInterval(intervalId);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
+    }, []);
+
+    const fetchRequests = async ({ silent = false } = {}) => {
+        if (!silent) setIsLoading(true);
         try {
             const { data, error } = await mysql
                 .from('change_requests')
@@ -60,6 +80,7 @@ const AdminChangeRequests = () => {
             setRequests(data || []);
         } catch (error) {
             console.error('Error fetching change requests:', error);
+            if (silent) return;
             Swal.fire({
                 title: 'ไม่พบตารางข้อมูล',
                 text: 'กรุณาสร้างตาราง change_requests ใน mysql ก่อน',
@@ -67,11 +88,14 @@ const AdminChangeRequests = () => {
                 confirmButtonColor: '#10b981'
             });
         } finally {
+            if (silent) return;
             setIsLoading(false);
         }
     };
 
     const handleStatusChange = async (id, currentStatus) => {
+        if (currentStatus === 'Cancelled') return;
+
         // Simple flow: Pending_Manager -> Pending_IT -> In_Progress -> Pending_User_Acceptance -> Completed
         const req = requests.find(r => r.id === id);
         if (!req) return;
@@ -197,6 +221,7 @@ const AdminChangeRequests = () => {
             case 'Pending_User_Acceptance': return <span className="px-2.5 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-semibold flex items-center gap-1"><Clock className="w-3 h-3"/> รอส่งมอบ (User ยอมรับ)</span>;
             case 'Completed': return <span className="px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-semibold flex items-center gap-1"><CheckCircle className="w-3 h-3"/> เสร็จสิ้น</span>;
             case 'Rejected': return <span className="px-2.5 py-1 bg-red-100 text-red-700 rounded-full text-xs font-semibold flex items-center gap-1"><XCircle className="w-3 h-3"/> ไม่อนุมัติ</span>;
+            case 'Cancelled': return <span className="px-2.5 py-1 bg-rose-100 text-rose-700 rounded-full text-xs font-semibold flex items-center gap-1"><XCircle className="w-3 h-3"/> ยกเลิก</span>;
             default: return <span className="px-2.5 py-1 bg-slate-100 text-slate-700 rounded-full text-xs font-semibold">{status}</span>;
         }
     };
@@ -263,6 +288,7 @@ const AdminChangeRequests = () => {
                                 <SelectItem value="In_Progress">In Progress</SelectItem>
                                 <SelectItem value="Pending_User_Acceptance">Pending User Acceptance</SelectItem>
                                 <SelectItem value="Completed">Completed</SelectItem>
+                                <SelectItem value="Cancelled">Cancelled</SelectItem>
                             </SelectContent>
                         </Select>
                     </div>
@@ -293,9 +319,12 @@ const AdminChangeRequests = () => {
                     <p className="text-sm text-slate-500">กำลังโหลดคำร้อง...</p>
                 </div>
             ) : filteredRequests.length === 0 ? (
-                <div className="bg-white p-10 rounded-2xl text-center border">
-                    <Code className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-                    <h3 className="text-lg font-bold text-slate-700">ไม่พบคำร้องขอพัฒนาระบบ</h3>
+                <div className="bg-white dark:bg-slate-800 p-10 rounded-2xl text-center border border-slate-100 dark:border-slate-700">
+                    <div className="w-16 h-16 bg-slate-100 dark:bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <Code className="w-8 h-8 text-slate-400 m-auto" />
+                    </div>
+                    <h3 className="text-lg font-bold text-slate-700 dark:text-slate-300 mb-2">ไม่พบคำร้องขอพัฒนาโปรแกรม</h3>
+                    <p className="text-slate-500 dark:text-slate-400">ยังไม่มีผู้ใช้งานส่งคำร้องขอพัฒนาโปรแกรมเข้ามาในระบบ หรือไม่พบในเงื่อนไขการค้นหา</p>
                 </div>
             ) : (
                 <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -321,6 +350,12 @@ const AdminChangeRequests = () => {
                                         <td className="p-4 align-top">
                                             <div className="text-sm font-bold text-slate-800">{req.requester_name}</div>
                                             <div className="text-xs text-slate-500 mt-1">{req.department}</div>
+                                            {req.status === 'Cancelled' && (
+                                                <div className="inline-flex items-center gap-1 mt-2 px-2 py-0.5 rounded-full bg-rose-50 text-rose-600 border border-rose-200 text-[11px] font-semibold">
+                                                    <XCircle className="w-3 h-3" />
+                                                    ยกเลิกสิทธิ์แล้ว
+                                                </div>
+                                            )}
                                         </td>
                                         <td className="p-4 align-top min-w-[250px] max-w-sm">
                                             <p className="text-sm text-slate-700 line-clamp-2" title={req.details}>{req.details}</p>

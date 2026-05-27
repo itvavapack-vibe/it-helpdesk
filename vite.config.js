@@ -8,6 +8,7 @@ export default ({ mode }) => {
   const env = loadEnv(mode, process.cwd())
   const glpiUrl = (env.VITE_GLPI_URL || 'http://192.168.10.9/glpi').replace(/\/+$/, '')
   const proxyTarget = glpiUrl.replace(/\/glpi$/, '')
+  const apiTarget = (env.VITE_API_URL || `http://localhost:${env.API_PORT || '4000'}`).replace(/\/+$/, '')
 
   return defineConfig({
     plugins: [
@@ -28,6 +29,14 @@ export default ({ mode }) => {
       strictPort: true,
       allowedHosts: true,
       proxy: {
+        '/api': {
+          target: apiTarget,
+          changeOrigin: true,
+        },
+        '/uploads': {
+          target: apiTarget,
+          changeOrigin: true,
+        },
         '/glpi-proxy': {
           target: proxyTarget,
           changeOrigin: true,

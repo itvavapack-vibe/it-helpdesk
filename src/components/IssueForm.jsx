@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { CheckCircle, Clock, Edit, CheckCircle2, Monitor, ChevronDown, X, ImagePlus, Paperclip, FileSignature } from 'lucide-react';
+import { CheckCircle, Clock, Edit, CheckCircle2, Monitor, ChevronDown, X, ImagePlus, Paperclip } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Combobox } from './ui/combobox';
 import Swal from 'sweetalert2';
 import { mysql, API_URL } from '../mysqlClient';
-import { buildCloseIssueLink, copyText } from '../utils/closeIssueLink';
+import { DEFAULT_ISSUE_CATEGORY, ISSUE_CATEGORIES } from '../config/issueOptions';
 const STATUS_ORDER = ['Pending', 'In Progress', 'Resolved'];
 
 const DEPARTMENTS = [
@@ -33,7 +33,7 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false, qrParams = null }
     const [formData, setFormData] = useState({
         name: '',
         department: '',
-        category: 'แก้ไขปัญหาด้าน Software D365',
+        category: DEFAULT_ISSUE_CATEGORY,
         description: '',
         severity: 'Normal',
         assetId: '',
@@ -351,7 +351,7 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false, qrParams = null }
                 setFormData({
                     name: '',
                     department: '',
-                    category: 'แก้ไขปัญหาด้าน Software D365',
+                    category: DEFAULT_ISSUE_CATEGORY,
                     description: '',
                     severity: 'Normal',
                     assetId: '',
@@ -436,15 +436,9 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false, qrParams = null }
                                     <SelectValue placeholder="เลือกหมวดหมู่ปัญหา" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="แก้ไขปัญหาด้าน Software D365">แก้ไขปัญหาด้าน Software D365</SelectItem>
-                                    <SelectItem value="ติดตั้งและแก้ไขปัญหาด้าน Hardware">ติดตั้งและแก้ไขปัญหาด้าน Hardware</SelectItem>
-                                    <SelectItem value="ซ่อมบำรุงอุปกรณ์ต่อพ่วง Hardware & Network">ซ่อมบำรุงอุปกรณ์ต่อพ่วง Hardware & Network</SelectItem>
-                                    <SelectItem value="ประชุม/อบรม/สัมนา">ประชุม/อบรม/สัมนา</SelectItem>
-                                    <SelectItem value="งานอื่น ๆ">งานอื่น ๆ</SelectItem>
-                                    <SelectItem value="กล้องวงจรปิด">กล้องวงจรปิด</SelectItem>
-                                    <SelectItem value="แก้ไขปัญหาด้าน Printer">แก้ไขปัญหาด้าน Printer</SelectItem>
-                                    <SelectItem value="ติดตั้งและแก้ปัญหาด้าน Software ทั่วไป">ติดตั้งและแก้ปัญหาด้าน Software ทั่วไป</SelectItem>
-                                    <SelectItem value="แก้ไขปัญหาด้านอีเมล">แก้ไขปัญหาด้านอีเมล</SelectItem>
+                                    {ISSUE_CATEGORIES.map(category => (
+                                        <SelectItem key={category} value={category}>{category}</SelectItem>
+                                    ))}
                                 </SelectContent>
                             </Select>
                         </div>
@@ -617,23 +611,9 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false, qrParams = null }
                                     )}
                                 </div>
 
-                                {/* Right: Status + close link */}
+                                {/* Right: Status */}
                                 <div className="shrink-0 flex flex-col items-end gap-2">
                                     {getStatusBadge(issue.status)}
-                                    {issue.status === 'Resolved' && !issue.userCloseSign && (
-                                        <button
-                                            type="button"
-                                            onClick={async () => {
-                                                const link = buildCloseIssueLink(issue.id);
-                                                await copyText(link);
-                                                window.open(link, '_blank', 'noopener,noreferrer');
-                                            }}
-                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800"
-                                        >
-                                            <FileSignature className="w-3.5 h-3.5" />
-                                            เซ็นปิดจบงาน
-                                        </button>
-                                    )}
                                     {issue.status === 'Resolved' && issue.userCloseSign && (
                                         <span className="text-xs text-emerald-600 font-medium">✓ เซ็นปิดงานแล้ว</span>
                                     )}

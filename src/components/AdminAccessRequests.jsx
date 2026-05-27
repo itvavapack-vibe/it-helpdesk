@@ -5,6 +5,7 @@ import Fmit12PdfPreview from './Fmit12PdfPreview';
 import Swal from 'sweetalert2';
 import SignatureCanvas from 'react-signature-canvas';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { copyText } from '../utils/closeIssueLink';
 
 const AdminAccessRequests = () => {
     const [requests, setRequests] = useState([]);
@@ -27,6 +28,45 @@ const AdminAccessRequests = () => {
     // For IT Staff Completion Form
     const [itStaffName, setItStaffName] = useState('');
     const [actionResult, setActionResult] = useState('');
+
+    const normalizeSystems = (systems) => {
+        if (!systems) return {};
+        if (typeof systems === 'object') return systems;
+        try {
+            const parsed = JSON.parse(systems);
+            return parsed && typeof parsed === 'object' ? parsed : {};
+        } catch {
+            return {};
+        }
+    };
+
+    const buildItApprovalLink = (id) => `${window.location.origin}${window.location.pathname}?itApproveRequest=${id}`;
+
+    const showItApprovalLinkDialog = async (id) => {
+        const link = buildItApprovalLink(id);
+        const safeLink = link.replace(/"/g, '&quot;');
+        await Swal.fire({
+            icon: 'success',
+            title: 'ส่งต่อให้หัวหน้า IT ลงนาม',
+            html: `
+                <p style="text-align:left; color:#4b5563; font-size:14px; line-height:1.5; margin-bottom:10px;">
+                    คัดลอกลิงก์นี้ส่งให้หัวหน้า IT เพื่อลงนามปิดงานคำร้องขอสิทธิ์
+                </p>
+                <input id="it-approval-link" readonly value="${safeLink}" style="width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:8px; font-size:12px; background:#f8fafc;" />
+            `,
+            confirmButtonText: 'คัดลอกลิงก์',
+            cancelButtonText: 'ปิด',
+            showCancelButton: true,
+            confirmButtonColor: '#4f46e5',
+            didOpen: () => {
+                const input = document.getElementById('it-approval-link');
+                input?.addEventListener('click', () => input.select());
+            },
+            preConfirm: async () => {
+                await copyText(link);
+            }
+        });
+    };
     
     useEffect(() => {
         fetchRequests();
@@ -47,8 +87,28 @@ const AdminAccessRequests = () => {
         };
     }, []);
 
-    const fetchRequests = async () => {
-        setIsLoading(true);
+    useEffect(() => {
+        const intervalId = setInterval(() => {
+            if (document.visibilityState === 'visible') {
+                fetchRequests({ silent: true });
+            }
+        }, 7000);
+
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                fetchRequests({ silent: true });
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        return () => {
+            clearInterval(intervalId);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
+    }, []);
+
+    const fetchRequests = async ({ silent = false } = {}) => {
+        if (!silent) setIsLoading(true);
         try {
             const { data, error } = await mysql
                 .from('access_requests')
@@ -56,9 +116,13 @@ const AdminAccessRequests = () => {
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
-            setRequests(data || []);
+            setRequests((data || []).map(req => ({
+                ...req,
+                systems: normalizeSystems(req.systems)
+            })));
         } catch (error) {
             console.error('Error fetching access requests:', error);
+            if (silent) return;
             // It might fail if table doesn't exist yet
             Swal.fire({
                 title: 'ไม่พบตารางข้อมูล',
@@ -67,6 +131,7 @@ const AdminAccessRequests = () => {
                 confirmButtonColor: '#4f46e5'
             });
         } finally {
+            if (silent) return;
             setIsLoading(false);
         }
     };
@@ -122,18 +187,20 @@ const AdminAccessRequests = () => {
                 .from('access_requests')
                 .update({ 
                     status: signingStatusTarget, 
-                    it_sign: signData,
+                    it_staff_sign: signData,
                     it_staff_name: itStaffName,
                     action_result: actionResult
                 })
                 .eq('id', signingRequestId);
 
             if (error) throw error;
-            setRequests(requests.map(req => req.id === signingRequestId ? { ...req, status: signingStatusTarget, it_sign: signData, it_staff_name: itStaffName, action_result: actionResult } : req));
+            setRequests(requests.map(req => req.id === signingRequestId ? { ...req, status: signingStatusTarget, it_staff_sign: signData, it_staff_name: itStaffName, action_result: actionResult } : req));
             
             setIsSignModalOpen(false);
             setSigningRequestId(null);
             setSigningStatusTarget(null);
+            await showItApprovalLinkDialog(signingRequestId);
+            return;
             
             Swal.fire('เสร็จสิ้น!', 'บันทึกการดำเนินการแบบมีลายเซ็นเรียบร้อย', 'success');
         } catch (error) {
@@ -180,15 +247,20 @@ const AdminAccessRequests = () => {
             department: req.department,
             position: req.position,
             internalPhone: req.internal_phone,
-            systems: req.systems || {},
+            systems: normalizeSystems(req.systems),
             otherSystemDetails: req.other_system_details || '',
             requestDetails: req.request_details || '',
             requesterSign: req.requester_sign || null,
             managerSign: req.manager_sign || null,
-            itSign: req.it_sign || null,
+            itSign: req.it_staff_sign || req.it_sign || null,
             itManagerSign: req.it_manager_sign || null,
             itStaffName: req.it_staff_name || '',
-            actionResult: req.action_result || ''
+            actionResult: req.action_result || '',
+            status: req.status || '',
+            cancelledAt: req.cancelled_at || null,
+            cancelReason: req.cancel_reason || '',
+            cancelItName: req.cancel_it_name || '',
+            cancelItSign: req.cancel_it_sign || null
         };
         setSelectedRequest(formData);
         setIsPreviewOpen(true);
@@ -209,6 +281,8 @@ const AdminAccessRequests = () => {
                 return <span className="px-2.5 py-1 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 rounded-full text-xs font-semibold flex items-center gap-1"><CheckCircle className="w-3 h-3" /> เสร็จสิ้น</span>;
             case 'Rejected':
                 return <span className="px-2.5 py-1 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 rounded-full text-xs font-semibold flex items-center gap-1"><XCircle className="w-3 h-3" /> ไม่อนุมัติ</span>;
+            case 'Cancelled':
+                return <span className="px-2.5 py-1 bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400 rounded-full text-xs font-semibold flex items-center gap-1"><XCircle className="w-3 h-3" /> ยกเลิก</span>;
             default:
                 return <span className="px-2.5 py-1 bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300 rounded-full text-xs font-semibold">{status || 'Pending'}</span>;
         }
@@ -304,6 +378,7 @@ const AdminAccessRequests = () => {
                                 <SelectItem value="Pending_IT_Manager">Pending IT Manager</SelectItem>
                                 <SelectItem value="Completed">Completed</SelectItem>
                                 <SelectItem value="Rejected">Rejected</SelectItem>
+                                <SelectItem value="Cancelled">Cancelled</SelectItem>
                             </SelectContent>
                         </Select>
                     </div>
@@ -371,6 +446,12 @@ const AdminAccessRequests = () => {
                                             <div className="text-xs text-slate-500 mt-1">
                                                 {req.department}
                                             </div>
+                                            {req.status === 'Cancelled' && (
+                                                <div className="inline-flex items-center gap-1 mt-2 px-2 py-0.5 rounded-full bg-rose-50 text-rose-600 border border-rose-200 text-[11px] font-semibold">
+                                                    <XCircle className="w-3 h-3" />
+                                                    ยกเลิกสิทธิ์แล้ว
+                                                </div>
+                                            )}
                                         </td>
                                         <td className="p-4 align-top min-w-[200px]">
                                             <div className="text-sm text-slate-700 dark:text-slate-300 font-medium leading-relaxed">
@@ -395,8 +476,8 @@ const AdminAccessRequests = () => {
                                             <div className="flex gap-2 justify-end">
                                                 {req.status === 'Pending_IT_Manager' && (
                                                     <button 
-                                                        onClick={() => {
-                                                            navigator.clipboard.writeText(`${window.location.origin}${window.location.pathname}?itApproveRequest=${req.id}`);
+                                                        onClick={async () => {
+                                                            await copyText(buildItApprovalLink(req.id));
                                                             Swal.fire({
                                                                 title: 'คัดลอกลิงก์สำเร็จ',
                                                                 text: 'ส่งลิงก์นี้ให้หัวหน้า IT อนุมัติได้เลยครับ',

@@ -1,19 +1,34 @@
 function resolveApiUrl() {
   const configured = import.meta.env.VITE_API_URL?.trim()
   const pageHost = typeof window !== 'undefined' ? window.location.hostname : 'localhost'
-  const lanApi = `${typeof window !== 'undefined' ? window.location.protocol : 'http:'}//${pageHost}:4000`
+  const sameOriginApi = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173'
 
   if (configured) {
     const isLocalhostConfig = /localhost|127\.0\.0\.1/i.test(configured)
     const onRemoteLanHost = pageHost !== 'localhost' && pageHost !== '127.0.0.1'
-    if (isLocalhostConfig && onRemoteLanHost) return lanApi.replace(/\/+$/, '')
+    if (isLocalhostConfig && onRemoteLanHost) return sameOriginApi.replace(/\/+$/, '')
     return configured.replace(/\/+$/, '')
   }
 
-  return lanApi.replace(/\/+$/, '')
+  return sameOriginApi.replace(/\/+$/, '')
 }
 
 export const API_URL = resolveApiUrl()
+
+function getStoredAdminToken() {
+  if (typeof window === 'undefined') return null
+  try {
+    const auth = JSON.parse(localStorage.getItem('it-helpdesk-admin-auth') || 'null')
+    return auth?.token || null
+  } catch {
+    return null
+  }
+}
+
+function authHeaders(headers = {}) {
+  const token = getStoredAdminToken()
+  return token ? { ...headers, Authorization: `Bearer ${token}` } : headers
+}
 
 function buildUrl(table, state, endpoint = '') {
   const base = API_URL.endsWith('/') ? API_URL.slice(0, -1) : API_URL
@@ -79,7 +94,7 @@ async function fetchInsertedRows(table, state, insertedResult) {
 
   return request(buildUrl(table, returningState), {
     method: 'GET',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
   })
 }
 
@@ -100,7 +115,7 @@ function createBuilder(table) {
 
   const execute = async () => {
     let url = buildUrl(table, state)
-    const init = { headers: { 'Content-Type': 'application/json' } }
+    const init = { headers: authHeaders({ 'Content-Type': 'application/json' }) }
 
     if (state.action === 'insert') {
       init.method = 'POST'

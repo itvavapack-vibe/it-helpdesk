@@ -21,6 +21,16 @@ import Swal from 'sweetalert2';
 import { notifyNewIssue, notifyStatusChange, notifyRepairUpdate } from './telegramNotify';
 import { buildCloseIssueLink, showCloseIssueLinkDialog } from './utils/closeIssueLink';
 
+const ACTIVE_TAB_STORAGE_KEY = 'it-helpdesk-active-tab';
+const ADMIN_SUB_TAB_STORAGE_KEY = 'it-helpdesk-admin-sub-tab';
+const TRANSIENT_TABS = new Set(['manager_approval', 'it_manager_approval', 'issue_close']);
+const ROLE_LABELS = {
+    superadmin: 'Super Admin',
+    it: 'IT',
+    hr: 'HR',
+    admin: 'IT'
+};
+
 function App() {
     const [activeTab, setActiveTab] = useState(() => {
         // หากเปิดจาก QR Code (มี assetId) หรือลิงก์ขอสิทธิ์
@@ -28,7 +38,10 @@ function App() {
         if (params.has('approveRequest')) return 'manager_approval';
         if (params.has('itApproveRequest')) return 'it_manager_approval';
         if (params.has('closeIssue')) return 'issue_close';
-        return params.has('assetId') ? 'user' : 'home';
+        if (params.has('assetId')) return 'user';
+        const savedTab = localStorage.getItem(ACTIVE_TAB_STORAGE_KEY);
+        if (savedTab && !TRANSIENT_TABS.has(savedTab)) return savedTab;
+        return 'home';
     });
     // เก็บค่า QR params ไว้ก่อนที่จะถูกลบออกจาก URL
     const [qrParams] = useState(() => {
@@ -50,13 +63,16 @@ function App() {
         const params = new URLSearchParams(window.location.search);
         return params.get('closeIssue');
     });
-    const [adminSubTab, setAdminSubTab] = useState('issues'); // 'issues' or 'users'
+    const [adminSubTab, setAdminSubTab] = useState(() => localStorage.getItem(ADMIN_SUB_TAB_STORAGE_KEY) || 'issues'); // 'issues' or 'users'
     const [issues, setIssues] = useState([]);
     const [isIssuesLoading, setIsIssuesLoading] = useState(true);
     const [isAdminAuth, setIsAdminAuth] = useState(null);
     const currentRole = normalizeRole(isAdminAuth);
     const visibleMainNavItems = MAIN_NAV_ITEMS.filter((item) => canSee(item.roles, currentRole));
     const visibleAdminSubTabs = ADMIN_SUB_TABS.filter((item) => canSee(item.roles, currentRole));
+    const selectedAdminSubTab = visibleAdminSubTabs.some((item) => item.id === adminSubTab)
+        ? adminSubTab
+        : visibleAdminSubTabs[0]?.id;
 
     // Clean up URL to avoid sticking on refresh
     useEffect(() => {
@@ -64,6 +80,27 @@ function App() {
             window.history.replaceState({}, document.title, window.location.pathname);
         }
     }, []);
+
+    useEffect(() => {
+        if (TRANSIENT_TABS.has(activeTab)) return;
+        localStorage.setItem(ACTIVE_TAB_STORAGE_KEY, activeTab);
+    }, [activeTab]);
+
+    useEffect(() => {
+        localStorage.setItem(ADMIN_SUB_TAB_STORAGE_KEY, adminSubTab);
+    }, [adminSubTab]);
+
+    useEffect(() => {
+        if (!isAdminAuth || TRANSIENT_TABS.has(activeTab)) return;
+        const canSeeActiveTab = visibleMainNavItems.some((item) => item.tab === activeTab);
+        if (!canSeeActiveTab) setActiveTab('admin');
+    }, [activeTab, isAdminAuth, visibleMainNavItems]);
+
+    useEffect(() => {
+        if (!visibleAdminSubTabs.length) return;
+        const canSeeAdminSubTab = visibleAdminSubTabs.some((item) => item.id === adminSubTab);
+        if (!canSeeAdminSubTab) setAdminSubTab(visibleAdminSubTabs[0].id);
+    }, [adminSubTab, visibleAdminSubTabs]);
 
     // Check auth state from localStorage initially
     useEffect(() => {
@@ -73,7 +110,11 @@ function App() {
                 const parsedAuth = JSON.parse(authStat);
                 // Handle legacy boolean auth
                 if (parsedAuth === true) {
-                    setIsAdminAuth({ id: 0, username: 'admin', name: 'System Admin' });
+                    localStorage.setItem('it-helpdesk-admin-auth', JSON.stringify(null));
+                    setIsAdminAuth(null);
+                } else if (!parsedAuth?.token) {
+                    localStorage.setItem('it-helpdesk-admin-auth', JSON.stringify(null));
+                    setIsAdminAuth(null);
                 } else {
                     setIsAdminAuth(parsedAuth); // Now expects object or null
                 }
@@ -88,7 +129,7 @@ function App() {
         fetchIssues();
     }, []);
 
-    // mysql Realtime: อัพเดตข้อมูลอัตโนมัติเมื่อมีการเปลี่ยนแปลง
+    // mysql Realtime: อัปเดตข้อมูลอัตโนมัติเมื่อมีการเปลี่ยนแปลง
     useEffect(() => {
         const channel = mysql
             .channel('issues-realtime')
@@ -98,6 +139,26 @@ function App() {
             .subscribe();
 
         return () => mysql.removeChannel(channel);
+    }, []);
+
+    useEffect(() => {
+        const intervalId = setInterval(() => {
+            if (document.visibilityState === 'visible') {
+                fetchIssues({ silent: true });
+            }
+        }, 8000);
+
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                fetchIssues({ silent: true });
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        return () => {
+            clearInterval(intervalId);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
     }, []);
 
     // Time-based Dark Mode Logic (18:00 - 05:59 is Dark)
@@ -119,8 +180,8 @@ function App() {
         return () => clearInterval(intervalId); // Cleanup on unmount
     }, []);
 
-    const fetchIssues = async () => {
-        setIsIssuesLoading(true);
+    const fetchIssues = async ({ silent = false } = {}) => {
+        if (!silent) setIsIssuesLoading(true);
 
         // Add a slight artificial delay (min 500ms) for better UX with the spinner
         const startTime = Date.now();
@@ -131,12 +192,13 @@ function App() {
             .order('created_at', { ascending: false });
 
         const elapsedTime = Date.now() - startTime;
-        if (elapsedTime < 500) {
+        if (!silent && elapsedTime < 500) {
             await new Promise(resolve => setTimeout(resolve, 500 - elapsedTime));
         }
 
         if (error) {
             console.error("Error fetching issues from mysql:", error);
+            if (silent) return;
             Swal.fire('Error', 'ไม่สามารถโหลดข้อมูลแจ้งซ่อมได้', 'error');
         } else {
             // Map snake_case from DB to camelCase for frontend
@@ -169,21 +231,20 @@ function App() {
             });
             setIssues(formattedIssues);
         }
-        setIsIssuesLoading(false);
+        if (!silent) setIsIssuesLoading(false);
     };
 
     const generateDocId = () => {
         const today = new Date();
         const yy = today.getFullYear().toString().slice(-2);
         const mm = String(today.getMonth() + 1).padStart(2, '0');
-        const dd = String(today.getDate()).padStart(2, '0');
-        const datePrefix = `IT-${yy}${mm}${dd}-`;
+        const datePrefix = `IT-${yy}${mm}-`;
 
-        // Find issues from today to calculate sequence
-        const todaysIssues = issues.filter(issue => issue.id && issue.id.startsWith(datePrefix));
+        // Find issues from the current month to calculate sequence
+        const monthlyIssues = issues.filter(issue => issue.id && issue.id.startsWith(datePrefix));
 
-        // Extract existing sequence numbers for today to find the max
-        const sequences = todaysIssues.map(issue => {
+        // Extract existing sequence numbers for this month to find the max
+        const sequences = monthlyIssues.map(issue => {
             const parts = issue.id.split('-');
             return parts.length === 3 ? parseInt(parts[2], 10) : 0;
         });
@@ -444,7 +505,7 @@ function App() {
                                 </div>
                                 <div>
                                     <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{isAdminAuth.name}</p>
-                                    <p className="text-xs text-slate-500 dark:text-slate-400">{isAdminAuth.role === 'superadmin' ? 'Super Admin' : 'ผู้ดูแลระบบ'}</p>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">{ROLE_LABELS[isAdminAuth.role] || 'IT'}</p>
                                 </div>
                             </div>
 
@@ -459,23 +520,17 @@ function App() {
                                                     if (item.id === 'issues') fetchIssues();
                                                     setAdminSubTab(item.id);
                                                 }}
-                                                className={`px-1 sm:px-4 py-2 sm:py-1.5 rounded-lg font-medium transition-all flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 ${adminSubTab === item.id ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-md sm:shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
+                                                className={`px-1 sm:px-4 py-2 sm:py-1.5 rounded-lg font-medium transition-all flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 ${selectedAdminSubTab === item.id ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-md sm:shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
                                             >
                                                 <Icon className="w-[18px] h-[18px] sm:w-4 sm:h-4" /> <span className="text-[11px] sm:text-sm whitespace-nowrap">{item.label}</span>
                                             </button>
                                         );
                                     })}
                                 </div>
-                                <button
-                                    onClick={handleAdminLogout}
-                                    className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-1.5 text-sm text-red-600 bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 dark:text-red-400 rounded-xl transition font-medium border border-red-200 dark:border-red-800/50"
-                                >
-                                    <LogOut className="w-4 h-4" /> ออกจากระบบ
-                                </button>
                             </div>
                         </div>
 
-                        {adminSubTab === 'issues' ? (
+                        {selectedAdminSubTab === 'issues' ? (
                             <IssueDashboard
                                 issues={issues}
                                 currentAdmin={isAdminAuth}
@@ -485,18 +540,20 @@ function App() {
                                 deleteIssue={deleteIssue}
                                 isLoading={isIssuesLoading}
                             />
-                        ) : adminSubTab === 'assets' ? (
+                        ) : selectedAdminSubTab === 'assets' ? (
                             <AssetInventory issues={issues} />
-                        ) : adminSubTab === 'access_requests' ? (
+                        ) : selectedAdminSubTab === 'access_requests' ? (
                             <AdminAccessRequests />
-                        ) : adminSubTab === 'change_requests' ? (
+                        ) : selectedAdminSubTab === 'change_requests' ? (
                             <AdminChangeRequests />
-                        ) : adminSubTab === 'stats' ? (
+                        ) : selectedAdminSubTab === 'stats' ? (
                             <IssueStatistics issues={issues} />
-                        ) : adminSubTab === 'employees' ? (
+                        ) : selectedAdminSubTab === 'employees' ? (
                             <EmployeeManagement />
-                        ) : (
+                        ) : selectedAdminSubTab === 'users' ? (
                             <UserManagement currentAdmin={isAdminAuth} />
+                        ) : (
+                            <EmployeeManagement />
                         )}
                     </div>
                 );
@@ -525,20 +582,30 @@ function App() {
                         </div>
                     </div>
 
-                    <nav className="hidden sm:flex bg-slate-100/80 dark:bg-slate-800/80 backdrop-blur-md p-1.5 rounded-2xl border border-white dark:border-slate-700 shadow-inner">
-                        {visibleMainNavItems.map((item) => {
-                            const Icon = item.icon;
-                            return (
-                                <button
-                                    key={item.id}
-                                    onClick={() => handleNavClick(item)}
-                                    className={`px-4 py-2 rounded-xl transition-all duration-300 font-medium flex items-center gap-2 ${activeTab === item.tab ? 'bg-white dark:bg-indigo-600 text-indigo-700 dark:text-white shadow-md' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-700/50'}`}
-                                >
-                                    <Icon className="w-4 h-4" /> {item.label}
-                                </button>
-                            );
-                        })}
-                    </nav>
+                    {isAdminAuth ? (
+                        <button
+                            onClick={handleAdminLogout}
+                            className="flex px-4 py-2 rounded-xl transition-all duration-300 font-medium items-center gap-2 bg-red-600 text-white shadow-md shadow-red-200 hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-400 dark:shadow-red-900/40"
+                        >
+                            <LogOut className="w-4 h-4" /> ออกจากระบบ
+                        </button>
+                    ) : (
+                        <nav className="hidden sm:flex bg-slate-100/80 dark:bg-slate-800/80 backdrop-blur-md p-1.5 rounded-2xl border border-white dark:border-slate-700 shadow-inner">
+                            {visibleMainNavItems.map((item) => {
+                                const Icon = item.icon;
+                                const isPrimary = item.variant === 'primary';
+                                return (
+                                    <button
+                                        key={item.id}
+                                        onClick={() => handleNavClick(item)}
+                                        className={`px-4 py-2 rounded-xl transition-all duration-300 font-medium flex items-center gap-2 ${isPrimary ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-400 dark:shadow-indigo-900/40' : activeTab === item.tab ? 'bg-white dark:bg-indigo-600 text-indigo-700 dark:text-white shadow-md' : 'text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-700/50'}`}
+                                    >
+                                        <Icon className="w-4 h-4" /> {item.label}
+                                    </button>
+                                );
+                            })}
+                        </nav>
+                    )}
                 </div>
             </header>
 
@@ -555,15 +622,16 @@ function App() {
             </footer>
 
             {/* Mobile Bottom Navigation Bar limit sm:hidden */}
-            <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/90 dark:bg-slate-900/90 backdrop-blur-lg border-t border-slate-200 dark:border-slate-800 pb-safe pt-2 px-2 pb-2">
+            {!isAdminAuth && <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/90 dark:bg-slate-900/90 backdrop-blur-lg border-t border-slate-200 dark:border-slate-800 pb-safe pt-2 px-2 pb-2">
                 <div className="flex justify-around items-center h-14">
                     {visibleMainNavItems.map((item) => {
                         const Icon = item.icon;
+                        const isPrimary = item.variant === 'primary';
                         return (
                             <button
                                 key={item.id}
                                 onClick={() => handleNavClick(item)}
-                                className={`flex flex-col items-center justify-center w-16 h-full space-y-1 transition-colors ${activeTab === item.tab ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500 dark:text-slate-500 hover:text-slate-900 dark:hover:text-slate-300'}`}
+                                className={`flex flex-col items-center justify-center h-full space-y-1 transition-colors rounded-xl ${isPrimary ? 'w-20 bg-indigo-600 text-white shadow-md shadow-indigo-200 dark:bg-indigo-500 dark:shadow-indigo-900/40' : `w-16 ${activeTab === item.tab ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500 dark:text-slate-500 hover:text-slate-900 dark:hover:text-slate-300'}`}`}
                             >
                                 <Icon className="w-6 h-6" strokeWidth={activeTab === item.tab ? 2.5 : 2} />
                                 <span className="text-[10px] font-semibold">{item.label}</span>
@@ -571,7 +639,7 @@ function App() {
                         );
                     })}
                 </div>
-            </nav>
+            </nav>}
         </div>
     )
 }

@@ -13,7 +13,7 @@ import {
   updateTable,
   upsertTable,
 } from './lib/handlers.js'
-import { loginAdmin } from './lib/auth.js'
+import { getAdminFromRequest, loginAdmin } from './lib/auth.js'
 import { proxyGlpiRequest } from './lib/glpi-proxy.js'
 import { getLanAddresses } from './lib/network.js'
 
@@ -83,8 +83,29 @@ app.post('/api/auth/login', async (req, res) => {
   }
 })
 
+function requireAdminsAccess(req, action) {
+  const admin = getAdminFromRequest(req)
+  if (!admin) {
+    const error = new Error('Authentication required')
+    error.status = 401
+    throw error
+  }
+  if (action === 'delete' && admin.role !== 'superadmin') {
+    const error = new Error('Only Super Admin can delete users')
+    error.status = 403
+    throw error
+  }
+  if (!['superadmin', 'it'].includes(admin.role)) {
+    const error = new Error('Permission denied')
+    error.status = 403
+    throw error
+  }
+  return admin
+}
+
 app.get('/api/:table', async (req, res) => {
   try {
+    if (req.params.table === 'admins') requireAdminsAccess(req, 'read')
     return res.json(await getTable(req.params.table, req.query))
   } catch (error) {
     return res.status(error.status || 500).json({ error: error.message })
@@ -93,6 +114,7 @@ app.get('/api/:table', async (req, res) => {
 
 app.post('/api/:table', async (req, res) => {
   try {
+    if (req.params.table === 'admins') requireAdminsAccess(req, 'write')
     return res.json({ data: await insertTable(req.params.table, req.body.rows) })
   } catch (error) {
     return res.status(error.status || 500).json({ error: error.message })
@@ -101,27 +123,30 @@ app.post('/api/:table', async (req, res) => {
 
 app.post('/api/:table/upsert', async (req, res) => {
   try {
+    if (req.params.table === 'admins') requireAdminsAccess(req, 'write')
     return res.json({
       data: await upsertTable(req.params.table, req.body.rows, req.body.upsert),
     })
   } catch (error) {
-    return res.status(500).json({ error: error.message })
+    return res.status(error.status || 500).json({ error: error.message })
   }
 })
 
 app.put('/api/:table', async (req, res) => {
   try {
+    if (req.params.table === 'admins') requireAdminsAccess(req, 'write')
     return res.json({ data: await updateTable(req.params.table, req.body.data, req.query) })
   } catch (error) {
-    return res.status(500).json({ error: error.message })
+    return res.status(error.status || 500).json({ error: error.message })
   }
 })
 
 app.delete('/api/:table', async (req, res) => {
   try {
+    if (req.params.table === 'admins') requireAdminsAccess(req, 'delete')
     return res.json({ data: await deleteTable(req.params.table, req.query) })
   } catch (error) {
-    return res.status(500).json({ error: error.message })
+    return res.status(error.status || 500).json({ error: error.message })
   }
 })
 

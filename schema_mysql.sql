@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS admins (
   username VARCHAR(150) NOT NULL UNIQUE,
   password VARCHAR(255) NOT NULL,
   name VARCHAR(255) NOT NULL,
-  role VARCHAR(50) NOT NULL DEFAULT 'admin',
+  role VARCHAR(50) NOT NULL DEFAULT 'it',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS change_requests (
   reason TEXT NOT NULL,
 
   requester_name VARCHAR(255) NOT NULL,
+  employee_id VARCHAR(6),
   requester_position VARCHAR(255) NOT NULL,
   requester_sign MEDIUMTEXT,
 
@@ -34,6 +35,10 @@ CREATE TABLE IF NOT EXISTS change_requests (
   manager_date DATETIME,
 
   status VARCHAR(50) NOT NULL DEFAULT 'Pending_Manager',
+  cancelled_at DATETIME,
+  cancel_reason TEXT,
+  cancel_it_name VARCHAR(255),
+  cancel_it_sign MEDIUMTEXT,
 
   it_received_date DATE,
   it_target_date DATE,
@@ -64,6 +69,7 @@ CREATE TABLE IF NOT EXISTS change_requests (
 CREATE INDEX idx_change_requests_ticket ON change_requests(ticket_number);
 CREATE INDEX idx_change_requests_status ON change_requests(status);
 CREATE INDEX idx_change_requests_department ON change_requests(department);
+CREATE INDEX idx_change_requests_employee_id ON change_requests(employee_id);
 
 -- Access Requests (FMIT 12)
 CREATE TABLE IF NOT EXISTS access_requests (
@@ -71,6 +77,7 @@ CREATE TABLE IF NOT EXISTS access_requests (
   ticket_number VARCHAR(64) NOT NULL UNIQUE,
   name_th VARCHAR(255) NOT NULL,
   name_en VARCHAR(255),
+  employee_id VARCHAR(6),
   department VARCHAR(255) NOT NULL,
   position VARCHAR(255) NOT NULL,
   internal_phone VARCHAR(64),
@@ -78,6 +85,10 @@ CREATE TABLE IF NOT EXISTS access_requests (
   other_system_details TEXT,
   request_details TEXT,
   status VARCHAR(50) NOT NULL DEFAULT 'Pending_Manager',
+  cancelled_at DATETIME,
+  cancel_reason TEXT,
+  cancel_it_name VARCHAR(255),
+  cancel_it_sign MEDIUMTEXT,
   requester_sign MEDIUMTEXT,
 
   manager_sign MEDIUMTEXT,
@@ -95,6 +106,7 @@ CREATE TABLE IF NOT EXISTS access_requests (
 
 CREATE INDEX idx_access_requests_ticket ON access_requests(ticket_number);
 CREATE INDEX idx_access_requests_status ON access_requests(status);
+CREATE INDEX idx_access_requests_employee_id ON access_requests(employee_id);
 
 -- Employees
 CREATE TABLE IF NOT EXISTS employees (

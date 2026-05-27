@@ -1,5 +1,20 @@
 import { runHandler } from '../../lib/cors.js'
+import { getAdminFromRequest } from '../../lib/auth.js'
 import { upsertTable } from '../../lib/handlers.js'
+
+function requireAdminsAccess(req) {
+  const admin = getAdminFromRequest(req)
+  if (!admin) {
+    const error = new Error('Authentication required')
+    error.status = 401
+    throw error
+  }
+  if (!['superadmin', 'it'].includes(admin.role)) {
+    const error = new Error('Permission denied')
+    error.status = 403
+    throw error
+  }
+}
 
 export default async function handler(req, res) {
   const { table } = req.query
@@ -11,9 +26,12 @@ export default async function handler(req, res) {
     }))
   }
 
-  return runHandler(req, res, async () => ({
-    body: {
-      data: await upsertTable(table, req.body?.rows, req.body?.upsert),
-    },
-  }))
+  return runHandler(req, res, async () => {
+    if (table === 'admins') requireAdminsAccess(req)
+    return {
+      body: {
+        data: await upsertTable(table, req.body?.rows, req.body?.upsert),
+      },
+    }
+  })
 }

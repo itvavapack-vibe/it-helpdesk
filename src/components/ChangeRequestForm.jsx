@@ -5,6 +5,7 @@ import { mysql } from '../mysqlClient';
 import SignatureCanvas from 'react-signature-canvas';
 import Fmit15PdfPreview from './Fmit15PdfPreview';
 import { Combobox } from './ui/combobox';
+import { copyText } from '../utils/closeIssueLink';
 
 const DEPARTMENTS = [
     'แอดมิน', 'บุคคลและธุรการ', 'วิศวกรรม', 'การตลาดและขาย (ในประเทศ)',
@@ -15,20 +16,23 @@ const DEPARTMENTS = [
     'สำนักกรรมการ', 'อื่นๆ'
 ];
 
+const INITIAL_FORM_DATA = {
+    reqType: '',
+    reqTypeOther: '',
+    employeeId: '',
+    department: '',
+    requestDetails: '',
+    reason: '',
+    requesterName: '',
+    requesterPosition: ''
+};
+
 const ChangeRequestForm = ({ onCancel }) => {
     const signatureRef = useRef(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
     const [signatureData, setSignatureData] = useState(null);
-    const [formData, setFormData] = useState({
-        reqType: '', // 'add', 'remove', 'change'
-        reqTypeOther: '',
-        department: '',
-        requestDetails: '',
-        reason: '',
-        requesterName: '',
-        requesterPosition: ''
-    });
+    const [formData, setFormData] = useState(INITIAL_FORM_DATA);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -43,11 +47,21 @@ const ChangeRequestForm = ({ onCancel }) => {
         e.preventDefault();
         
         // Basic validation
-        if (!formData.reqType || !formData.requesterName || !formData.department || !formData.requesterPosition || !formData.requestDetails || !formData.reason) {
+        if (!formData.reqType || !formData.employeeId || !formData.requesterName || !formData.department || !formData.requesterPosition || !formData.requestDetails || !formData.reason) {
             Swal.fire({
                 icon: 'warning',
                 title: 'ข้อมูลไม่ครบถ้วน',
                 text: 'กรุณากรอกข้อมูลที่มีเครื่องหมาย * ให้ครบทุกช่อง',
+                confirmButtonColor: '#4f46e5'
+            });
+            return;
+        }
+
+        if (!/^\d{6}$/.test(formData.employeeId)) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'รหัสพนักงานไม่ถูกต้อง',
+                text: 'กรุณากรอกรหัสพนักงาน 6 หลัก',
                 confirmButtonColor: '#4f46e5'
             });
             return;
@@ -91,6 +105,7 @@ const ChangeRequestForm = ({ onCancel }) => {
                 ticket_number: generatedTicket,
                 req_type: formData.reqType,
                 req_type_other: formData.reqTypeOther,
+                employee_id: formData.employeeId,
                 department: formData.department,
                 details: formData.requestDetails,
                 reason: formData.reason,
@@ -120,11 +135,32 @@ const ChangeRequestForm = ({ onCancel }) => {
                     </div>
                 `,
                 confirmButtonColor: '#10b981',
-                confirmButtonText: 'ปิดหน้าต่าง',
-                allowOutsideClick: false
+                confirmButtonText: 'คัดลอกลิงก์',
+                showCancelButton: true,
+                cancelButtonText: 'ปิดหน้าต่าง',
+                allowOutsideClick: false,
+                didOpen: () => {
+                    const input = document.getElementById('approval-link');
+                    input?.addEventListener('click', () => input.select());
+                    const copyButton = input?.nextElementSibling;
+                    copyButton?.addEventListener('click', async (event) => {
+                        event.preventDefault();
+                        await copyText(approvalLink);
+                        copyButton.textContent = 'คัดลอกแล้ว!';
+                        copyButton.style.background = '#10b981';
+                    });
+                },
+                preConfirm: async () => {
+                    await copyText(approvalLink);
+                }
             }).then(() => {
-                if (onCancel) onCancel(); 
-                else window.location.reload(); 
+                if (onCancel) {
+                    onCancel();
+                    return;
+                }
+                setFormData(INITIAL_FORM_DATA);
+                setSignatureData(null);
+                signatureRef.current?.clear();
             });
         } catch (error) {
             console.error('Error submitting form:', error);
@@ -198,7 +234,22 @@ const ChangeRequestForm = ({ onCancel }) => {
                         <User className="w-5 h-5 text-emerald-500" /> ส่วนที่ 1 : ข้อมูลผู้ร้องขอเปลี่ยนแปลงระบบ
                     </h3>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
+                        <div className="space-y-1.5 md:col-span-1">
+                            <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                                รหัสพนักงาน <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                                type="text"
+                                name="employeeId"
+                                value={formData.employeeId}
+                                onChange={handleChange}
+                                maxLength="6"
+                                className="input-modern w-full"
+                                placeholder="เช่น 001234"
+                            />
+                        </div>
+
                         <div className="space-y-1.5 md:col-span-1">
                             <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
                                 ชื่อผู้ร้องขอ <span className="text-red-500">*</span>

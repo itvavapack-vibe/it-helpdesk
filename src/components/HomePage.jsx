@@ -55,40 +55,57 @@ const HomePage = ({ onNavigateTo, currentRole = 'public' }) => {
 
     return (
         <div className="space-y-12 animate-fade-in">
-            <Card className="relative text-center py-12 px-4 overflow-hidden rounded-3xl">
+            <Card className="relative overflow-hidden rounded-3xl p-6 sm:p-8 md:p-12 lg:p-16">
                 <div className="absolute -top-10 -left-10 w-64 h-64 bg-indigo-400/20 dark:bg-indigo-600/20 rounded-full blur-3xl pointer-events-none" />
                 <div className="absolute -bottom-10 -right-10 w-64 h-64 bg-violet-400/20 dark:bg-violet-600/20 rounded-full blur-3xl pointer-events-none" />
 
-                <div className="relative z-10">
-                    <Badge variant="outline" className="px-4 py-1.5 mb-5 uppercase tracking-widest text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-900/50 border-indigo-200 dark:border-indigo-800">
-                        IT Support System
-                    </Badge>
-                    <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-slate-800 dark:text-white mb-5 leading-tight">
-                        ระบบแจ้งซ่อม<br />
-                        <span className="bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">
-                            IT Helpdesk
-                        </span>
-                    </h1>
-                    <p className="text-lg text-slate-500 dark:text-slate-400 max-w-xl mx-auto mb-8 leading-relaxed">
-                        แจ้งปัญหาคอมพิวเตอร์และอุปกรณ์ IT ของคุณได้อย่างง่ายดาย ทีมงานของเราพร้อมช่วยเหลือคุณทุกวัน
-                    </p>
-                    <div className="flex flex-col sm:flex-row flex-wrap justify-center gap-3">
-                        {visibleActions.map((action) => {
-                            const Icon = action.icon;
-                            const isAdminAction = action.id === 'admin';
-                            return (
-                                <Button
-                                    key={action.id}
-                                    onClick={() => onNavigateTo(action.tab)}
-                                    size="lg"
-                                    variant={isAdminAction ? 'outline' : 'default'}
-                                    className={getButtonClassName(action.id)}
-                                >
-                                    <Icon className="w-5 h-5" />
-                                    {action.label}
-                                </Button>
-                            );
-                        })}
+                <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
+                    {/* Left Content Column */}
+                    <div className="lg:col-span-7 text-center lg:text-left space-y-6 flex flex-col items-center lg:items-start justify-center">
+                        <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-800 dark:text-white leading-tight">
+                            ระบบแจ้งซ่อม<br />
+                            <span className="bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">
+                                IT Helpdesk
+                            </span>
+                        </h1>
+                        <p className="text-base md:text-lg text-slate-500 dark:text-slate-400 max-w-xl mx-auto lg:mx-0 leading-relaxed">
+                            แจ้งปัญหาคอมพิวเตอร์และอุปกรณ์ IT ของคุณได้อย่างง่ายดาย ทีมงานของเราพร้อมช่วยเหลือคุณทุกวัน
+                        </p>
+                        <div className="flex flex-col sm:flex-row flex-wrap justify-center lg:justify-start gap-3 pt-2 w-full sm:w-auto">
+                            {visibleActions.map((action) => {
+                                const Icon = action.icon;
+                                const isAdminAction = action.id === 'admin';
+                                return (
+                                    <Button
+                                        key={action.id}
+                                        onClick={() => onNavigateTo(action.tab)}
+                                        size="lg"
+                                        variant={isAdminAction ? 'outline' : 'default'}
+                                        className={getButtonClassName(action.id)}
+                                    >
+                                        <Icon className="w-5 h-5" />
+                                        {action.label}
+                                    </Button>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    {/* Right Mascot Column */}
+                    <div className="lg:col-span-5 flex justify-center items-center">
+                        <div className="relative group w-full max-w-[280px] sm:max-w-[340px] lg:max-w-full">
+                            {/* Ambient colorful backdrop glow */}
+                            <div className="absolute inset-0 bg-gradient-to-tr from-indigo-500/30 to-violet-500/30 rounded-3xl filter blur-3xl group-hover:scale-110 transition-transform duration-500 pointer-events-none" />
+                            
+                            {/* Mascot Image with floating effect */}
+                            <div className="relative z-10 bg-white/40 dark:bg-slate-800/40 backdrop-blur-md p-3 sm:p-4 rounded-3xl border border-white/60 dark:border-slate-700/60 shadow-2xl transition-all duration-500 group-hover:shadow-indigo-500/10 dark:group-hover:shadow-indigo-500/5 group-hover:-translate-y-2 animate-float">
+                                <img
+                                    src="/it-helpdesk-hero.jpg"
+                                    alt="VAVA PACK IT Helpdesk Mascot"
+                                    className="w-full h-auto object-contain rounded-2xl max-h-[300px] sm:max-h-[350px] lg:max-h-[380px]"
+                                />
+                            </div>
+                        </div>
                     </div>
                 </div>
             </Card>

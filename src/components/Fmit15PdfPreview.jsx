@@ -32,6 +32,7 @@ const Fmit15PdfPreview = ({ isOpen, onClose, formData }) => {
     };
 
     if (!isOpen || !formData) return null;
+    const isCancelled = formData.status === 'Cancelled' || Boolean(formData.cancelledAt);
 
     const CheckBox = ({ checked, label }) => (
         <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
@@ -95,6 +96,27 @@ const Fmit15PdfPreview = ({ isOpen, onClose, formData }) => {
                             boxSizing: 'border-box'
                         }}
                     >
+                        {isCancelled && (
+                            <div
+                                style={{
+                                    position: 'absolute',
+                                    top: '42%',
+                                    left: '50%',
+                                    transform: 'translate(-50%, -50%) rotate(-18deg)',
+                                    border: '6px solid #dc2626',
+                                    color: '#dc2626',
+                                    fontSize: '54px',
+                                    fontWeight: '900',
+                                    letterSpacing: '4px',
+                                    padding: '10px 28px',
+                                    opacity: 0.18,
+                                    zIndex: 10,
+                                    pointerEvents: 'none'
+                                }}
+                            >
+                                ยกเลิก
+                            </div>
+                        )}
                         {/* Header Bordered Box */}
                         <div style={{ border: '2px solid #1e3a8a', display: 'flex', marginBottom: '15px' }}>
                             <div style={{ width: '25%', borderRight: '1px solid #1e3a8a', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px' }}>

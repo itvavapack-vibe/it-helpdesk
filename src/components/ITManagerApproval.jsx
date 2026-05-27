@@ -53,7 +53,11 @@ const ITManagerApproval = ({ requestId, onBack }) => {
         try {
             const { error } = await mysql
                 .from('access_requests')
-                .update({ status: 'Completed', it_manager_sign: signData })
+                .update({
+                    status: 'Completed',
+                    it_manager_sign: signData,
+                    it_manager_date: new Date().toISOString().slice(0, 19).replace('T', ' ')
+                })
                 .eq('id', requestId);
 
             if (error) throw error;

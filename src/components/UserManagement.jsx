@@ -1,8 +1,19 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { mysql } from '../mysqlClient';
-import { Users, UserPlus, Search, Edit2, Trash2, Shield, User, X, Check, Mail } from 'lucide-react';
+import { Users, UserPlus, Search, Edit2, Trash2, Shield, User, X, Check } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+
+const ROLE_OPTIONS = [
+    { value: 'superadmin', label: 'Super Admin', description: 'เห็นทุกอย่างและลบผู้ใช้งานได้' },
+    { value: 'it', label: 'IT', description: 'เห็นทุกอย่าง แต่ลบผู้ใช้งานไม่ได้' },
+    { value: 'hr', label: 'HR', description: 'เห็นเฉพาะส่วนพนักงาน' }
+];
+
+const normalizeRole = (role) => (role === 'admin' ? 'it' : role || 'it');
+const canDeleteUsers = (admin) => normalizeRole(admin?.role) === 'superadmin';
+const canManageRoles = (admin) => normalizeRole(admin?.role) === 'superadmin';
+const getRoleOption = (role) => ROLE_OPTIONS.find((option) => option.value === normalizeRole(role)) || ROLE_OPTIONS[1];
 
 const UserManagement = ({ currentAdmin }) => {
     const [users, setUsers] = useState([]);
@@ -19,7 +30,7 @@ const UserManagement = ({ currentAdmin }) => {
         username: '',
         password: '',
         name: '',
-        role: 'admin'
+        role: 'it'
     });
 
     useEffect(() => {
@@ -65,7 +76,7 @@ const UserManagement = ({ currentAdmin }) => {
                 username: user.username,
                 password: '', // Don't show password on edit, leave blank to not change
                 name: user.name,
-                role: user.role
+                role: normalizeRole(user.role)
             });
         } else {
             setFormData({
@@ -73,7 +84,7 @@ const UserManagement = ({ currentAdmin }) => {
                 username: '',
                 password: '',
                 name: '',
-                role: 'admin'
+                role: 'it'
             });
         }
         setIsModalOpen(true);
@@ -115,7 +126,7 @@ const UserManagement = ({ currentAdmin }) => {
                     username: formData.username,
                     password: formData.password,
                     name: formData.name,
-                    role: formData.role
+                    role: canManageRoles(currentAdmin) ? formData.role : 'it'
                 }]);
 
             if (error) {
@@ -139,9 +150,12 @@ const UserManagement = ({ currentAdmin }) => {
 
             const updateData = {
                 username: formData.username,
-                name: formData.name,
-                role: formData.role
+                name: formData.name
             };
+
+            if (canManageRoles(currentAdmin)) {
+                updateData.role = formData.role;
+            }
 
             // Only update password if a new one is provided
             if (formData.password.trim() !== '') {
@@ -172,12 +186,17 @@ const UserManagement = ({ currentAdmin }) => {
     };
 
     const handleDelete = (id, username, role) => {
+        if (!canDeleteUsers(currentAdmin)) {
+            Swal.fire('สิทธิ์ไม่เพียงพอ', 'เฉพาะ Super Admin เท่านั้นที่ลบผู้ใช้งานได้', 'error');
+            return;
+        }
+
         if (id === currentAdmin?.id) {
             Swal.fire('แจ้งเตือน', 'ไม่สามารถลบบัญชีที่กำลังใช้งานอยู่ได้', 'warning');
             return;
         }
 
-        if (role === 'superadmin' && currentAdmin?.role !== 'superadmin') {
+        if (normalizeRole(role) === 'superadmin' && !canDeleteUsers(currentAdmin)) {
             Swal.fire('ส่วนสิทธิ์', 'คุณไม่มีสิทธิ์ลบบัญชีระดับ Super Admin', 'error');
             return;
         }
@@ -301,13 +320,17 @@ const UserManagement = ({ currentAdmin }) => {
                                             <div className="text-sm font-medium text-slate-700 dark:text-slate-300">{user.name}</div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
-                                            {user.role === 'superadmin' ? (
+                                            {normalizeRole(user.role) === 'superadmin' ? (
                                                 <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-800">
                                                     <Shield className="w-3 h-3 mr-1" /> Super Admin
                                                 </span>
+                                            ) : normalizeRole(user.role) === 'hr' ? (
+                                                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                                                    <User className="w-3 h-3 mr-1" /> HR
+                                                </span>
                                             ) : (
                                                 <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
-                                                    <User className="w-3 h-3 mr-1" /> Admin
+                                                    <User className="w-3 h-3 mr-1" /> IT
                                                 </span>
                                             )}
                                         </td>
@@ -323,7 +346,7 @@ const UserManagement = ({ currentAdmin }) => {
                                                 >
                                                     <Edit2 className="w-4 h-4" />
                                                 </button>
-                                                {user.id !== currentAdmin?.id && (
+                                                {canDeleteUsers(currentAdmin) && user.id !== currentAdmin?.id && (
                                                     <button
                                                         onClick={() => handleDelete(user.id, user.username, user.role)}
                                                         className="p-1.5 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/40 rounded-lg transition-colors"
@@ -410,24 +433,29 @@ const UserManagement = ({ currentAdmin }) => {
                                     value={formData.role}
                                     onChange={handleInputChange}
                                     className="w-full input-modern cursor-pointer"
-                                    disabled={currentAdmin?.role !== 'superadmin' && modalMode === 'edit'} // Only Superadmin can change roles
+                                    disabled={!canManageRoles(currentAdmin)}
                                 >
-                                    <option value="admin">Admin (จัดการระบบทั่วไป)</option>
-                                    <option value="superadmin">Super Admin (สามารถลบบัญชีอื่นได้)</option>
+                                    {ROLE_OPTIONS.map((role) => (
+                                        <option key={role.value} value={role.value}>{role.label}</option>
+                                    ))}
                                 </select>}
                                 <Select
                                     value={formData.role}
                                     onValueChange={(value) => setFormData(prev => ({ ...prev, role: value }))}
-                                    disabled={currentAdmin?.role !== 'superadmin' && modalMode === 'edit'}
+                                    disabled={!canManageRoles(currentAdmin)}
                                 >
                                     <SelectTrigger className="w-full input-modern cursor-pointer">
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="admin">Admin</SelectItem>
-                                        <SelectItem value="superadmin">Super Admin</SelectItem>
+                                        {ROLE_OPTIONS.map((role) => (
+                                            <SelectItem key={role.value} value={role.value}>{role.label}</SelectItem>
+                                        ))}
                                     </SelectContent>
                                 </Select>
+                                <p className="text-xs text-slate-500 dark:text-slate-400 ml-1">
+                                    {getRoleOption(formData.role).description}
+                                </p>
                             </div>
 
                             <div className="pt-4 flex gap-3 border-t border-slate-100 dark:border-slate-700 mt-6">
