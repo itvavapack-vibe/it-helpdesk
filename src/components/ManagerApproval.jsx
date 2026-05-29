@@ -4,6 +4,7 @@ import Swal from 'sweetalert2';
 import { CheckCircle, XCircle, ShieldCheck, FileText, User, Building2, Briefcase, Phone, LayoutGrid } from 'lucide-react';
 import { notifyNewAccessRequest } from '../telegramNotify';
 import SignatureCanvas from 'react-signature-canvas';
+import { toMysqlDateTime } from '../utils/dateTime';
 
 const ManagerApproval = ({ requestId }) => {
     const signatureRef = useRef(null);
@@ -79,6 +80,7 @@ const ManagerApproval = ({ requestId }) => {
                 let updatePayload = { status: newStatus };
                 if (isApprove) {
                     updatePayload.manager_sign = signatureRef.current.getCanvas().toDataURL('image/png');
+                    updatePayload.manager_date = toMysqlDateTime();
                 }
 
                 const { error } = await mysql
@@ -151,16 +153,16 @@ const ManagerApproval = ({ requestId }) => {
                 <div className="inline-flex items-center justify-center p-3 sm:p-4 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl shadow-xl shadow-indigo-200/50 dark:shadow-indigo-900/30 mb-4 transform transition-all hover:scale-105 hover:rotate-3">
                     <ShieldCheck className="w-8 h-8 sm:w-10 sm:h-10 text-white" />
                 </div>
-                <h2 className="text-2xl sm:text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-slate-800 to-indigo-900 dark:from-white dark:to-indigo-300 mb-2">
+                <h2 className="text-2xl xl:text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-slate-800 to-indigo-900 dark:from-white dark:to-indigo-300 mb-2 fit-text">
                     แจ้งพิจารณาอนุมัติคำร้องขอสิทธิ์
                 </h2>
-                <p className="text-slate-500 dark:text-slate-400 font-medium text-sm sm:text-base max-w-lg mx-auto">
+                <p className="text-slate-500 dark:text-slate-400 font-medium text-sm xl:text-base max-w-lg mx-auto fit-text">
                     สำหรับผู้จัดการ/หัวหน้างาน พิจารณาอนุมัติการขอใช้งานระบบ IT (FMIT 12)
                 </p>
                 <div className="w-24 h-1.5 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full mx-auto mt-6 opacity-80 mix-blend-multiply dark:mix-blend-screen"></div>
             </div>
 
-            <div className="glass-card rounded-3xl p-6 sm:p-8 animate-slide-up relative bg-white dark:bg-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-700">
+            <div className="glass-card rounded-3xl p-4 sm:p-6 xl:p-8 animate-slide-up relative bg-white dark:bg-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-700">
                 
                 {/* Status Alert */}
                 {!isPendingManager && (

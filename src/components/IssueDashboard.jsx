@@ -442,7 +442,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
     return (
         <div className="space-y-8 animate-fade-in">
             {/* Stats Summary Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 xl:gap-4">
                 <div className="glass-card rounded-2xl p-4 flex items-center gap-4">
                     <div className="w-11 h-11 rounded-xl bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center flex-shrink-0">
                         <Clock className="w-5 h-5 text-amber-600 dark:text-amber-400" />
@@ -483,8 +483,8 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
 
 
             {/* Filter and Search Bar section */}
-            <div className="glass-card p-4 sm:p-5 rounded-2xl flex flex-col xl:flex-row gap-4 justify-between items-start xl:items-center shadow-md shadow-indigo-100/30">
-                <div className="w-full xl:w-1/3 relative lg:max-w-md">
+            <div className="glass-card p-4 sm:p-5 rounded-2xl flex flex-col gap-4 items-start shadow-md shadow-indigo-100/30">
+                <div className="w-full relative">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                         <Search className="h-5 w-5 text-slate-400" />
                     </div>
@@ -497,7 +497,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                     />
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 w-full xl:w-auto flex-1 xl:justify-end">
+                <div className="flex w-full flex-wrap items-center gap-2.5 sm:gap-3">
                     <div className="flex items-center gap-1.5 mr-1 text-sm font-semibold text-slate-500 dark:text-slate-400">
                         <Filter className="w-4 h-4" /> <span className="hidden sm:inline">ตัวกรอง:</span>
                     </div>
@@ -591,22 +591,22 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                         </button>
                     </div>
                 </div>
-                <div className="overflow-x-auto overflow-y-hidden lg:overflow-visible">
-                    <table className="block lg:table w-full text-left border-collapse">
-                        <thead className="hidden lg:table-header-group bg-slate-50/50 dark:bg-slate-700/50">
+                <div className="overflow-x-auto overflow-y-hidden xl:overflow-visible">
+                    <table className="block xl:table w-full text-left border-collapse">
+                        <thead className="hidden xl:table-header-group bg-slate-50/50 dark:bg-slate-700/50">
                             <tr>
-                                <th scope="col" className="px-4 lg:px-5 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200/60 dark:border-slate-600/60">วัน/เวลา</th>
-                                <th scope="col" className="px-4 lg:px-5 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200/60 dark:border-slate-600/60">ผู้แจ้ง / แผนก</th>
-                                <th scope="col" className="px-4 lg:px-5 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200/60 dark:border-slate-600/60">หมวดหมู่ / ความรุนแรง</th>
-                                <th scope="col" className="px-4 lg:px-5 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200/60 dark:border-slate-600/60 w-[30%]">ปัญหา</th>
-                                <th scope="col" className="px-4 lg:px-5 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200/60 dark:border-slate-600/60">สถานะ</th>
-                                <th scope="col" className="px-4 lg:px-5 py-4 text-right text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200/60 dark:border-slate-600/60">จัดการ</th>
+                                <th scope="col" className="px-4 xl:px-5 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200/60 dark:border-slate-600/60">วัน/เวลา</th>
+                                <th scope="col" className="px-4 xl:px-5 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200/60 dark:border-slate-600/60">ผู้แจ้ง / แผนก</th>
+                                <th scope="col" className="px-4 xl:px-5 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200/60 dark:border-slate-600/60">หมวดหมู่ / ความรุนแรง</th>
+                                <th scope="col" className="px-4 xl:px-5 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200/60 dark:border-slate-600/60 w-[30%]">ปัญหา</th>
+                                <th scope="col" className="px-4 xl:px-5 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200/60 dark:border-slate-600/60">สถานะ</th>
+                                <th scope="col" className="px-4 xl:px-5 py-4 text-right text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200/60 dark:border-slate-600/60">จัดการ</th>
                             </tr>
                         </thead>
-                        <tbody className="block lg:table-row-group bg-transparent lg:bg-white/40 dark:bg-transparent lg:dark:bg-slate-800/40 lg:divide-y lg:divide-slate-100 dark:divide-slate-700/50 space-y-4 lg:space-y-0 p-4 lg:p-0">
+                        <tbody className="block xl:table-row-group bg-transparent xl:bg-white/40 dark:bg-transparent xl:dark:bg-slate-800/40 xl:divide-y xl:divide-slate-100 dark:divide-slate-700/50 space-y-4 xl:space-y-0 p-4 xl:p-0">
                             {isLoading ? (
-                                <tr className="block lg:table-row">
-                                    <td colSpan="6" className="block lg:table-cell px-6 py-16 text-center bg-white dark:bg-slate-800 rounded-2xl lg:rounded-none shadow-sm lg:shadow-none border border-slate-100 dark:border-slate-700 lg:border-none">
+                                <tr className="block xl:table-row">
+                                    <td colSpan="6" className="block xl:table-cell px-6 py-16 text-center bg-white dark:bg-slate-800 rounded-2xl xl:rounded-none shadow-sm xl:shadow-none border border-slate-100 dark:border-slate-700 xl:border-none">
                                         <div className="flex flex-col items-center justify-center space-y-4">
                                             <div className="w-10 h-10 border-4 border-indigo-200 dark:border-indigo-900/50 border-t-indigo-600 dark:border-t-indigo-400 rounded-full animate-spin"></div>
                                             <p className="text-sm font-medium text-slate-500 dark:text-slate-400 animate-pulse">กำลังโหลดข้อมูลการแจ้งซ่อม...</p>
@@ -614,42 +614,42 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                     </td>
                                 </tr>
                             ) : paginatedIssues.map((issue) => (
-                                <tr key={issue.id} className="block lg:table-row bg-white lg:bg-transparent dark:bg-slate-800 lg:dark:bg-transparent rounded-2xl lg:rounded-none shadow-sm lg:shadow-none border border-slate-100 dark:border-slate-700 lg:border-none hover:bg-indigo-50/40 dark:hover:bg-indigo-900/20 transition-colors relative">
-                                    <td className="block lg:table-cell px-4 lg:px-5 py-3 lg:py-4 lg:whitespace-nowrap align-top border-b border-slate-100 dark:border-slate-700/50 lg:border-none">
-                                        <div className="flex justify-between items-start lg:block">
+                                <tr key={issue.id} className="block xl:table-row bg-white xl:bg-transparent dark:bg-slate-800 xl:dark:bg-transparent rounded-2xl xl:rounded-none shadow-sm xl:shadow-none border border-slate-100 dark:border-slate-700 xl:border-none hover:bg-indigo-50/40 dark:hover:bg-indigo-900/20 transition-colors relative">
+                                    <td className="block xl:table-cell px-4 xl:px-5 py-3 xl:py-4 xl:whitespace-nowrap align-top border-b border-slate-100 dark:border-slate-700/50 xl:border-none">
+                                        <div className="flex justify-between items-start xl:block">
                                             <div>
                                                 <div className="text-sm font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-900/40 inline-block px-2 py-1 rounded border border-indigo-100 dark:border-indigo-800">{issue.id || 'N/A'}</div>
                                                 <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                                                     {formatDate(issue.createdAt)}
                                                 </div>
                                             </div>
-                                            <div className="lg:hidden mt-0.5">
+                                            <div className="xl:hidden mt-0.5">
                                                 {getStatusBadge(issue.status)}
                                             </div>
                                         </div>
                                     </td>
-                                    <td className="block lg:table-cell px-4 lg:px-5 py-3 lg:py-4 align-top lg:min-w-[140px]">
-                                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center lg:items-start lg:block gap-2 sm:gap-4">
+                                    <td className="block xl:table-cell px-4 xl:px-5 py-3 xl:py-4 align-top xl:min-w-[140px]">
+                                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center xl:items-start xl:block gap-2 sm:gap-4">
                                             <div>
-                                                <div className="text-sm font-bold text-slate-900 dark:text-white"><span className="lg:hidden text-slate-500 font-normal mr-1">ผู้แจ้ง:</span>{issue.name}</div>
-                                                <div className="text-sm text-slate-500 dark:text-slate-400 font-medium"><span className="lg:hidden font-normal mr-1">แผนก:</span>{issue.department}</div>
+                                                <div className="text-sm font-bold text-slate-900 dark:text-white"><span className="xl:hidden text-slate-500 font-normal mr-1">ผู้แจ้ง:</span>{issue.name}</div>
+                                                <div className="text-sm text-slate-500 dark:text-slate-400 font-medium"><span className="xl:hidden font-normal mr-1">แผนก:</span>{issue.department}</div>
                                             </div>
-                                            <div className="text-left sm:text-right lg:text-left border-l-[3px] border-slate-100 dark:border-slate-700 pl-3 sm:border-none sm:pl-0 lg:border-none">
-                                                <div className="text-sm text-slate-900 dark:text-white font-medium line-clamp-1 break-all sm:break-normal"><span className="lg:hidden text-slate-500 font-normal mr-1">หมวดหมู่:</span>{issue.category}</div>
-                                                <div className="text-sm text-slate-500 dark:text-slate-400 mt-1 flex sm:justify-end lg:block">{getSeverityBadge(issue.severity)}</div>
+                                            <div className="text-left sm:text-right xl:text-left border-l-[3px] border-slate-100 dark:border-slate-700 pl-3 sm:border-none sm:pl-0 xl:border-none">
+                                                <div className="text-sm text-slate-900 dark:text-white font-medium line-clamp-1 break-all sm:break-normal"><span className="xl:hidden text-slate-500 font-normal mr-1">หมวดหมู่:</span>{issue.category}</div>
+                                                <div className="text-sm text-slate-500 dark:text-slate-400 mt-1 flex sm:justify-end xl:block">{getSeverityBadge(issue.severity)}</div>
                                             </div>
                                         </div>
                                         {issue.assignedAdmin && (
-                                            <div className="text-xs text-emerald-600 dark:text-emerald-400 mt-1.5 font-semibold flex items-center gap-1 lg:mt-1">
+                                            <div className="text-xs text-emerald-600 dark:text-emerald-400 mt-1.5 font-semibold flex items-center gap-1 xl:mt-1">
                                                 <span>👤 ผู้รับงาน: {issue.assignedAdmin}</span>
                                             </div>
                                         )}
                                     </td>
-                                    <td className="hidden lg:table-cell px-4 lg:px-5 py-4 align-top lg:min-w-[140px]">
+                                    <td className="hidden xl:table-cell px-4 xl:px-5 py-4 align-top xl:min-w-[140px]">
                                         <div className="text-sm text-slate-900 dark:text-white font-medium">{issue.category}</div>
                                         <div className="text-sm text-slate-500 dark:text-slate-400 mt-1">{getSeverityBadge(issue.severity)}</div>
                                     </td>
-                                    <td className="block lg:table-cell px-4 lg:px-5 py-3 lg:py-4 align-top border-b border-slate-100 dark:border-slate-700/50 lg:border-none pb-4 lg:pb-4">
+                                    <td className="block xl:table-cell px-4 xl:px-5 py-3 xl:py-4 align-top border-b border-slate-100 dark:border-slate-700/50 xl:border-none pb-4 xl:pb-4">
                                         <div className="text-sm text-slate-800 dark:text-slate-300 leading-relaxed break-words">
                                             <span className="font-semibold text-slate-500 dark:text-slate-400 mr-1">ปัญหา:</span> 
                                             {!issue.description || issue.description.length <= 150 ? (
@@ -693,12 +693,12 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                             </div>
                                         )}
                                     </td>
-                                    <td className="hidden lg:table-cell px-4 lg:px-5 py-4 whitespace-nowrap align-top">
+                                    <td className="hidden xl:table-cell px-4 xl:px-5 py-4 whitespace-nowrap align-top">
                                         {getStatusBadge(issue.status)}
                                     </td>
-                                    <td className="block lg:table-cell px-4 lg:px-5 py-3 lg:py-4 whitespace-nowrap text-right text-sm font-medium align-top bg-slate-50/50 dark:bg-slate-700/20 lg:bg-transparent rounded-b-2xl lg:rounded-none">
-                                        <div className="flex items-center justify-between lg:justify-end gap-2">
-                                            <div className="lg:hidden text-left flex-1 items-center flex">
+                                    <td className="block xl:table-cell px-4 xl:px-5 py-3 xl:py-4 whitespace-nowrap text-right text-sm font-medium align-top bg-slate-50/50 dark:bg-slate-700/20 xl:bg-transparent rounded-b-2xl xl:rounded-none">
+                                        <div className="flex items-center justify-between xl:justify-end gap-2">
+                                            <div className="xl:hidden text-left flex-1 items-center flex">
                                                 <span className="opacity-0 w-0"></span>
                                             </div>
                                             <div className="flex items-center justify-end gap-2">
@@ -741,8 +741,8 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                             ))}
 
                             {!isLoading && filteredIssues.length === 0 && (
-                                <tr className="block lg:table-row">
-                                    <td colSpan="6" className="block lg:table-cell px-6 py-12 text-center text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 rounded-2xl lg:rounded-none shadow-sm lg:shadow-none border border-slate-100 dark:border-slate-700 lg:border-none">
+                                <tr className="block xl:table-row">
+                                    <td colSpan="6" className="block xl:table-cell px-6 py-12 text-center text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 rounded-2xl xl:rounded-none shadow-sm xl:shadow-none border border-slate-100 dark:border-slate-700 xl:border-none">
                                         ไม่พบรายการแจ้งซ่อมที่ค้นหา
                                     </td>
                                 </tr>
@@ -791,8 +791,8 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
 
             {/* Repair Details Modal */}
             {isRepairModalOpen && (
-                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/40 dark:bg-slate-900/80 backdrop-blur-sm animate-fade-in">
-                    <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-white/20 dark:border-slate-700 transform scale-100 transition-all mt-16 sm:mt-24">
+                <div className="fixed inset-0 z-[120] flex items-start sm:items-center justify-center overflow-y-auto p-3 sm:p-4 bg-slate-900/40 dark:bg-slate-900/80 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-lg max-h-[calc(100dvh-1.5rem)] overflow-hidden border border-white/20 dark:border-slate-700 transform scale-100 transition-all flex flex-col">
                         <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/80">
                             <h3 className="text-lg font-bold text-indigo-950 dark:text-indigo-100 flex items-center gap-2">
                                 <MessageSquare className="w-5 h-5 text-indigo-600 dark:text-indigo-400" /> บันทึกรายละเอียดการซ่อม
@@ -805,12 +805,12 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                             </button>
                         </div>
 
-                        <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                        <div className="p-5 sm:p-6 space-y-4 overflow-y-auto custom-scrollbar flex-1 min-h-0">
                             <div className="bg-indigo-50/50 dark:bg-indigo-900/30 p-3 rounded-lg border border-indigo-100 dark:border-indigo-700/50 text-sm flex items-center gap-2">
                                 <span className="font-semibold text-slate-700 dark:text-slate-300">เลขที่เอกสาร:</span> <span className="text-indigo-700 dark:text-indigo-400 font-bold px-2 py-0.5 bg-white dark:bg-slate-800 rounded border border-indigo-200 dark:border-slate-700">{currentRepairIssue?.id}</span>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                                 <div className="space-y-1">
                                     <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 ml-1">ชื่อ-นามสกุล <span className="text-rose-500">*</span></label>
                                     <input
@@ -858,7 +858,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                 </div>
                             </div>
                             
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                                 <div className="space-y-1">
                                     <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 ml-1">หมวดหมู่ปัญหา</label>
                                     {false && <select
@@ -1123,8 +1123,8 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
 
             {/* Read More Modal */}
             {readMoreIssue && (
-                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/40 dark:bg-slate-900/80 backdrop-blur-sm animate-fade-in">
-                    <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden border border-white/20 dark:border-slate-700 transform scale-100 transition-all mt-16 sm:mt-24">
+                <div className="fixed inset-0 z-[120] flex items-start sm:items-center justify-center overflow-y-auto p-3 sm:p-4 bg-slate-900/40 dark:bg-slate-900/80 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[calc(100dvh-1.5rem)] overflow-hidden border border-white/20 dark:border-slate-700 transform scale-100 transition-all flex flex-col">
                         <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/80">
                             <h3 className="text-lg font-bold text-indigo-950 dark:text-indigo-100 flex items-center gap-2">
                                 <MessageSquare className="w-5 h-5 text-indigo-600 dark:text-indigo-400" /> รายละเอียดปัญหาเพิ่มเติม
@@ -1136,7 +1136,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                 <X className="w-5 h-5" />
                             </button>
                         </div>
-                        <div className="p-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
+                        <div className="p-5 sm:p-6 overflow-y-auto custom-scrollbar flex-1 min-h-0">
                             <p className="text-sm font-semibold text-indigo-700 dark:text-indigo-400 mb-2">เลขที่เอกสาร: <span className="text-slate-700 dark:text-slate-300">{readMoreIssue.id}</span></p>
                             <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl text-slate-700 dark:text-slate-300 text-sm whitespace-pre-wrap leading-relaxed border border-slate-100 dark:border-slate-700">
                                 {readMoreIssue.description}
@@ -1183,7 +1183,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
             {/* Image Preview Modal */}
             {previewImage && (
                 <div 
-                    className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-sm animate-fade-in"
+                    className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-4 bg-slate-900/90 backdrop-blur-sm animate-fade-in"
                     onClick={() => setPreviewImage(null)}
                 >
                     <div className="relative max-w-5xl w-full max-h-[90vh] flex items-center justify-center">

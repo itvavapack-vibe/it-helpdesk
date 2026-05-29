@@ -136,6 +136,7 @@ const AdminAccessRequests = ({ currentAdmin }) => {
         const updatePayload = {
             status: 'Pending_IT_Supervisor',
             it_staff_sign: signData,
+            it_staff_date: toMysqlDateTime(),
             it_staff_name: itStaffName.trim(),
             action_result: actionResult.trim(),
         };
@@ -227,11 +228,16 @@ const AdminAccessRequests = ({ currentAdmin }) => {
             requestDetails: req.request_details || '',
             requesterSign: req.requester_sign || null,
             managerSign: req.manager_sign || null,
+            managerDate: req.manager_date || null,
             itSign: req.it_staff_sign || req.it_sign || null,
+            itStaffDate: req.it_staff_date || null,
             itManagerSign: req.it_manager_sign || null,
+            itManagerDate: req.it_manager_date || null,
             itSupervisorSign: req.it_supervisor_sign || null,
+            itSupervisorDate: req.it_supervisor_date || null,
             itStaffName: req.it_staff_name || '',
             actionResult: req.action_result || '',
+            createdAt: req.created_at || null,
             status: req.status || '',
             cancelledAt: req.cancelled_at || null,
             cancelReason: req.cancel_reason || '',
@@ -276,7 +282,7 @@ const AdminAccessRequests = ({ currentAdmin }) => {
 
     return (
         <div className="space-y-6 animate-fade-in pb-10">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
+            <div className="flex flex-col items-start gap-4 bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
                 <div className="flex items-center gap-3">
                     <div className="p-2.5 bg-indigo-100 dark:bg-indigo-900/50 rounded-xl text-indigo-600 dark:text-indigo-400">
                         <Key className="w-6 h-6" />
@@ -287,8 +293,8 @@ const AdminAccessRequests = ({ currentAdmin }) => {
                     </div>
                 </div>
 
-                <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
-                    <div className="relative w-full sm:w-80">
+                <div className="flex w-full flex-col gap-3 sm:flex-row sm:flex-wrap">
+                    <div className="relative w-full sm:min-w-80 sm:flex-1">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
                         <input
                             type="text"
@@ -298,10 +304,10 @@ const AdminAccessRequests = ({ currentAdmin }) => {
                             className="input-modern !pl-9 !py-2 !text-sm w-full"
                         />
                     </div>
-                    <div className="relative w-full sm:w-auto">
+                    <div className="relative w-full sm:w-56">
                         <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
                         <Select value={statusFilter} onValueChange={setStatusFilter}>
-                            <SelectTrigger className="input-modern !pl-9 !py-2 !text-sm w-full sm:w-56 bg-white dark:bg-slate-800">
+                            <SelectTrigger className="input-modern !pl-9 !py-2 !text-sm w-full bg-white dark:bg-slate-800">
                                 <SelectValue placeholder="สถานะทั้งหมด" />
                             </SelectTrigger>
                             <SelectContent>
@@ -316,8 +322,8 @@ const AdminAccessRequests = ({ currentAdmin }) => {
                             </SelectContent>
                         </Select>
                     </div>
-                    <input type="date" value={dateRangeStart} onChange={(event) => setDateRangeStart(event.target.value)} className="input-modern !py-2 !text-sm" title="วันที่เริ่มต้น" />
-                    <input type="date" value={dateRangeEnd} onChange={(event) => setDateRangeEnd(event.target.value)} className="input-modern !py-2 !text-sm" title="วันที่สิ้นสุด" />
+                    <input type="date" value={dateRangeStart} onChange={(event) => setDateRangeStart(event.target.value)} className="input-modern !py-2 !text-sm w-full sm:w-40" title="วันที่เริ่มต้น" />
+                    <input type="date" value={dateRangeEnd} onChange={(event) => setDateRangeEnd(event.target.value)} className="input-modern !py-2 !text-sm w-full sm:w-40" title="วันที่สิ้นสุด" />
                 </div>
             </div>
 
@@ -400,8 +406,8 @@ const AdminAccessRequests = ({ currentAdmin }) => {
             )}
 
             {isSignModalOpen && (
-                <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 w-full max-w-md shadow-2xl animate-slide-up border border-slate-100 dark:border-slate-700">
+                <div className="fixed inset-0 z-[120] flex items-start sm:items-center justify-center overflow-y-auto p-3 sm:p-4 bg-slate-900/50 backdrop-blur-sm">
+                    <div className="bg-white dark:bg-slate-800 rounded-3xl p-5 sm:p-6 w-full max-w-md max-h-[calc(100dvh-1.5rem)] overflow-y-auto shadow-2xl animate-slide-up border border-slate-100 dark:border-slate-700">
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
                                 <CheckCircle className="w-5 h-5 text-indigo-500" /> ลงนามดำเนินการ (IT Support)
@@ -439,8 +445,8 @@ const AdminAccessRequests = ({ currentAdmin }) => {
             )}
 
             {approvalSignRequest && (
-                <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 w-full max-w-md shadow-2xl animate-slide-up border border-slate-100 dark:border-slate-700">
+                <div className="fixed inset-0 z-[120] flex items-start sm:items-center justify-center overflow-y-auto p-3 sm:p-4 bg-slate-900/50 backdrop-blur-sm">
+                    <div className="bg-white dark:bg-slate-800 rounded-3xl p-5 sm:p-6 w-full max-w-md max-h-[calc(100dvh-1.5rem)] overflow-y-auto shadow-2xl animate-slide-up border border-slate-100 dark:border-slate-700">
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
                                 <CheckCircle className="w-5 h-5 text-indigo-500" />

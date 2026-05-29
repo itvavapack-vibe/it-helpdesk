@@ -5,6 +5,7 @@ export const ROLES = {
     IT_SUPERVISOR: 'it_supervisor',
     IT_MANAGER: 'it_manager',
     IT_SOFTWARE: 'it_software',
+    IT_MEDIA: 'it_media',
     HR: 'hr',
 };
 
@@ -16,6 +17,7 @@ export const LEGACY_ROLE_MAP = {
     supervisor: ROLES.IT_SUPERVISOR,
     manager: ROLES.IT_MANAGER,
     software: ROLES.IT_SOFTWARE,
+    media: ROLES.IT_MEDIA,
 };
 
 export const VALID_ROLE_VALUES = new Set(Object.values(ROLES));
@@ -35,6 +37,7 @@ export const ROLE_LABELS = {
     [ROLES.IT_SUPERVISOR]: 'IT Supervisor',
     [ROLES.IT_MANAGER]: 'IT Manager',
     [ROLES.IT_SOFTWARE]: 'IT Software',
+    [ROLES.IT_MEDIA]: 'IT Media',
     [ROLES.HR]: 'HR',
     admin: 'IT Support',
     it: 'IT Support',
@@ -42,6 +45,7 @@ export const ROLE_LABELS = {
     supervisor: 'IT Supervisor',
     manager: 'IT Manager',
     software: 'IT Software',
+    media: 'IT Media',
 };
 
 export const ROLE_OPTIONS = [
@@ -50,6 +54,7 @@ export const ROLE_OPTIONS = [
     { value: ROLES.IT_SUPERVISOR, label: 'IT Supervisor', description: 'ตรวจสอบคำร้องขอสิทธิ์และคำร้องขอพัฒนาโปรแกรมก่อนส่ง IT Manager' },
     { value: ROLES.IT_MANAGER, label: 'IT Manager', description: 'อนุมัติขั้นสุดท้ายของคำร้อง IT' },
     { value: ROLES.IT_SOFTWARE, label: 'IT Software', description: 'ดูแลคำร้องขอพัฒนาโปรแกรมขั้นแรก' },
+    { value: ROLES.IT_MEDIA, label: 'IT Media', description: 'ดูแลคำร้องขอพัฒนาสื่อขั้นแรก' },
     { value: ROLES.HR, label: 'HR', description: 'เห็นเฉพาะส่วนพนักงาน' },
 ];
 
@@ -58,6 +63,7 @@ export const isItRole = (role) => [
     ROLES.IT_SUPERVISOR,
     ROLES.IT_MANAGER,
     ROLES.IT_SOFTWARE,
+    ROLES.IT_MEDIA,
 ].includes(normalizeRoleValue(role));
 
 export const canManageAdminUsers = (role) => normalizeRoleValue(role) === ROLES.SUPERADMIN;
@@ -70,6 +76,7 @@ export const ACCESS_QUEUE_STATUS_BY_ROLE = {
 
 export const CHANGE_QUEUE_STATUS_BY_ROLE = {
     [ROLES.IT_SOFTWARE]: ['Pending_IT', 'In_Progress'],
+    [ROLES.IT_MEDIA]: ['Pending_IT', 'In_Progress'],
     [ROLES.IT_SUPERVISOR]: ['Pending_IT_Supervisor'],
     [ROLES.IT_MANAGER]: ['Pending_IT_Manager'],
 };

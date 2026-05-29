@@ -34,8 +34,20 @@ const Fmit12PdfPreview = ({ isOpen, onClose, formData }) => {
 
     const systems = formData.systems || {};
     const isCancelled = formData.status === 'Cancelled' || Boolean(formData.cancelledAt);
+    const formatDate = (value) => {
+        if (!value) return '';
+        const date = new Date(value);
+        return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('th-TH');
+    };
+    const hasText = (value) => String(value ?? '').trim().length > 0;
+    const requestDetailsText = `${systems.other ? `ระบบอื่น ๆ: ${formData.otherSystemDetails || ''} ` : ''}${formData.requestDetails || ''}`;
+    const lineStyleFor = (value, extra = {}) => ({
+        ...styles.dottedLine,
+        borderBottom: hasText(value) ? 'none' : styles.dottedLine.borderBottom,
+        ...extra,
+    });
     const requestDate = formData.createdAt
-        ? new Date(formData.createdAt).toLocaleDateString('th-TH')
+        ? formatDate(formData.createdAt)
         : new Date().toLocaleDateString('th-TH');
 
     const styles = {
@@ -50,7 +62,7 @@ const Fmit12PdfPreview = ({ isOpen, onClose, formData }) => {
             padding: '18mm 17mm 17mm',
             boxSizing: 'border-box',
             fontSize: '11.5px',
-            lineHeight: 1.16,
+            lineHeight: 1.24,
             overflow: 'hidden',
         },
         table: {
@@ -63,17 +75,19 @@ const Fmit12PdfPreview = ({ isOpen, onClose, formData }) => {
             padding: '2px 6px',
             verticalAlign: 'middle',
             height: '19px',
+            lineHeight: 1.2,
             wordBreak: 'break-word',
         },
         sectionTitle: {
             fontSize: '13px',
-            fontWeight: 800,
+            fontWeight: 700,
             margin: '8px 0 5px',
         },
         dottedLine: {
             borderBottom: '1px dotted #000',
             minHeight: '17px',
             padding: '1px 2px',
+            lineHeight: 1.25,
             whiteSpace: 'pre-wrap',
             wordBreak: 'break-word',
         },
@@ -90,7 +104,7 @@ const Fmit12PdfPreview = ({ isOpen, onClose, formData }) => {
                 alignItems: 'center',
                 justifyContent: 'center',
                 fontSize: '10px',
-                fontWeight: 900,
+                fontWeight: 700,
                 lineHeight: 1,
             }}
         >
@@ -100,21 +114,21 @@ const Fmit12PdfPreview = ({ isOpen, onClose, formData }) => {
 
     const SignatureBox = ({ title, sign, name, date, height = 64 }) => (
         <td style={{ ...styles.cell, height, verticalAlign: 'top', padding: '5px 6px' }}>
-            <div style={{ textDecoration: 'underline', fontWeight: 800, textAlign: 'center', marginBottom: '9px', fontSize: '10.8px' }}>{title}</div>
+            <div style={{ textDecoration: 'underline', fontWeight: 700, textAlign: 'center', marginBottom: '9px', fontSize: '10.8px' }}>{title}</div>
             <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: '4px', fontSize: '10.8px' }}>
                 <span>ลงนาม</span>
-                <span style={{ borderBottom: '1px dotted #000', minWidth: '92px', height: '23px', display: 'inline-flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+                <span style={{ borderBottom: sign || name ? 'none' : '1px dotted #000', minWidth: '92px', height: '23px', display: 'inline-flex', alignItems: 'flex-end', justifyContent: 'center' }}>
                     {sign && <img src={sign} alt="signature" style={{ maxHeight: '27px', maxWidth: '88px', objectFit: 'contain' }} />}
                     {!sign && name}
                 </span>
             </div>
-            <div style={{ textAlign: 'center', marginTop: '5px', fontSize: '10.5px' }}>วันที่&nbsp;&nbsp; {date || '......../......../............'}</div>
+            <div style={{ textAlign: 'center', marginTop: '5px', fontSize: '10.5px' }}>วันที่&nbsp;&nbsp; {formatDate(date) || '......../......../............'}</div>
         </td>
     );
 
     return createPortal(
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in overflow-y-auto">
-            <div className="bg-slate-100 dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-[min(96vw,980px)] flex flex-col border border-white/20 dark:border-slate-700 overflow-hidden my-auto h-[92vh]">
+        <div className="fixed inset-0 z-[120] flex items-start sm:items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in overflow-y-auto">
+            <div className="bg-slate-100 dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-[min(96vw,980px)] flex flex-col border border-white/20 dark:border-slate-700 overflow-hidden my-auto h-[calc(100dvh-1rem)] sm:h-[92vh]">
                 <div className="flex flex-wrap justify-between items-center gap-3 p-3 sm:p-4 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 shrink-0">
                     <h2 className="text-base sm:text-lg font-bold text-slate-800 dark:text-slate-100">ตัวอย่างแบบฟอร์ม FMIT 12</h2>
                     <div className="flex gap-2">
@@ -141,7 +155,7 @@ const Fmit12PdfPreview = ({ isOpen, onClose, formData }) => {
                                         border: '5px solid #dc2626',
                                         color: '#dc2626',
                                         fontSize: '42px',
-                                        fontWeight: 900,
+                                        fontWeight: 700,
                                         letterSpacing: '3px',
                                         padding: '8px 22px',
                                         opacity: 0.18,
@@ -156,9 +170,9 @@ const Fmit12PdfPreview = ({ isOpen, onClose, formData }) => {
                             <div style={{ textAlign: 'center', marginBottom: '5px' }}>
                                 <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '12px' }}>
                                     <img src="/vava-pack-logo.png" alt="VAVA PACK" style={{ height: '32px', objectFit: 'contain' }} />
-                                    <div style={{ fontSize: '14px', fontWeight: 800 }}>บริษัท วาวา แพค จำกัด</div>
+                                    <div style={{ fontSize: '14px', fontWeight: 600 }}>บริษัท วาวา แพค จำกัด</div>
                                 </div>
-                                <div style={{ fontSize: '13.5px', fontWeight: 900, marginTop: '1px' }}>ใบขอเพิ่มบัญชีผู้ใช้งานระบบเทคโนโลยีสารสนเทศ (FMIT 12)</div>
+                                <div style={{ fontSize: '13.5px', fontWeight: 700, marginTop: '1px' }}>ใบขอเพิ่มบัญชีผู้ใช้งานระบบเทคโนโลยีสารสนเทศ (FMIT 12)</div>
                             </div>
 
                             <table style={{ ...styles.table, marginBottom: '7px' }}>
@@ -167,7 +181,7 @@ const Fmit12PdfPreview = ({ isOpen, onClose, formData }) => {
                                         <td style={{ ...styles.cell, width: '16%' }}>ชื่อผู้แจ้ง :</td>
                                         <td style={{ ...styles.cell, width: '32%' }}>{formData.nameTh || ''}</td>
                                         <td style={{ ...styles.cell, width: '17%', background: '#e5e5e5' }}>เลขที่ใบแจ้ง:</td>
-                                        <td style={{ ...styles.cell, width: '35%', background: '#e5e5e5', fontWeight: 700 }}>{formData.ticketNumber || 'ITU .............../................'}</td>
+                                        <td style={{ ...styles.cell, width: '35%', background: '#e5e5e5', fontWeight: 600 }}>{formData.ticketNumber || 'ITU .............../................'}</td>
                                     </tr>
                                     <tr>
                                         <td style={styles.cell}>วันที่แจ้ง :</td>
@@ -203,12 +217,12 @@ const Fmit12PdfPreview = ({ isOpen, onClose, formData }) => {
                                         <td style={{ ...styles.cell, height: '38px', verticalAlign: 'bottom' }} colSpan="4">
                                             <div style={{ display: 'flex', alignItems: 'flex-end', gap: '6px' }}>
                                                 <span>ลงนาม</span>
-                                                <span style={{ borderBottom: '1px dotted #000', flex: 1, height: '25px', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+                                                <span style={{ borderBottom: formData.requesterSign ? 'none' : '1px dotted #000', flex: 1, height: '25px', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
                                                     {formData.requesterSign && <img src={formData.requesterSign} alt="Requester Sign" style={{ maxHeight: '28px', objectFit: 'contain' }} />}
                                                 </span>
                                                 <span>ผู้ขอใช้งาน</span>
                                                 <span style={{ marginLeft: '10px' }}>วันที่</span>
-                                                <span style={{ borderBottom: '1px dotted #000', width: '120px' }}>&nbsp;</span>
+                                                <span style={{ borderBottom: formatDate(formData.requesterDate || formData.createdAt) ? 'none' : '1px dotted #000', width: '120px', textAlign: 'center' }}>{formatDate(formData.requesterDate || formData.createdAt) || '\u00a0'}</span>
                                             </div>
                                         </td>
                                     </tr>
@@ -230,7 +244,7 @@ const Fmit12PdfPreview = ({ isOpen, onClose, formData }) => {
                                             'Cyber HRM',
                                             'อื่น ๆ',
                                         ].map((label) => (
-                                            <th key={label} style={{ ...styles.cell, fontSize: '9.5px', fontWeight: 900, height: '27px', whiteSpace: 'pre-line' }}>{label}</th>
+                                            <th key={label} style={{ ...styles.cell, fontSize: '9.5px', fontWeight: 700, height: '27px', whiteSpace: 'pre-line' }}>{label}</th>
                                         ))}
                                     </tr>
                                 </thead>
@@ -254,30 +268,30 @@ const Fmit12PdfPreview = ({ isOpen, onClose, formData }) => {
                             </table>
 
                             <div style={styles.sectionTitle}>รายละเอียดการร้องขอ</div>
-                            <div style={styles.dottedLine}>{systems.other ? `ระบบอื่น ๆ: ${formData.otherSystemDetails || ''} ` : ''}{formData.requestDetails || ''}</div>
+                            <div style={lineStyleFor(requestDetailsText)}>{requestDetailsText}</div>
                             <div style={styles.dottedLine}></div>
                             <div style={{ ...styles.dottedLine, marginBottom: '7px' }}></div>
 
                             <table style={{ ...styles.table, marginBottom: '5px' }}>
                                 <tbody>
                                     <tr>
-                                        <SignatureBox title="ลงนาม หน./ผจก. แผนก/ฝ่าย ต้นสังกัด" sign={formData.managerSign} />
-                                        <SignatureBox title="ลงนามหัวหน้าส่วนเทคโนโลยีสารสนเทศและ ERP" sign={formData.itSupervisorSign || formData.itManagerSign} />
-                                        <SignatureBox title="ลงนามผู้จัดการแผนกเทคโนโลยีสารสนเทศและ ERP" sign={formData.itManagerSign} />
+                                        <SignatureBox title="ลงนาม หน./ผจก. แผนก/ฝ่าย ต้นสังกัด" sign={formData.managerSign} date={formData.managerDate} />
+                                        <SignatureBox title="ลงนามหัวหน้าส่วนเทคโนโลยีสารสนเทศและ ERP" sign={formData.itSupervisorSign || formData.itManagerSign} date={formData.itSupervisorDate || formData.itManagerDate} />
+                                        <SignatureBox title="ลงนามผู้จัดการแผนกเทคโนโลยีสารสนเทศและ ERP" sign={formData.itManagerSign} date={formData.itManagerDate} />
                                     </tr>
                                 </tbody>
                             </table>
 
                             <div style={styles.sectionTitle}>ผลการดำเนินการ (ส่วนของผู้ดำเนินการ)</div>
-                            <div style={styles.dottedLine}>{formData.actionResult || ''}</div>
+                            <div style={lineStyleFor(formData.actionResult)}>{formData.actionResult || ''}</div>
                             <div style={{ ...styles.dottedLine, marginBottom: '6px' }}></div>
 
                             <div style={styles.sectionTitle}>ส่วนรับทราบผลการปฏิบัติงาน</div>
                             <table style={{ ...styles.table, marginBottom: '5px' }}>
                                 <tbody>
                                     <tr>
-                                        <SignatureBox title="ผู้แจ้งงานลงนามรับทราบผลการใช้งาน" sign={formData.requesterSign} height={52} />
-                                        <SignatureBox title="ลงนามผู้ปฏิบัติงาน ผู้ติดตั้งการใช้งาน" sign={formData.itSign} name={formData.itStaffName} height={52} />
+                                        <SignatureBox title="ผู้แจ้งงานลงนามรับทราบผลการใช้งาน" sign={formData.requesterSign} date={formData.requesterDate || formData.createdAt} height={52} />
+                                        <SignatureBox title="ลงนามผู้ปฏิบัติงาน ผู้ติดตั้งการใช้งาน" sign={formData.itSign} name={formData.itStaffName} date={formData.itStaffDate} height={52} />
                                     </tr>
                                 </tbody>
                             </table>

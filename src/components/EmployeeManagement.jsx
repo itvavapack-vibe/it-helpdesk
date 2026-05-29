@@ -426,7 +426,7 @@ const EmployeeManagement = () => {
 
     return (
         <div className="space-y-6 animate-fade-in pb-10">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
+            <div className="flex flex-col items-start gap-4 bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
                 <div className="flex items-center gap-3">
                     <div className="p-2.5 bg-blue-100 dark:bg-blue-900/50 rounded-xl text-blue-600 dark:text-blue-400">
                         <Users className="w-6 h-6" />
@@ -437,8 +437,8 @@ const EmployeeManagement = () => {
                     </div>
                 </div>
 
-                <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
-                    <div className="relative w-full sm:w-64">
+                <div className="flex w-full flex-col gap-3 sm:flex-row sm:flex-wrap">
+                    <div className="relative w-full sm:min-w-64 sm:flex-1">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
                         <input
                             type="text"
@@ -574,8 +574,8 @@ const EmployeeManagement = () => {
             )}
 
             {isModalOpen && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
-                    <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl w-full max-w-2xl p-6 sm:p-8 space-y-6 border border-slate-200 dark:border-slate-700 max-h-[88vh] overflow-y-auto custom-scrollbar">
+                <div className="fixed inset-0 z-[120] flex items-start sm:items-center justify-center overflow-y-auto p-3 sm:p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl w-full max-w-2xl p-5 sm:p-8 space-y-6 border border-slate-200 dark:border-slate-700 max-h-[calc(100dvh-1.5rem)] overflow-y-auto custom-scrollbar">
                         <div className="flex items-start justify-between gap-4">
                             <div>
                                 <h3 className="text-2xl font-bold text-slate-800 dark:text-white">

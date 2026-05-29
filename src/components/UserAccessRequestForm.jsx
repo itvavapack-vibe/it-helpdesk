@@ -233,22 +233,22 @@ const UserAccessRequestForm = ({ onCancel }) => {
                 <div className="inline-flex items-center justify-center p-3 sm:p-4 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl shadow-xl shadow-indigo-200/50 dark:shadow-indigo-900/30 mb-4">
                     <UserPlus className="w-8 h-8 sm:w-10 sm:h-10 text-white" />
                 </div>
-                <h2 className="text-2xl sm:text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-slate-800 to-indigo-900 dark:from-white dark:to-indigo-300 mb-2">
+                <h2 className="text-2xl xl:text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-slate-800 to-indigo-900 dark:from-white dark:to-indigo-300 mb-2 fit-text">
                     ฟอร์มขอเพิ่มบัญชีผู้ใช้งาน
                 </h2>
-                <p className="text-slate-500 dark:text-slate-400 font-medium text-sm sm:text-base max-w-lg mx-auto">
+                <p className="text-slate-500 dark:text-slate-400 font-medium text-sm xl:text-base max-w-lg mx-auto fit-text">
                     ใบขอเพิ่มบัญชีผู้ใช้งานระบบเทคโนโลยีสารสนเทศ (FMIT 12)
                 </p>
                 <div className="w-24 h-1.5 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full mx-auto mt-6 opacity-80" />
             </div>
 
-            <form onSubmit={handleSubmit} className="glass-card rounded-3xl p-6 sm:p-8 animate-slide-up relative bg-white dark:bg-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-700">
+            <form onSubmit={handleSubmit} className="glass-card rounded-3xl p-4 sm:p-6 xl:p-8 animate-slide-up relative bg-white dark:bg-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-700">
                 <div className="mb-8">
                     <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-700">
                         <User className="w-5 h-5 text-indigo-500" /> ข้อมูลผู้ขอใช้บริการ
                     </h3>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
                         <Field label="รหัสพนักงาน" required icon={User}>
                             <input
                                 type="text"
@@ -328,7 +328,7 @@ const UserAccessRequestForm = ({ onCancel }) => {
                         <span className="text-red-500 text-sm font-normal ml-1">*เลือกอย่างน้อย 1 รายการ</span>
                     </h3>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 xl:gap-4 p-3 sm:p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700">
                         {SYSTEM_OPTIONS.map((sys) => (
                             <label key={sys.id} className={`flex items-start gap-3 p-3 rounded-xl cursor-pointer border transition-all ${formData.systems[sys.id] ? 'bg-indigo-50 dark:bg-indigo-900/30 border-indigo-200 dark:border-indigo-700' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-600'}`}>
                                 <input
@@ -343,14 +343,14 @@ const UserAccessRequestForm = ({ onCancel }) => {
                             </label>
                         ))}
 
-                        <label className={`col-span-2 sm:col-span-3 md:col-span-4 flex items-center gap-3 p-3 rounded-xl cursor-pointer border transition-all ${formData.systems.other ? 'bg-indigo-50 dark:bg-indigo-900/30 border-indigo-200 dark:border-indigo-700' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-600'}`}>
+                        <label className={`sm:col-span-2 xl:col-span-4 flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-xl cursor-pointer border transition-all ${formData.systems.other ? 'bg-indigo-50 dark:bg-indigo-900/30 border-indigo-200 dark:border-indigo-700' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-600'}`}>
                             <input
                                 type="checkbox"
                                 className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
                                 checked={formData.systems.other}
                                 onChange={() => handleSystemChange('other')}
                             />
-                            <span className="text-sm font-medium whitespace-nowrap">อื่น ๆ ระบุ:</span>
+                            <span className="text-sm font-medium sm:whitespace-nowrap">อื่น ๆ ระบุ:</span>
                             <input
                                 type="text"
                                 name="otherSystemDetails"
@@ -433,7 +433,7 @@ const UserAccessRequestForm = ({ onCancel }) => {
             <Fmit12PdfPreview
                 isOpen={isPreviewOpen}
                 onClose={() => setIsPreviewOpen(false)}
-                formData={{ ...formData, requesterSign: signatureData }}
+                formData={{ ...formData, requesterSign: signatureData, requesterDate: new Date().toISOString() }}
             />
         </div>
     );

@@ -119,7 +119,7 @@ const ITManagerApproval = ({ requestId, onBack }) => {
 
     return (
         <div className="max-w-3xl mx-auto space-y-6 animate-slide-up mt-6">
-            <div className="bg-white dark:bg-slate-800 p-6 sm:p-8 rounded-3xl shadow-xl shadow-slate-200/50 dark:shadow-slate-900/50 border border-slate-100 dark:border-slate-700">
+            <div className="bg-white dark:bg-slate-800 p-4 sm:p-6 xl:p-8 rounded-3xl shadow-xl shadow-slate-200/50 dark:shadow-slate-900/50 border border-slate-100 dark:border-slate-700">
                 <div className="flex items-center gap-4 mb-8">
                      <div className="w-14 h-14 bg-indigo-100 dark:bg-indigo-900/50 rounded-2xl flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
                          <Key className="w-7 h-7" />
@@ -133,7 +133,7 @@ const ITManagerApproval = ({ requestId, onBack }) => {
                 </div>
 
                 <div className="bg-slate-50 dark:bg-slate-900/50 p-5 rounded-2xl mb-6 border border-slate-100 dark:border-slate-700">
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-y-4 gap-x-6">
+                     <div className="grid grid-cols-1 xl:grid-cols-2 gap-y-4 gap-x-6">
                           <div>
                               <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 block">ผู้ขอสิทธิ์</span>
                               <div className="font-medium text-slate-800 dark:text-white mt-1">{name_th}</div>
@@ -159,7 +159,7 @@ const ITManagerApproval = ({ requestId, onBack }) => {
                      <h3 className="font-bold text-purple-800 dark:text-purple-300 mb-4 flex items-center gap-2">
                         <CheckCircle className="w-4 h-4" /> ส่วนของผู้ปฏิบัติงาน IT
                      </h3>
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-y-4 gap-x-6">
+                     <div className="grid grid-cols-1 xl:grid-cols-2 gap-y-4 gap-x-6">
                           <div>
                               <span className="text-xs font-semibold text-purple-400/80 block">ชื่อผู้รับแจ้ง</span>
                               <div className="font-medium text-purple-900 dark:text-purple-200 mt-1">{it_staff_name || '-'}</div>

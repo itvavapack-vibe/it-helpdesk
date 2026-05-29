@@ -3,6 +3,17 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
   body {
     margin: 0;
     min-height: 100vh;
@@ -16,6 +27,22 @@
     color: #1e293b;
     /* slate-800 */
     transition: background-color 0.5s ease;
+    overflow-x: hidden;
+  }
+
+  input,
+  textarea,
+  select,
+  button {
+    font: inherit;
+    min-width: 0;
+  }
+
+  img,
+  video,
+  canvas,
+  svg {
+    max-width: 100%;
   }
 
   .dark body {
@@ -32,12 +59,11 @@
   [role="button"],
   select,
   .btn-anim {
-    @apply active:scale-[0.95];
+    @apply active:scale-[0.98];
     transition-property: color, background-color, border-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter;
     transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
     /* dramatically smooth and lingering ease-out */
-    transition-duration: 800ms;
-    /* dramatically increased duration */
+    transition-duration: 180ms;
     -webkit-tap-highlight-color: transparent;
   }
 }
@@ -57,6 +83,11 @@
 
   datalist {
     display: none !important;
+  }
+
+  .fit-text {
+    overflow-wrap: anywhere;
+    word-break: break-word;
   }
 }
 

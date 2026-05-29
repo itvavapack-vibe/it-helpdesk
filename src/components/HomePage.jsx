@@ -52,20 +52,20 @@ const HomePage = ({ onNavigateTo, currentRole = 'public' }) => {
 
     return (
         <div className="space-y-12 animate-fade-in">
-            <Card className="relative overflow-hidden rounded-3xl p-6 sm:p-8 md:p-12 lg:p-16">
-                <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
-                    <div className="lg:col-span-7 text-center lg:text-left space-y-6 flex flex-col items-center lg:items-start justify-center">
+            <Card className="relative overflow-hidden rounded-3xl p-5 sm:p-8 xl:p-16">
+                <div className="relative z-10 grid grid-cols-1 xl:grid-cols-12 gap-8 xl:gap-12 items-center">
+                    <div className="xl:col-span-7 text-center xl:text-left space-y-6 flex flex-col items-center xl:items-start justify-center">
                         <Badge variant="secondary" className="rounded-full px-4 py-1.5">IT Helpdesk</Badge>
-                        <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-800 dark:text-white leading-tight">
+                        <h1 className="text-3xl xl:text-4xl font-extrabold tracking-tight text-slate-800 dark:text-white leading-tight fit-text">
                             ระบบแจ้งซ่อม<br />
                             <span className="bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">
                                 IT Helpdesk
                             </span>
                         </h1>
-                        <p className="text-base md:text-lg text-slate-500 dark:text-slate-400 max-w-xl mx-auto lg:mx-0 leading-relaxed">
+                        <p className="text-base xl:text-lg text-slate-500 dark:text-slate-400 max-w-xl mx-auto xl:mx-0 leading-relaxed fit-text">
                             แจ้งปัญหาคอมพิวเตอร์และอุปกรณ์ IT ได้ง่าย ทีม IT พร้อมช่วยเหลือ ตรวจสอบ และอัปเดตสถานะงานให้ติดตามได้ในระบบเดียว
                         </p>
-                        <div className="flex flex-col sm:flex-row flex-wrap justify-center lg:justify-start gap-3 pt-2 w-full sm:w-auto">
+                        <div className="flex flex-col sm:flex-row flex-wrap justify-center xl:justify-start gap-3 pt-2 w-full sm:w-auto">
                             {visibleActions.map((action) => {
                                 const Icon = action.icon;
                                 const isAdminAction = action.id === 'admin';
@@ -85,13 +85,13 @@ const HomePage = ({ onNavigateTo, currentRole = 'public' }) => {
                         </div>
                     </div>
 
-                    <div className="lg:col-span-5 flex justify-center items-center">
-                        <div className="relative group w-full max-w-[280px] sm:max-w-[340px] lg:max-w-full">
+                    <div className="xl:col-span-5 flex justify-center items-center">
+                        <div className="relative group w-full max-w-[280px] sm:max-w-[340px] xl:max-w-full">
                             <div className="relative z-10 bg-white/40 dark:bg-slate-800/40 backdrop-blur-md p-3 sm:p-4 rounded-3xl border border-white/60 dark:border-slate-700/60 shadow-2xl transition-all duration-500 group-hover:shadow-indigo-500/10 dark:group-hover:shadow-indigo-500/5 group-hover:-translate-y-2 animate-float">
                                 <img
                                     src="/it-helpdesk-hero.jpg"
                                     alt="VAVA PACK IT Helpdesk"
-                                    className="w-full h-auto object-contain rounded-2xl max-h-[300px] sm:max-h-[350px] lg:max-h-[380px]"
+                                    className="w-full h-auto object-contain rounded-2xl max-h-[300px] sm:max-h-[350px] xl:max-h-[380px]"
                                 />
                             </div>
                         </div>
@@ -104,7 +104,7 @@ const HomePage = ({ onNavigateTo, currentRole = 'public' }) => {
                     <h2 className="text-2xl font-extrabold text-slate-800 dark:text-white mb-2">บริการของเรา</h2>
                     <p className="text-slate-500 dark:text-slate-400 text-sm">ครอบคลุมปัญหา IT ที่พบได้ในการทำงานประจำวัน</p>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
                     <FeatureCard
                         icon={MonitorCheck}
                         title="ซ่อมคอมพิวเตอร์"

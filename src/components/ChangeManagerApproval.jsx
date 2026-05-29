@@ -3,6 +3,7 @@ import SignatureCanvas from 'react-signature-canvas';
 import Swal from 'sweetalert2';
 import { CheckCircle, Code, Loader2, XCircle } from 'lucide-react';
 import { mysql } from '../mysqlClient';
+import { getChangeRequestTypeLabel } from '../config/changeRequestTypes';
 
 const toMysqlDateTime = (value = new Date()) => {
     const date = value instanceof Date ? value : new Date(value);
@@ -173,7 +174,7 @@ const ChangeManagerApproval = ({ requestId }) => {
                         </div>
                         <div>
                             <span className="block text-xs font-semibold text-slate-400">ประเภทคำร้อง</span>
-                            <div className="mt-1 font-medium text-slate-800 dark:text-slate-100">{requestData.req_type || '-'}</div>
+                            <div className="mt-1 font-medium text-slate-800 dark:text-slate-100">{getChangeRequestTypeLabel(requestData.req_type)}</div>
                         </div>
                     </div>
                     <div className="mt-4">

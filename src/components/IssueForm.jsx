@@ -422,11 +422,11 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false, qrParams = null }
     return (
         <div className="space-y-8">
             {/* Issue Report Form */}
-            <div className="max-w-2xl mx-auto glass-card p-8 sm:p-10 rounded-3xl relative">
-                <h2 className="text-2xl sm:text-3xl font-bold mb-8 text-indigo-950 dark:text-indigo-100 tracking-tight text-center">แจ้งปัญหาการใช้งาน<br /><span className="text-lg font-medium text-slate-500 dark:text-slate-400 mt-1 block">Report Support Issue</span></h2>
+            <div className="max-w-2xl mx-auto glass-card p-4 sm:p-7 xl:p-10 rounded-3xl relative">
+                <h2 className="text-2xl xl:text-3xl font-bold mb-8 text-indigo-950 dark:text-indigo-100 tracking-tight text-center fit-text">แจ้งปัญหาการใช้งาน<br /><span className="text-base xl:text-lg font-medium text-slate-500 dark:text-slate-400 mt-1 block">Report Support Issue</span></h2>
 
                 <form onSubmit={handleSubmit} className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                         <div className="space-y-2">
                             <label htmlFor="name" className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1 ml-1">ชื่อ-นามสกุล <span className="text-rose-500 dark:text-rose-400">*</span></label>
                             <Combobox
@@ -449,7 +449,7 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false, qrParams = null }
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                         <div className="space-y-1">
                             <label htmlFor="category" className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1 ml-1">หมวดหมู่ปัญหา</label>
                             <Select

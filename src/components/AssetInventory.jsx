@@ -491,7 +491,7 @@ const AssetInventory = ({ issues = [] }) => {
             {
                 !isLoading && !error && (
                     <>
-                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
                             {filtered.length === 0 ? (
                                 <div className="col-span-full glass-card rounded-2xl p-12 text-center text-slate-400 dark:text-slate-500">ไม่พบข้อมูลที่ค้นหา</div>
                             ) : filtered.map(computer => {
@@ -573,8 +573,8 @@ const AssetInventory = ({ issues = [] }) => {
                 selectedComputer && (() => {
                     const assetIssues = getAssetIssues(selectedComputer);
                     return (
-                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
-                            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-white/20 dark:border-slate-700 max-h-[90vh] flex flex-col">
+                        <div className="fixed inset-0 z-[120] flex items-start sm:items-center justify-center overflow-y-auto p-3 sm:p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
+                            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-white/20 dark:border-slate-700 max-h-[calc(100dvh-1.5rem)] flex flex-col">
                                 <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700 bg-indigo-50/50 dark:bg-indigo-900/20 flex justify-between items-center shrink-0">
                                     <div className="flex items-center gap-2">
                                         <Monitor className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
@@ -718,8 +718,8 @@ const AssetInventory = ({ issues = [] }) => {
             {/* QR Code Modal */}
             {
                 qrComputer && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
-                        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden border border-white/20 dark:border-slate-700">
+                    <div className="fixed inset-0 z-[120] flex items-start sm:items-center justify-center overflow-y-auto p-3 sm:p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
+                        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-sm max-h-[calc(100dvh-1.5rem)] overflow-y-auto border border-white/20 dark:border-slate-700">
                             <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700 bg-indigo-50/50 dark:bg-indigo-900/20 flex justify-between items-center">
                                 <div className="flex items-center gap-2">
                                     <QrCode className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />

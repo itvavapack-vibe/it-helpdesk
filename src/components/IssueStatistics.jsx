@@ -110,7 +110,7 @@ const IssueStatistics = ({ issues = [] }) => {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                 {/* 1. Pie Chart: สถานะการทำงาน */}
                 <div className="glass-card p-6 rounded-3xl shadow-sm">
                     <div className="flex items-center gap-2 mb-6">
@@ -177,7 +177,7 @@ const IssueStatistics = ({ issues = [] }) => {
                 </div>
 
                 {/* 3. Bar Chart: แผนก (Full Width) */}
-                <div className="glass-card p-6 rounded-3xl shadow-sm lg:col-span-2">
+                <div className="glass-card p-6 rounded-3xl shadow-sm xl:col-span-2">
                     <div className="flex items-center justify-between mb-6">
                         <div className="flex items-center gap-2">
                             <Users className="w-5 h-5 text-emerald-500" />

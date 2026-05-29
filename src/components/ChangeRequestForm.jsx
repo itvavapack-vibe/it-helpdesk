@@ -7,6 +7,7 @@ import Fmit15PdfPreview from './Fmit15PdfPreview';
 import { Combobox } from './ui/combobox';
 import { copyText } from '../utils/closeIssueLink';
 import { insertWithDailyTicket } from '../utils/ticketNumber';
+import { CHANGE_REQUEST_TYPE_OPTIONS } from '../config/changeRequestTypes';
 
 const DEPARTMENTS = [
     'แอดมิน', 'บุคคลและธุรการ', 'วิศวกรรม', 'การตลาดและขาย (ในประเทศ)',
@@ -167,16 +168,16 @@ const ChangeRequestForm = ({ onCancel }) => {
                 <div className="inline-flex items-center justify-center p-3 sm:p-4 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl shadow-xl shadow-emerald-200/50 dark:shadow-emerald-900/30 mb-4 transform transition-all hover:scale-105 hover:rotate-3">
                     <Code className="w-8 h-8 sm:w-10 sm:h-10 text-white" />
                 </div>
-                <h2 className="text-2xl sm:text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-slate-800 to-emerald-900 dark:from-white dark:to-emerald-300 mb-2">
+                <h2 className="text-2xl xl:text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-slate-800 to-emerald-900 dark:from-white dark:to-emerald-300 mb-2 fit-text">
                     ฟอร์มขอดำเนินการพัฒนาระบบ
                 </h2>
-                <p className="text-slate-500 dark:text-slate-400 font-medium text-sm sm:text-base max-w-lg mx-auto">
+                <p className="text-slate-500 dark:text-slate-400 font-medium text-sm xl:text-base max-w-lg mx-auto fit-text">
                     ใบคำร้องขอเปลี่ยนแปลงและพัฒนาระบบ (Change Request Form - FMIT 15)
                 </p>
                 <div className="w-24 h-1.5 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full mx-auto mt-6 opacity-80 mix-blend-multiply dark:mix-blend-screen"></div>
             </div>
 
-            <form onSubmit={handleSubmit} className="glass-card rounded-3xl p-6 sm:p-8 animate-slide-up relative bg-white dark:bg-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-700">
+            <form onSubmit={handleSubmit} className="glass-card rounded-3xl p-4 sm:p-6 xl:p-8 animate-slide-up relative bg-white dark:bg-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-700">
                 
                 {/* Requirement Type */}
                 <div className="mb-8">
@@ -184,8 +185,8 @@ const ChangeRequestForm = ({ onCancel }) => {
                         <LayoutGrid className="w-5 h-5 text-emerald-500" /> ความต้องการ <span className="text-red-500 text-sm font-normal ml-1">*</span>
                     </h3>
                     <div className="flex flex-wrap items-center gap-4">
-                        {['add', 'remove', 'change'].map((type) => {
-                            const labels = { add: 'เพิ่ม', remove: 'นำออก', change: 'เปลี่ยนแปลงแก้ไข' };
+                        {CHANGE_REQUEST_TYPE_OPTIONS.map((option) => {
+                            const type = option.value;
                             return (
                                 <label key={type} className={`flex items-center gap-2 p-3 rounded-xl cursor-pointer border transition-all ${formData.reqType === type ? 'bg-emerald-50 dark:bg-emerald-900/30 border-emerald-200 dark:border-emerald-700 text-emerald-800 dark:text-emerald-300 font-medium' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-emerald-300 dark:hover:border-emerald-600'}`}>
                                     <input 
@@ -196,7 +197,7 @@ const ChangeRequestForm = ({ onCancel }) => {
                                         onChange={() => handleTypeChange(type)}
                                         className="w-4 h-4 text-emerald-600 focus:ring-emerald-500 border-slate-300"
                                     />
-                                    <span>{labels[type]}</span>
+                                    <span>{option.label}</span>
                                 </label>
                             );
                         })}
@@ -219,8 +220,8 @@ const ChangeRequestForm = ({ onCancel }) => {
                         <User className="w-5 h-5 text-emerald-500" /> ส่วนที่ 1 : ข้อมูลผู้ร้องขอเปลี่ยนแปลงระบบ
                     </h3>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
-                        <div className="space-y-1.5 md:col-span-1">
+                    <div className="grid grid-cols-1 xl:grid-cols-4 gap-5">
+                        <div className="space-y-1.5 xl:col-span-1">
                             <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
                                 รหัสพนักงาน <span className="text-red-500">*</span>
                             </label>
@@ -235,7 +236,7 @@ const ChangeRequestForm = ({ onCancel }) => {
                             />
                         </div>
 
-                        <div className="space-y-1.5 md:col-span-1">
+                        <div className="space-y-1.5 xl:col-span-1">
                             <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
                                 ชื่อผู้ร้องขอ <span className="text-red-500">*</span>
                             </label>
@@ -254,7 +255,7 @@ const ChangeRequestForm = ({ onCancel }) => {
                             </div>
                         </div>
                         
-                        <div className="space-y-1.5 md:col-span-1">
+                        <div className="space-y-1.5 xl:col-span-1">
                             <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
                                 ตำแหน่ง <span className="text-red-500">*</span>
                             </label>
@@ -273,7 +274,7 @@ const ChangeRequestForm = ({ onCancel }) => {
                             </div>
                         </div>
 
-                        <div className="space-y-1.5 md:col-span-1">
+                        <div className="space-y-1.5 xl:col-span-1">
                             <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
                                 แผนก/ฝ่าย ผู้ร้องขอ <span className="text-red-500">*</span>
                             </label>
@@ -402,7 +403,7 @@ const ChangeRequestForm = ({ onCancel }) => {
             <Fmit15PdfPreview 
                 isOpen={isPreviewOpen} 
                 onClose={() => setIsPreviewOpen(false)} 
-                formData={{...formData, requesterSign: signatureData}} 
+                formData={{...formData, requesterSign: signatureData, requesterDate: new Date().toISOString()}} 
             />
         </div>
     );

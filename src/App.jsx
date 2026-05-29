@@ -17,7 +17,7 @@ import AdminChangeRequests from './components/AdminChangeRequests';
 import ApprovedDocuments from './components/ApprovedDocuments';
 import IssueCloseSignature from './components/IssueCloseSignature';
 import ChangeManagerApproval from './components/ChangeManagerApproval';
-import { ChevronDown, LogOut, Settings, UserCog } from 'lucide-react';
+import { ChevronDown, LogOut, MoreHorizontal, Settings, UserCog } from 'lucide-react';
 import { ADMIN_SUB_TABS, MAIN_NAV_ITEMS, canSee, normalizeRole } from './config/navigation';
 import { ACCESS_QUEUE_STATUS_BY_ROLE, CHANGE_QUEUE_STATUS_BY_ROLE, ROLE_LABELS, countVisibleQueue } from './config/roles';
 import Swal from 'sweetalert2';
@@ -28,6 +28,7 @@ import { toMysqlDateTime } from './utils/dateTime';
 const ACTIVE_TAB_STORAGE_KEY = 'it-helpdesk-active-tab';
 const ADMIN_SUB_TAB_STORAGE_KEY = 'it-helpdesk-admin-sub-tab';
 const TRANSIENT_TABS = new Set(['manager_approval', 'change_manager_approval', 'it_manager_approval', 'issue_close']);
+const BOTTOM_NAV_VISIBLE_LIMIT = 4;
 function App() {
     const [activeTab, setActiveTab] = useState(() => {
         // หากเปิดจาก QR Code (มี assetId) หรือลิงก์ขอสิทธิ์
@@ -71,15 +72,31 @@ function App() {
     const [isAdminAuth, setIsAdminAuth] = useState(null);
     const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
     const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+    const [isMainMoreOpen, setIsMainMoreOpen] = useState(false);
+    const [isAdminMoreOpen, setIsAdminMoreOpen] = useState(false);
     const [isSavingProfile, setIsSavingProfile] = useState(false);
     const [profileForm, setProfileForm] = useState({ username: '', name: '', password: '' });
     const [approvalQueues, setApprovalQueues] = useState({ access: [], change: [] });
     const currentRole = normalizeRole(isAdminAuth);
     const visibleMainNavItems = MAIN_NAV_ITEMS.filter((item) => canSee(item.roles, currentRole));
     const visibleAdminSubTabs = ADMIN_SUB_TABS.filter((item) => canSee(item.roles, currentRole));
+    const mainBottomItems = visibleMainNavItems.length > BOTTOM_NAV_VISIBLE_LIMIT
+        ? visibleMainNavItems.slice(0, BOTTOM_NAV_VISIBLE_LIMIT)
+        : visibleMainNavItems;
+    const mainMoreItems = visibleMainNavItems.length > BOTTOM_NAV_VISIBLE_LIMIT
+        ? visibleMainNavItems.slice(BOTTOM_NAV_VISIBLE_LIMIT)
+        : [];
+    const adminBottomItems = visibleAdminSubTabs.length > BOTTOM_NAV_VISIBLE_LIMIT
+        ? visibleAdminSubTabs.slice(0, BOTTOM_NAV_VISIBLE_LIMIT)
+        : visibleAdminSubTabs;
+    const adminMoreItems = visibleAdminSubTabs.length > BOTTOM_NAV_VISIBLE_LIMIT
+        ? visibleAdminSubTabs.slice(BOTTOM_NAV_VISIBLE_LIMIT)
+        : [];
     const selectedAdminSubTab = visibleAdminSubTabs.some((item) => item.id === adminSubTab)
         ? adminSubTab
         : visibleAdminSubTabs[0]?.id;
+    const isMainMoreSelected = mainMoreItems.some((item) => item.tab === activeTab);
+    const isAdminMoreSelected = adminMoreItems.some((item) => item.id === selectedAdminSubTab);
 
     // Clean up URL to avoid sticking on refresh
     useEffect(() => {
@@ -114,6 +131,8 @@ function App() {
             setApprovalQueues({ access: [], change: [] });
             setIsProfileMenuOpen(false);
             setIsProfileModalOpen(false);
+            setIsMainMoreOpen(false);
+            setIsAdminMoreOpen(false);
             return;
         }
 
@@ -606,7 +625,7 @@ function App() {
             if (isAdminAuth) {
                 return (
                     <div className="space-y-6">
-                        <div className="hidden sm:flex sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+                        <div className="hidden xl:flex xl:flex-row justify-between items-start xl:items-center gap-4 mb-4">
                             <div className="flex items-center gap-2">
                                 <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-bold">
                                     {isAdminAuth.name.charAt(0)}
@@ -617,7 +636,7 @@ function App() {
                                 </div>
                             </div>
 
-                            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                            <div className="flex flex-wrap items-center gap-2 w-full xl:w-auto">
                                 <div className="flex flex-wrap bg-slate-100/80 dark:bg-slate-800/80 p-1 rounded-xl w-auto gap-1">
                                     {visibleAdminSubTabs.map((item) => {
                                         const Icon = item.icon;
@@ -633,17 +652,17 @@ function App() {
                                                     if (item.id === 'issues') fetchIssues();
                                                     setAdminSubTab(item.id);
                                                 }}
-                                                className={`px-1 sm:px-4 py-2 sm:py-1.5 rounded-lg font-medium transition-all flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 ${selectedAdminSubTab === item.id ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-md sm:shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
+                                                className={`px-1 xl:px-4 py-2 xl:py-1.5 rounded-lg font-medium transition-all flex flex-col xl:flex-row items-center justify-center gap-1 xl:gap-1.5 ${selectedAdminSubTab === item.id ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-md xl:shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
                                             >
                                                 <span className="relative">
-                                                    <Icon className="w-[18px] h-[18px] sm:w-4 sm:h-4" />
+                                                    <Icon className="w-[18px] h-[18px] xl:w-4 xl:h-4" />
                                                     {pendingCount > 0 && (
                                                         <span className="absolute -right-2 -top-2 min-w-4 h-4 px-1 rounded-full bg-red-500 text-white text-[10px] leading-4 text-center shadow">
                                                             {pendingCount > 99 ? '99+' : pendingCount}
                                                         </span>
                                                     )}
                                                 </span>
-                                                <span className="text-[11px] sm:text-sm whitespace-nowrap">{item.label}</span>
+                                                <span className="text-[11px] xl:text-sm whitespace-nowrap">{item.label}</span>
                                             </button>
                                         );
                                     })}
@@ -693,12 +712,21 @@ function App() {
     const handleNavClick = (item) => {
         if (item.needsRefresh) fetchIssues();
         setActiveTab(item.tab);
+        setIsMainMoreOpen(false);
+        setIsAdminMoreOpen(false);
+    };
+
+    const handleAdminBottomNavClick = (item) => {
+        if (item.id === 'issues') fetchIssues();
+        setAdminSubTab(item.id);
+        setIsAdminMoreOpen(false);
+        setIsMainMoreOpen(false);
     };
 
     return (
-        <div className="min-h-screen font-sans text-slate-800 dark:text-slate-200 flex flex-col relative w-full overflow-hidden">
+        <div className="min-h-screen font-sans text-slate-800 dark:text-slate-200 flex flex-col relative w-full overflow-x-hidden">
             <header className="fixed w-full z-50 top-0 transition-all duration-300 glass-panel border-b border-white/40 dark:border-slate-700/50">
-                <div className="container mx-auto px-4 md:px-8 py-3 flex flex-row justify-between items-center gap-3 max-w-[95%] 2xl:max-w-[1500px]">
+                <div className="container mx-auto px-3 sm:px-4 xl:px-8 py-3 flex flex-row justify-between items-center gap-3 max-w-full 2xl:max-w-[1500px]">
                     <div className="flex items-center gap-3">
                         <div className="bg-indigo-600 dark:bg-indigo-500 text-white p-2 rounded-xl shadow-lg shadow-indigo-200 dark:shadow-indigo-900/30">
                             <Settings className="w-6 h-6" />
@@ -729,7 +757,7 @@ function App() {
                                         (isAdminAuth.name || isAdminAuth.username || 'U').charAt(0).toUpperCase()
                                     )}
                                 </span>
-                                <span className="hidden md:flex min-w-0 flex-col items-start">
+                                <span className="hidden xl:flex min-w-0 flex-col items-start">
                                     <span className="max-w-40 truncate text-sm font-semibold text-slate-800 dark:text-slate-100 leading-5">{isAdminAuth.name}</span>
                                     <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 leading-4">{ROLE_LABELS[currentRole] || ROLE_LABELS[isAdminAuth.role] || 'IT Support'}</span>
                                 </span>
@@ -776,7 +804,7 @@ function App() {
                             )}
                         </div>
                     ) : (
-                        <nav className="hidden sm:flex bg-slate-100/80 dark:bg-slate-800/80 backdrop-blur-md p-1.5 rounded-2xl border border-white dark:border-slate-700 shadow-inner">
+                        <nav className="hidden xl:flex bg-slate-100/80 dark:bg-slate-800/80 backdrop-blur-md p-1.5 rounded-2xl border border-white dark:border-slate-700 shadow-inner">
                             {visibleMainNavItems.map((item) => {
                                 const Icon = item.icon;
                                 const isPrimary = item.variant === 'primary';
@@ -795,15 +823,15 @@ function App() {
                 </div>
             </header>
 
-            <main className="flex-grow container mx-auto p-4 md:p-8 mt-24 relative z-10 w-full max-w-[95%] 2xl:max-w-[1500px] mb-24 sm:mb-0">
+            <main className="flex-grow container mx-auto px-3 py-4 sm:px-4 xl:p-8 mt-24 relative z-10 w-full max-w-full 2xl:max-w-[1500px] mb-24 xl:mb-0">
                 <div className="animate-fade-in">
                     {renderContent()}
                 </div>
             </main>
 
             {isProfileModalOpen && (
-                <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-950/50 backdrop-blur-sm">
-                    <div className="w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden">
+                <div className="fixed inset-0 z-[120] flex items-start sm:items-center justify-center overflow-y-auto p-3 sm:p-4 bg-slate-950/50 backdrop-blur-sm">
+                    <div className="w-full max-w-md max-h-[calc(100dvh-1.5rem)] rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl overflow-y-auto">
                         <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
                             <div>
                                 <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">ตั้งค่าโปรไฟล์</h2>
@@ -904,36 +932,128 @@ function App() {
                 </div>
             )}
 
-            <footer className="py-6 mt-auto relative z-10 hidden sm:block">
+            <footer className="py-6 mt-auto relative z-10 hidden xl:block">
                 <div className="container mx-auto px-4 text-center text-slate-500/70 dark:text-slate-400/70 text-sm font-medium">
                     &copy; {new Date().getFullYear()} IT Helpdesk System. Built with React & Tailwind CSS.
                 </div>
             </footer>
 
-            {/* Mobile Bottom Navigation Bar limit sm:hidden */}
-            {!isAdminAuth && <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/90 dark:bg-slate-900/90 backdrop-blur-lg border-t border-slate-200 dark:border-slate-800 pb-safe pt-2 px-2 pb-2">
-                <div className="flex justify-around items-center h-14">
-                    {visibleMainNavItems.map((item) => {
+            {/* Compact bottom navigation for mobile and tablet */}
+            {!isAdminAuth && isMainMoreOpen && mainMoreItems.length > 0 && (
+                <>
+                    <button
+                        type="button"
+                        className="fixed inset-0 z-[54] bg-transparent xl:hidden"
+                        onClick={() => setIsMainMoreOpen(false)}
+                        aria-label="ปิดเมนูเพิ่มเติม"
+                    />
+                    <div className="fixed inset-x-3 bottom-20 z-[55] max-h-[60dvh] overflow-y-auto rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-2xl shadow-slate-300/50 backdrop-blur-xl dark:border-slate-700 dark:bg-slate-900/95 dark:shadow-slate-950/50 xl:hidden">
+                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                            {mainMoreItems.map((item) => {
+                                const Icon = item.icon;
+                                const isSelected = activeTab === item.tab;
+                                return (
+                                    <button
+                                        key={item.id}
+                                        type="button"
+                                        onClick={() => handleNavClick(item)}
+                                        className={`flex min-w-0 items-center gap-2 rounded-xl px-3 py-3 text-left transition-colors ${isSelected ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200 dark:bg-indigo-500 dark:shadow-indigo-950/40' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'}`}
+                                    >
+                                        <Icon className="h-5 w-5 shrink-0" />
+                                        <span className="truncate text-sm font-semibold">{item.label}</span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </>
+            )}
+
+            {!isAdminAuth && <nav className="xl:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/90 dark:bg-slate-900/90 backdrop-blur-lg border-t border-slate-200 dark:border-slate-800 pb-safe pt-2 px-2 pb-2">
+                <div
+                    className="grid items-center h-14 gap-1"
+                    style={{ gridTemplateColumns: `repeat(${mainBottomItems.length + (mainMoreItems.length > 0 ? 1 : 0)}, minmax(0, 1fr))` }}
+                >
+                    {mainBottomItems.map((item) => {
                         const Icon = item.icon;
                         const isPrimary = item.variant === 'primary';
                         return (
                             <button
                                 key={item.id}
                                 onClick={() => handleNavClick(item)}
-                                className={`flex flex-col items-center justify-center h-full space-y-1 transition-colors rounded-xl ${isPrimary ? 'w-20 bg-indigo-600 text-white shadow-md shadow-indigo-200 dark:bg-indigo-500 dark:shadow-indigo-900/40' : `w-16 ${activeTab === item.tab ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500 dark:text-slate-500 hover:text-slate-900 dark:hover:text-slate-300'}`}`}
+                                className={`min-w-0 w-full h-full rounded-xl flex flex-col items-center justify-center gap-1 px-1 transition-colors ${isPrimary ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200 dark:bg-indigo-500 dark:shadow-indigo-900/40' : `${activeTab === item.tab ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500 dark:text-slate-500 hover:text-slate-900 dark:hover:text-slate-300'}`}`}
                             >
-                                <Icon className="w-6 h-6" strokeWidth={activeTab === item.tab ? 2.5 : 2} />
-                                <span className="text-[10px] font-semibold">{item.label}</span>
+                                <Icon className="w-[clamp(18px,5vw,24px)] h-[clamp(18px,5vw,24px)] shrink-0" strokeWidth={activeTab === item.tab ? 2.5 : 2} />
+                                <span className="max-w-full truncate text-[clamp(8px,2.6vw,10px)] font-semibold leading-none">{item.label}</span>
                             </button>
                         );
                     })}
+                    {mainMoreItems.length > 0 && (
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setIsMainMoreOpen((open) => !open);
+                                setIsAdminMoreOpen(false);
+                            }}
+                            className={`min-w-0 w-full h-full rounded-xl flex flex-col items-center justify-center gap-1 px-1 transition-colors ${isMainMoreSelected || isMainMoreOpen ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200 dark:bg-indigo-500 dark:shadow-indigo-900/40' : 'text-slate-500 dark:text-slate-500 hover:text-slate-900 dark:hover:text-slate-300'}`}
+                            aria-expanded={isMainMoreOpen}
+                        >
+                            <MoreHorizontal className="w-[clamp(18px,5vw,24px)] h-[clamp(18px,5vw,24px)] shrink-0" />
+                            <span className="max-w-full truncate text-[clamp(8px,2.6vw,10px)] font-semibold leading-none">เพิ่มเติม</span>
+                        </button>
+                    )}
                 </div>
             </nav>}
 
             {isAdminAuth && visibleAdminSubTabs.length > 0 && (
-                <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-lg border-t border-slate-200 dark:border-slate-800 pt-2 px-2 pb-3">
-                    <div className="flex items-center gap-1 overflow-x-auto">
-                        {visibleAdminSubTabs.map((item) => {
+                <>
+                    {isAdminMoreOpen && adminMoreItems.length > 0 && (
+                        <>
+                            <button
+                                type="button"
+                                className="fixed inset-0 z-[54] bg-transparent xl:hidden"
+                                onClick={() => setIsAdminMoreOpen(false)}
+                                aria-label="ปิดเมนูเพิ่มเติม"
+                            />
+                            <div className="fixed inset-x-3 bottom-20 z-[55] max-h-[60dvh] overflow-y-auto rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-2xl shadow-slate-300/50 backdrop-blur-xl dark:border-slate-700 dark:bg-slate-900/95 dark:shadow-slate-950/50 xl:hidden">
+                                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                                    {adminMoreItems.map((item) => {
+                                        const Icon = item.icon;
+                                        const pendingCount = item.id === 'access_requests'
+                                            ? countVisibleQueue(approvalQueues.access, currentRole, ACCESS_QUEUE_STATUS_BY_ROLE)
+                                            : item.id === 'change_requests'
+                                                ? countVisibleQueue(approvalQueues.change, currentRole, CHANGE_QUEUE_STATUS_BY_ROLE)
+                                                : 0;
+                                        const isSelected = selectedAdminSubTab === item.id;
+                                        return (
+                                            <button
+                                                key={item.id}
+                                                type="button"
+                                                onClick={() => handleAdminBottomNavClick(item)}
+                                                className={`flex min-w-0 items-center gap-2 rounded-xl px-3 py-3 text-left transition-colors ${isSelected ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200 dark:bg-indigo-500 dark:shadow-indigo-950/40' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'}`}
+                                            >
+                                                <span className="relative shrink-0">
+                                                    <Icon className="h-5 w-5" />
+                                                    {pendingCount > 0 && (
+                                                        <span className="absolute -right-2.5 -top-2.5 min-w-4 h-4 px-1 rounded-full bg-red-500 text-white text-[10px] leading-4 text-center shadow">
+                                                            {pendingCount > 99 ? '99+' : pendingCount}
+                                                        </span>
+                                                    )}
+                                                </span>
+                                                <span className="truncate text-sm font-semibold">{item.label}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </>
+                    )}
+                <nav className="xl:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-lg border-t border-slate-200 dark:border-slate-800 pt-2 px-2 pb-3">
+                    <div
+                        className="grid items-center gap-1"
+                        style={{ gridTemplateColumns: `repeat(${adminBottomItems.length + (adminMoreItems.length > 0 ? 1 : 0)}, minmax(0, 1fr))` }}
+                    >
+                        {adminBottomItems.map((item) => {
                             const Icon = item.icon;
                             const pendingCount = item.id === 'access_requests'
                                 ? countVisibleQueue(approvalQueues.access, currentRole, ACCESS_QUEUE_STATUS_BY_ROLE)
@@ -945,26 +1065,38 @@ function App() {
                             return (
                                 <button
                                     key={item.id}
-                                    onClick={() => {
-                                        if (item.id === 'issues') fetchIssues();
-                                        setAdminSubTab(item.id);
-                                    }}
-                                    className={`relative min-w-[74px] h-14 rounded-2xl flex flex-col items-center justify-center gap-1 transition-colors ${isSelected ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200 dark:bg-indigo-500 dark:shadow-indigo-950/40' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+                                    onClick={() => handleAdminBottomNavClick(item)}
+                                    className={`relative min-w-0 w-full h-14 rounded-2xl flex flex-col items-center justify-center gap-1 px-1 transition-colors ${isSelected ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200 dark:bg-indigo-500 dark:shadow-indigo-950/40' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
                                 >
                                     <span className="relative">
-                                        <Icon className="w-5 h-5" strokeWidth={isSelected ? 2.5 : 2} />
+                                        <Icon className="w-[clamp(16px,4.6vw,20px)] h-[clamp(16px,4.6vw,20px)]" strokeWidth={isSelected ? 2.5 : 2} />
                                         {pendingCount > 0 && (
                                             <span className="absolute -right-2.5 -top-2.5 min-w-4 h-4 px-1 rounded-full bg-red-500 text-white text-[10px] leading-4 text-center shadow">
                                                 {pendingCount > 99 ? '99+' : pendingCount}
                                             </span>
                                         )}
                                     </span>
-                                    <span className="max-w-[66px] truncate text-[10px] font-semibold leading-none">{item.label}</span>
+                                    <span className="max-w-full truncate text-[clamp(7px,2.25vw,10px)] font-semibold leading-none">{item.label}</span>
                                 </button>
                             );
                         })}
+                        {adminMoreItems.length > 0 && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setIsAdminMoreOpen((open) => !open);
+                                    setIsMainMoreOpen(false);
+                                }}
+                                className={`relative min-w-0 w-full h-14 rounded-2xl flex flex-col items-center justify-center gap-1 px-1 transition-colors ${isAdminMoreSelected || isAdminMoreOpen ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200 dark:bg-indigo-500 dark:shadow-indigo-950/40' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+                                aria-expanded={isAdminMoreOpen}
+                            >
+                                <MoreHorizontal className="w-[clamp(16px,4.6vw,20px)] h-[clamp(16px,4.6vw,20px)]" />
+                                <span className="max-w-full truncate text-[clamp(7px,2.25vw,10px)] font-semibold leading-none">เพิ่มเติม</span>
+                            </button>
+                        )}
                     </div>
                 </nav>
+                </>
             )}
         </div>
     )

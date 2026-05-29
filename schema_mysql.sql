@@ -108,6 +108,7 @@ CREATE TABLE IF NOT EXISTS access_requests (
   it_supervisor_position VARCHAR(255),
   it_staff_name VARCHAR(255),
   it_staff_sign MEDIUMTEXT,
+  it_staff_date DATETIME,
   action_result TEXT,
 
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,

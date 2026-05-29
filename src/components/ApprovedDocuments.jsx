@@ -49,11 +49,18 @@ const toAccessPreviewData = (req) => ({
     otherSystemDetails: req.other_system_details || '',
     requestDetails: req.request_details || '',
     requesterSign: req.requester_sign || null,
+    requesterDate: req.created_at || null,
     managerSign: req.manager_sign || null,
+    managerDate: req.manager_date || null,
     itSign: req.it_staff_sign || req.it_sign || null,
-    itManagerSign: req.it_manager_sign || req.it_supervisor_sign || null,
+    itStaffDate: req.it_staff_date || null,
+    itManagerSign: req.it_manager_sign || null,
+    itManagerDate: req.it_manager_date || null,
+    itSupervisorSign: req.it_supervisor_sign || null,
+    itSupervisorDate: req.it_supervisor_date || null,
     itStaffName: req.it_staff_name || '',
     actionResult: req.action_result || '',
+    createdAt: req.created_at || null,
     status: req.status || '',
     cancelledAt: req.cancelled_at || null,
     cancelReason: req.cancel_reason || '',
@@ -63,6 +70,7 @@ const toAccessPreviewData = (req) => ({
 
 const toChangePreviewData = (req) => ({
     ticketNumber: req.ticket_number,
+    createdAt: req.created_at || null,
     reqType: req.req_type,
     reqTypeOther: req.req_type_other || '',
     department: req.department,
@@ -71,6 +79,7 @@ const toChangePreviewData = (req) => ({
     requesterName: req.requester_name,
     requesterPosition: req.requester_position,
     requesterSign: req.requester_sign || null,
+    requesterDate: req.created_at || null,
     managerSign: req.manager_sign || null,
     managerPosition: req.manager_position || '',
     managerDate: req.manager_date || null,
@@ -84,6 +93,7 @@ const toChangePreviewData = (req) => ({
     itManagerDate: req.it_manager_date || null,
     itSolution: req.it_solution || '',
     itStaffSign: req.it_staff_sign || null,
+    itStaffDate: req.it_staff_date || null,
     itStaffPosition: req.it_staff_position || '',
     userAcceptance: req.user_acceptance || '',
     userRejectReason: req.user_reject_reason || '',
@@ -195,7 +205,7 @@ const ApprovedDocuments = () => {
     return (
         <div className="space-y-6 animate-fade-in pb-10">
             <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <div className="flex flex-col items-start gap-4">
                     <div className="flex items-center gap-3">
                         <div className="p-2.5 bg-emerald-100 dark:bg-emerald-900/50 rounded-xl text-emerald-600 dark:text-emerald-300">
                             <FileCheck2 className="w-6 h-6" />
@@ -206,8 +216,8 @@ const ApprovedDocuments = () => {
                         </div>
                     </div>
 
-                    <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
-                        <div className="relative flex-1 sm:w-80">
+                    <div className="flex w-full flex-col gap-3 sm:flex-row sm:flex-wrap">
+                        <div className="relative w-full sm:min-w-80 sm:flex-1">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
                             <input
                                 type="text"
