@@ -180,6 +180,25 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false, qrParams = null }
         });
     };
 
+    const fileToDataUrl = (file) => new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(reader.error || new Error('ไม่สามารถอ่านไฟล์รูปภาพได้'));
+        reader.readAsDataURL(file);
+    });
+
+    const buildInlineAttachments = async () => Promise.all(
+        selectedFiles.map(async ({ file }) => ({
+            name: file.name,
+            url: await fileToDataUrl(file)
+        }))
+    );
+
+    const shouldFallbackToInlineUpload = (response, result) => (
+        response.status === 404 ||
+        (response.status === 400 && String(result?.error || '').includes('Table not allowed: upload'))
+    );
+
     const uploadFiles = async () => {
         if (selectedFiles.length === 0) return [];
         
@@ -194,8 +213,13 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false, qrParams = null }
                 method: 'POST',
                 body: formData
             });
-            const result = await response.json();
-            if (result.error) throw new Error(result.error);
+            const result = await response.json().catch(() => null);
+            if (shouldFallbackToInlineUpload(response, result)) {
+                return buildInlineAttachments();
+            }
+            if (!response.ok || result?.error) {
+                throw new Error(result?.error || response.statusText || 'Upload failed');
+            }
             return result.data; // [{name, url}]
         } catch (error) {
             console.error('Upload failed:', error);

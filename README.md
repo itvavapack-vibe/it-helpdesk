@@ -16,8 +16,8 @@ DB_USER=root
 DB_PASSWORD="VaVa#4322"
 API_PORT=4000
 VITE_GLPI_URL=https://192.168.10.9/glpi
-VITE_GLPI_APP_TOKEN=...
-VITE_GLPI_USER_TOKEN=...
+GLPI_APP_TOKEN=...
+GLPI_USER_TOKEN=...
 VITE_USE_GLPI_PROXY=true
 # VITE_API_URL เว้นว่างได้ — หน้าเว็บจะเรียก /api ผ่าน Vite proxy ไป API_PORT
 ```
@@ -84,8 +84,8 @@ npm run dev:lan      # พอร์ต 5173, เปิดทุก IP
 | `DB_PASSWORD` | รหัสผ่าน |
 | `DB_SSL` | `true` ถ้า provider บังคับ SSL |
 | `VITE_GLPI_URL` | `https://.../glpi` |
-| `VITE_GLPI_APP_TOKEN` | token จาก GLPI |
-| `VITE_GLPI_USER_TOKEN` | user token |
+| `GLPI_APP_TOKEN` | token จาก GLPI |
+| `GLPI_USER_TOKEN` | user token |
 | `VITE_USE_GLPI_PROXY` | `true` |
 | `VITE_API_URL` | *(เว้นว่าง หรือใช้ `http://localhost:4000` เฉพาะเครื่อง dev)* |
 

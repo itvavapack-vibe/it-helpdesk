@@ -61,9 +61,18 @@ async function request(url, init) {
   const response = await fetch(url, init)
   const payload = await response.json().catch(() => null)
   if (!response.ok) {
-    return { data: null, error: payload?.error || response.statusText }
+    return {
+      data: null,
+      error: payload?.error || response.statusText,
+      status: response.status,
+    }
   }
-  return { data: payload?.data ?? null, error: payload?.error ?? null, count: payload?.count ?? null }
+  return {
+    data: payload?.data ?? null,
+    error: payload?.error ?? null,
+    count: payload?.count ?? null,
+    status: response.status,
+  }
 }
 
 async function fetchInsertedRows(table, state, insertedResult) {
@@ -243,6 +252,23 @@ export async function loginAdmin(username, password) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, password }),
+  })
+}
+
+export async function updateAdminProfile(profile) {
+  const base = API_URL.endsWith('/') ? API_URL.slice(0, -1) : API_URL
+  return request(new URL(`${base}/api/auth/profile`, window.location.origin).toString(), {
+    method: 'PUT',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(profile),
+  })
+}
+
+export async function getAdminProfile() {
+  const base = API_URL.endsWith('/') ? API_URL.slice(0, -1) : API_URL
+  return request(new URL(`${base}/api/auth/profile`, window.location.origin).toString(), {
+    method: 'GET',
+    headers: authHeaders(),
   })
 }
 

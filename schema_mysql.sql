@@ -50,6 +50,10 @@ CREATE TABLE IF NOT EXISTS change_requests (
   it_manager_position VARCHAR(255),
   it_manager_sign MEDIUMTEXT,
   it_manager_date DATETIME,
+  it_supervisor_name VARCHAR(255),
+  it_supervisor_position VARCHAR(255),
+  it_supervisor_sign MEDIUMTEXT,
+  it_supervisor_date DATETIME,
   it_solution TEXT,
 
   it_staff_name VARCHAR(255),
@@ -96,6 +100,12 @@ CREATE TABLE IF NOT EXISTS access_requests (
 
   it_manager_sign MEDIUMTEXT,
   it_manager_date DATETIME,
+  it_manager_name VARCHAR(255),
+  it_manager_position VARCHAR(255),
+  it_supervisor_sign MEDIUMTEXT,
+  it_supervisor_date DATETIME,
+  it_supervisor_name VARCHAR(255),
+  it_supervisor_position VARCHAR(255),
   it_staff_name VARCHAR(255),
   it_staff_sign MEDIUMTEXT,
   action_result TEXT,

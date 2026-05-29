@@ -1,36 +1,27 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { mysql } from '../mysqlClient';
-import { Users, UserPlus, Search, Edit2, Trash2, Shield, User, X, Check } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Check, Edit2, Search, Shield, Trash2, User, UserPlus, Users, X } from 'lucide-react';
 import Swal from 'sweetalert2';
+import { mysql } from '../mysqlClient';
+import { ROLE_LABELS, ROLE_OPTIONS, ROLES, canManageAdminUsers, normalizeRoleValue } from '../config/roles';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
-const ROLE_OPTIONS = [
-    { value: 'superadmin', label: 'Super Admin', description: 'เห็นทุกอย่างและลบผู้ใช้งานได้' },
-    { value: 'it', label: 'IT', description: 'เห็นทุกอย่าง แต่ลบผู้ใช้งานไม่ได้' },
-    { value: 'hr', label: 'HR', description: 'เห็นเฉพาะส่วนพนักงาน' }
-];
-
-const normalizeRole = (role) => (role === 'admin' ? 'it' : role || 'it');
-const canDeleteUsers = (admin) => normalizeRole(admin?.role) === 'superadmin';
-const canManageRoles = (admin) => normalizeRole(admin?.role) === 'superadmin';
+const normalizeRole = normalizeRoleValue;
+const canDeleteUsers = (admin) => canManageAdminUsers(admin?.role);
+const canManageRoles = (admin) => canManageAdminUsers(admin?.role);
 const getRoleOption = (role) => ROLE_OPTIONS.find((option) => option.value === normalizeRole(role)) || ROLE_OPTIONS[1];
 
-const UserManagement = ({ currentAdmin }) => {
+const UserManagement = ({ currentAdmin, onAuthExpired, onCurrentAdminUpdated }) => {
     const [users, setUsers] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-
-    // Modal states
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [modalMode, setModalMode] = useState('add'); // 'add' or 'edit'
-
-    // Form states
+    const [modalMode, setModalMode] = useState('add');
     const [formData, setFormData] = useState({
         id: null,
         username: '',
         password: '',
         name: '',
-        role: 'it'
+        role: ROLES.IT_SUPPORT
     });
 
     useEffect(() => {
@@ -41,28 +32,49 @@ const UserManagement = ({ currentAdmin }) => {
         setIsLoading(true);
 
         const startTime = Date.now();
-        const { data, error } = await mysql
+        const { data, error, status } = await mysql
             .from('admins')
             .select('id, username, name, role, created_at')
             .order('created_at', { ascending: false });
 
         const elapsedTime = Date.now() - startTime;
         if (elapsedTime < 500) {
-            await new Promise(resolve => setTimeout(resolve, 500 - elapsedTime));
+            await new Promise((resolve) => setTimeout(resolve, 500 - elapsedTime));
         }
 
         if (error) {
-            console.error("Error fetching users:", error);
+            console.error('Error fetching users:', error);
+            setUsers([]);
+
+            if (status === 401) {
+                await Swal.fire('Session expired', 'Please log in again to manage users.', 'warning');
+                onAuthExpired?.();
+                setIsLoading(false);
+                return;
+            }
+
+            if (status === 403) {
+                Swal.fire('Permission denied', 'Only Super Admin accounts can manage users.', 'error');
+                setIsLoading(false);
+                return;
+            }
+
             Swal.fire('Error', 'ไม่สามารถโหลดข้อมูลผู้ใช้งานได้', 'error');
         } else {
-            setUsers(data);
+            const nextUsers = data || [];
+            setUsers(nextUsers);
+
+            const freshCurrentAdmin = nextUsers.find((user) => user.id === currentAdmin?.id);
+            if (freshCurrentAdmin && normalizeRole(freshCurrentAdmin.role) !== normalizeRole(currentAdmin?.role)) {
+                onCurrentAdminUpdated?.(freshCurrentAdmin);
+            }
         }
+
         setIsLoading(false);
     };
 
     const filteredUsers = useMemo(() => {
-        if (!users) return [];
-        return users.filter(user =>
+        return (users || []).filter((user) =>
             user.username?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             user.name?.toLowerCase().includes(searchTerm.toLowerCase())
         );
@@ -70,11 +82,12 @@ const UserManagement = ({ currentAdmin }) => {
 
     const handleOpenModal = (mode, user = null) => {
         setModalMode(mode);
+
         if (mode === 'edit' && user) {
             setFormData({
                 id: user.id,
                 username: user.username,
-                password: '', // Don't show password on edit, leave blank to not change
+                password: '',
                 name: user.name,
                 role: normalizeRole(user.role)
             });
@@ -84,9 +97,10 @@ const UserManagement = ({ currentAdmin }) => {
                 username: '',
                 password: '',
                 name: '',
-                role: 'it'
+                role: ROLES.IT_SUPPORT
             });
         }
+
         setIsModalOpen(true);
     };
 
@@ -94,13 +108,31 @@ const UserManagement = ({ currentAdmin }) => {
         setIsModalOpen(false);
     };
 
-    const handleInputChange = (e) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
+    const handleInputChange = (event) => {
+        const { name, value } = event.target;
+        setFormData((previous) => ({ ...previous, [name]: value }));
     };
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
+    const handleAdminApiError = async (error, status, fallbackMessage) => {
+        if (!error) return false;
+
+        if (status === 401) {
+            await Swal.fire('Session expired', 'Please log in again to manage users.', 'warning');
+            onAuthExpired?.();
+            return true;
+        }
+
+        if (status === 403) {
+            Swal.fire('Permission denied', 'Only Super Admin accounts can manage users.', 'error');
+            return true;
+        }
+
+        Swal.fire('Error', fallbackMessage, 'error');
+        return true;
+    };
+
+    const handleSubmit = async (event) => {
+        event.preventDefault();
 
         if (modalMode === 'add') {
             if (!formData.username || !formData.password || !formData.name) {
@@ -108,14 +140,17 @@ const UserManagement = ({ currentAdmin }) => {
                 return;
             }
 
-            // check if username exists
-            const { data: existingUser } = await mysql
+            const { data: existingUsers, error: existingUserError, status: existingUserStatus } = await mysql
                 .from('admins')
                 .select('username')
                 .eq('username', formData.username)
-                .single();
+                .limit(1);
 
-            if (existingUser) {
+            if (await handleAdminApiError(existingUserError, existingUserStatus, 'ไม่สามารถตรวจสอบชื่อผู้ใช้งานซ้ำได้')) {
+                return;
+            }
+
+            if ((existingUsers || []).length > 0) {
                 Swal.fire('แจ้งเตือน', 'ชื่อผู้ใช้นี้มีอยู่ในระบบแล้ว', 'warning');
                 return;
             }
@@ -126,63 +161,72 @@ const UserManagement = ({ currentAdmin }) => {
                     username: formData.username,
                     password: formData.password,
                     name: formData.name,
-                    role: canManageRoles(currentAdmin) ? formData.role : 'it'
+                    role: canManageRoles(currentAdmin) ? formData.role : ROLES.IT_SUPPORT
                 }]);
 
             if (error) {
-                console.error("Error adding user:", error);
+                console.error('Error adding user:', error);
                 Swal.fire('Error', 'ไม่สามารถเพิ่มผู้ใช้งานได้', 'error');
-            } else {
-                Swal.fire({
-                    icon: 'success',
-                    title: 'เพิ่มผู้ใช้งานสำเร็จ',
-                    showConfirmButton: false,
-                    timer: 1500
-                });
-                fetchUsers();
-                handleCloseModal();
-            }
-        } else if (modalMode === 'edit') {
-            if (!formData.username || !formData.name) {
-                Swal.fire('แจ้งเตือน', 'กรุณากรอกข้อมูลให้ครบถ้วน', 'warning');
                 return;
             }
 
-            const updateData = {
-                username: formData.username,
-                name: formData.name
-            };
-
-            if (canManageRoles(currentAdmin)) {
-                updateData.role = formData.role;
-            }
-
-            // Only update password if a new one is provided
-            if (formData.password.trim() !== '') {
-                updateData.password = formData.password;
-            }
-
-            const { error } = await mysql
-                .from('admins')
-                .update(updateData)
-                .eq('id', formData.id);
-
-            if (error) {
-                console.error("Error updating user:", error);
-                Swal.fire('Error', 'ไม่สามารถแก้ไขผู้ใช้งานได้', 'error');
-            } else {
-                Swal.fire({
-                    icon: 'success',
-                    title: 'แก้ไขข้อมูลสำเร็จ',
-                    showConfirmButton: false,
-                    timer: 1500
-                });
-
-                // If editing self, might need to update local storage (handled in App if needed, but for now just refresh list)
-                fetchUsers();
-                handleCloseModal();
-            }
+            Swal.fire({
+                icon: 'success',
+                title: 'เพิ่มผู้ดูแลระบบสำเร็จ',
+                showConfirmButton: false,
+                timer: 1500
+            });
+            fetchUsers();
+            handleCloseModal();
+            return;
         }
+
+        if (!formData.username || !formData.name) {
+            Swal.fire('แจ้งเตือน', 'กรุณากรอกข้อมูลให้ครบถ้วน', 'warning');
+            return;
+        }
+
+        const updateData = {
+            username: formData.username,
+            name: formData.name
+        };
+
+        if (canManageRoles(currentAdmin)) {
+            updateData.role = formData.role;
+        }
+
+        if (formData.password.trim() !== '') {
+            updateData.password = formData.password;
+        }
+
+        const { error } = await mysql
+            .from('admins')
+            .update(updateData)
+            .eq('id', formData.id);
+
+        if (error) {
+            console.error('Error updating user:', error);
+            Swal.fire('Error', 'ไม่สามารถแก้ไขผู้ใช้งานได้', 'error');
+            return;
+        }
+
+        Swal.fire({
+            icon: 'success',
+            title: 'แก้ไขข้อมูลสำเร็จ',
+            showConfirmButton: false,
+            timer: 1500
+        });
+
+        if (formData.id === currentAdmin?.id) {
+            onCurrentAdminUpdated?.({
+                username: formData.username,
+                name: formData.name,
+                ...(updateData.role ? { role: updateData.role } : {})
+            });
+        }
+
+        fetchUsers();
+        handleCloseModal();
     };
 
     const handleDelete = (id, username, role) => {
@@ -196,13 +240,13 @@ const UserManagement = ({ currentAdmin }) => {
             return;
         }
 
-        if (normalizeRole(role) === 'superadmin' && !canDeleteUsers(currentAdmin)) {
-            Swal.fire('ส่วนสิทธิ์', 'คุณไม่มีสิทธิ์ลบบัญชีระดับ Super Admin', 'error');
+        if (normalizeRole(role) === ROLES.SUPERADMIN && !canDeleteUsers(currentAdmin)) {
+            Swal.fire('สิทธิ์ไม่เพียงพอ', 'คุณไม่มีสิทธิ์ลบบัญชีระดับ Super Admin', 'error');
             return;
         }
 
         Swal.fire({
-            title: `ยืนยันการลบผู้ใช้?`,
+            title: 'ยืนยันการลบผู้ใช้?',
             text: `คุณต้องการลบผู้ใช้ "${username}" ใช่หรือไม่?`,
             icon: 'warning',
             showCancelButton: true,
@@ -212,38 +256,41 @@ const UserManagement = ({ currentAdmin }) => {
             cancelButtonText: 'ยกเลิก',
             reverseButtons: true
         }).then(async (result) => {
-            if (result.isConfirmed) {
-                const { error } = await mysql
-                    .from('admins')
-                    .delete()
-                    .eq('id', id);
+            if (!result.isConfirmed) return;
 
-                if (error) {
-                    console.error("Error deleting user:", error);
-                    Swal.fire('Error', 'ไม่สามารถลบผู้ใช้งานได้', 'error');
-                } else {
-                    Swal.fire({
-                        title: 'ลบสำเร็จ!',
-                        text: 'ผู้ใช้งานถูกลบออกจากระบบแล้ว',
-                        icon: 'success',
-                        timer: 1500,
-                        showConfirmButton: false
-                    });
-                    fetchUsers();
-                }
+            const { error } = await mysql
+                .from('admins')
+                .delete()
+                .eq('id', id);
+
+            if (error) {
+                console.error('Error deleting user:', error);
+                Swal.fire('Error', 'ไม่สามารถลบผู้ใช้งานได้', 'error');
+                return;
             }
+
+            Swal.fire({
+                title: 'ลบสำเร็จ!',
+                text: 'ผู้ใช้งานถูกลบออกจากระบบแล้ว',
+                icon: 'success',
+                timer: 1500,
+                showConfirmButton: false
+            });
+            fetchUsers();
         });
     };
 
     const formatDate = (dateString) => {
         if (!dateString) return '-';
-        const options = { year: 'numeric', month: 'short', day: 'numeric' };
-        return new Date(dateString).toLocaleDateString('th-TH', options);
+        return new Date(dateString).toLocaleDateString('th-TH', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+        });
     };
 
     return (
         <div className="space-y-6 animate-fade-in relative z-10 w-full">
-            {/* Header Section */}
             <div className="glass-card p-6 rounded-3xl flex flex-col sm:flex-row justify-between items-center gap-4 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.2)]">
                 <div className="flex items-center gap-4">
                     <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center text-white shadow-lg shadow-indigo-200 dark:shadow-indigo-900/40">
@@ -251,7 +298,7 @@ const UserManagement = ({ currentAdmin }) => {
                     </div>
                     <div>
                         <h2 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-700 to-violet-700 dark:from-indigo-400 dark:to-violet-400">ระบบจัดการผู้ใช้งาน</h2>
-                        <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">จัดการบัญชีผู้ดูแลระบบ (Admin) และสิทธิ์การเข้าถึง</p>
+                        <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">จัดการบัญชีผู้ดูแลระบบและสิทธิ์การเข้าถึง</p>
                     </div>
                 </div>
                 <button
@@ -262,7 +309,6 @@ const UserManagement = ({ currentAdmin }) => {
                 </button>
             </div>
 
-            {/* Filter Section */}
             <div className="glass-card p-4 rounded-2xl flex flex-col sm:flex-row justify-between items-center gap-4">
                 <div className="w-full sm:w-1/2 md:w-1/3 relative">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -272,7 +318,7 @@ const UserManagement = ({ currentAdmin }) => {
                         type="text"
                         placeholder="ค้นหาชื่อ หรือ Username..."
                         value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
+                        onChange={(event) => setSearchTerm(event.target.value)}
                         className="!pl-10 w-full input-modern"
                     />
                 </div>
@@ -282,7 +328,6 @@ const UserManagement = ({ currentAdmin }) => {
                 </div>
             </div>
 
-            {/* Table Section */}
             <div className="glass-card rounded-3xl overflow-hidden shadow-xl shadow-slate-200/50 dark:shadow-slate-900/50">
                 <div className="overflow-x-auto">
                     <table className="min-w-full text-left border-collapse">
@@ -320,17 +365,17 @@ const UserManagement = ({ currentAdmin }) => {
                                             <div className="text-sm font-medium text-slate-700 dark:text-slate-300">{user.name}</div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
-                                            {normalizeRole(user.role) === 'superadmin' ? (
+                                            {normalizeRole(user.role) === ROLES.SUPERADMIN ? (
                                                 <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-800">
                                                     <Shield className="w-3 h-3 mr-1" /> Super Admin
                                                 </span>
-                                            ) : normalizeRole(user.role) === 'hr' ? (
+                                            ) : normalizeRole(user.role) === ROLES.HR ? (
                                                 <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
                                                     <User className="w-3 h-3 mr-1" /> HR
                                                 </span>
                                             ) : (
                                                 <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
-                                                    <User className="w-3 h-3 mr-1" /> IT
+                                                    <User className="w-3 h-3 mr-1" /> {ROLE_LABELS[normalizeRole(user.role)] || 'IT Support'}
                                                 </span>
                                             )}
                                         </td>
@@ -371,7 +416,6 @@ const UserManagement = ({ currentAdmin }) => {
                 </div>
             </div>
 
-            {/* Add/Edit Modal */}
             {isModalOpen && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
                     <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl w-full max-w-md overflow-hidden border border-white/20 dark:border-slate-700">
@@ -396,7 +440,7 @@ const UserManagement = ({ currentAdmin }) => {
                                         onChange={handleInputChange}
                                         className="w-full input-modern"
                                         placeholder="เช่น admin_smith"
-                                        disabled={modalMode === 'edit'} // Don't allow changing username on edit usually
+                                        disabled={modalMode === 'edit'}
                                     />
                                     {modalMode === 'edit' && <span className="absolute right-3 top-2.5 text-xs text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">แก้ไขไม่ได้</span>}
                                 </div>
@@ -422,26 +466,15 @@ const UserManagement = ({ currentAdmin }) => {
                                     value={formData.password}
                                     onChange={handleInputChange}
                                     className="w-full input-modern"
-                                    placeholder={modalMode === 'add' ? "กำหนดรหัสผ่าน" : "เว้นว่างไว้หากไม่ต้องการเปลี่ยน"}
+                                    placeholder={modalMode === 'add' ? 'กำหนดรหัสผ่าน' : 'เว้นว่างไว้หากไม่ต้องการเปลี่ยน'}
                                 />
                             </div>
 
                             <div className="space-y-2">
                                 <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 ml-1">ระดับสิทธิ์ (Role)</label>
-                                {false && <select
-                                    name="role"
-                                    value={formData.role}
-                                    onChange={handleInputChange}
-                                    className="w-full input-modern cursor-pointer"
-                                    disabled={!canManageRoles(currentAdmin)}
-                                >
-                                    {ROLE_OPTIONS.map((role) => (
-                                        <option key={role.value} value={role.value}>{role.label}</option>
-                                    ))}
-                                </select>}
                                 <Select
                                     value={formData.role}
-                                    onValueChange={(value) => setFormData(prev => ({ ...prev, role: value }))}
+                                    onValueChange={(value) => setFormData((previous) => ({ ...previous, role: value }))}
                                     disabled={!canManageRoles(currentAdmin)}
                                 >
                                     <SelectTrigger className="w-full input-modern cursor-pointer">

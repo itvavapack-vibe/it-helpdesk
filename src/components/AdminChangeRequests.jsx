@@ -4,8 +4,10 @@ import { Search, Filter, Code, CheckCircle, XCircle, Clock, Trash2, Edit } from 
 import Swal from 'sweetalert2';
 import SignatureCanvas from 'react-signature-canvas';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { toLocalDateInputValue, toMysqlDateTime } from '../utils/dateTime';
+import { CHANGE_QUEUE_STATUS_BY_ROLE, ROLES, normalizeRoleValue, visibleQueueStatuses } from '../config/roles';
 
-const AdminChangeRequests = () => {
+const AdminChangeRequests = ({ currentAdmin }) => {
     const [requests, setRequests] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -16,6 +18,7 @@ const AdminChangeRequests = () => {
     // For Preview / Form Actions
     const [selectedRequest, setSelectedRequest] = useState(null);
     const [isActionModalOpen, setIsActionModalOpen] = useState(false);
+    const [approvalSignRequest, setApprovalSignRequest] = useState(null);
     
     // For IT Action Form 
     const [actionType, setActionType] = useState('it_manager'); // 'it_manager' or 'it_staff'
@@ -33,6 +36,12 @@ const AdminChangeRequests = () => {
     });
     const staffSignatureRef = useRef(null);
     const itManagerSignatureRef = useRef(null);
+    const currentRole = normalizeRoleValue(currentAdmin?.role);
+    const visibleStatuses = visibleQueueStatuses(currentRole, CHANGE_QUEUE_STATUS_BY_ROLE);
+    const canActOnStatus = (status) => {
+        if (currentRole === ROLES.SUPERADMIN) return ['Pending_IT', 'Pending_IT_Supervisor', 'Pending_IT_Manager', 'In_Progress'].includes(status);
+        return (visibleStatuses || []).includes(status);
+    };
 
     useEffect(() => {
         fetchRequests();
@@ -99,13 +108,31 @@ const AdminChangeRequests = () => {
         // Simple flow: Pending_Manager -> Pending_IT -> In_Progress -> Pending_User_Acceptance -> Completed
         const req = requests.find(r => r.id === id);
         if (!req) return;
+        if (!canActOnStatus(currentStatus)) return;
 
         if (currentStatus === 'Pending_IT') {
-            // Setup IT Manager Approval
-            setActionType('it_manager');
-            setSelectedRequest(req);
-            setItForm(f => ({ ...f, receivedDate: new Date().toISOString().split('T')[0] }));
-            setIsActionModalOpen(true);
+            const { error } = await mysql
+                .from('change_requests')
+                .update({ status: 'Pending_IT_Supervisor' })
+                .eq('id', id);
+            if (error) {
+                console.error('Error updating status:', error);
+                Swal.fire('Error', 'ไม่สามารถอัปเดตสถานะได้', 'error');
+                return;
+            }
+            window.dispatchEvent(new Event('approval-queues:refresh'));
+            fetchRequests();
+            return;
+        }
+
+        if (currentStatus === 'Pending_IT_Supervisor') {
+            setApprovalSignRequest({ id, status: currentStatus });
+            setTimeout(() => itManagerSignatureRef.current?.clear(), 100);
+            return;
+        }
+
+        if (currentStatus === 'Pending_IT_Manager') {
+            setApprovalSignRequest({ id, status: currentStatus });
             setTimeout(() => itManagerSignatureRef.current?.clear(), 100);
             return;
         }
@@ -114,13 +141,13 @@ const AdminChangeRequests = () => {
             // Setup IT Staff Operation
             setActionType('it_staff');
             setSelectedRequest(req);
-            setItForm(f => ({ ...f, operationDate: new Date().toISOString().split('T')[0] }));
+            setItForm(f => ({ ...f, operationDate: toLocalDateInputValue() }));
             setIsActionModalOpen(true);
             setTimeout(() => staffSignatureRef.current?.clear(), 100);
             return;
         }
 
-        const statuses = ['Pending_Manager', 'Pending_IT', 'In_Progress', 'Pending_User_Acceptance', 'Completed', 'Rejected'];
+        const statuses = ['Pending_Manager', 'Pending_IT', 'Pending_IT_Supervisor', 'Pending_IT_Manager', 'In_Progress', 'Pending_User_Acceptance', 'Completed', 'Rejected'];
         let currentIndex = statuses.indexOf(currentStatus);
         if (currentIndex === -1) currentIndex = 0;
         const nextStatus = statuses[(currentIndex + 1) % statuses.length];
@@ -181,12 +208,49 @@ const AdminChangeRequests = () => {
             }
 
             setIsActionModalOpen(false);
+            window.dispatchEvent(new Event('approval-queues:refresh'));
             Swal.fire('สำเร็จ!', 'บันทึกการดำเนินการของ IT เรียบร้อย', 'success');
             fetchRequests();
             
         } catch (error) {
             console.error('Error IT action:', error);
             Swal.fire('Error', 'เกิดข้อผิดพลาดในการบันทึกข้อมูล', 'error');
+        }
+    };
+
+    const handleApprovalSign = async () => {
+        if (!approvalSignRequest || !itManagerSignatureRef.current || itManagerSignatureRef.current.isEmpty()) {
+            Swal.fire('ข้อมูลไม่ครบ', 'กรุณาลงลายเซ็นก่อนยืนยัน', 'warning');
+            return;
+        }
+
+        const signData = itManagerSignatureRef.current.getCanvas().toDataURL('image/png');
+        const isSupervisorStep = approvalSignRequest.status === 'Pending_IT_Supervisor';
+        const updateData = isSupervisorStep
+            ? {
+                status: 'Pending_IT_Manager',
+                it_supervisor_name: currentAdmin?.name || '',
+                it_supervisor_sign: signData,
+                it_supervisor_date: toMysqlDateTime(),
+            }
+            : {
+                status: 'In_Progress',
+                it_approval_status: 'Approved',
+                it_manager_name: currentAdmin?.name || '',
+                it_manager_sign: signData,
+                it_manager_date: toMysqlDateTime(),
+            };
+
+        try {
+            const { error } = await mysql.from('change_requests').update(updateData).eq('id', approvalSignRequest.id);
+            if (error) throw error;
+            setApprovalSignRequest(null);
+            window.dispatchEvent(new Event('approval-queues:refresh'));
+            fetchRequests();
+            Swal.fire('อัปเดตแล้ว', isSupervisorStep ? 'เซ็นและส่งต่อ IT Manager แล้ว' : 'เซ็นอนุมัติและส่งต่อดำเนินการแล้ว', 'success');
+        } catch (error) {
+            console.error('Error signing approval:', error);
+            Swal.fire('Error', 'ไม่สามารถบันทึกลายเซ็นได้', 'error');
         }
     };
 
@@ -204,6 +268,7 @@ const AdminChangeRequests = () => {
             try {
                 const { error } = await mysql.from('change_requests').delete().eq('id', id);
                 if (error) throw error;
+                window.dispatchEvent(new Event('approval-queues:refresh'));
                 fetchRequests();
                 Swal.fire('Deleted!', 'ลบคำร้องเรียบร้อยแล้ว', 'success');
             } catch (error) {
@@ -216,7 +281,9 @@ const AdminChangeRequests = () => {
     const getStatusBadge = (status) => {
         switch (status) {
             case 'Pending_Manager': return <span className="px-2.5 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs font-semibold flex items-center gap-1"><Clock className="w-3 h-3"/> รอดำเนินการ (หัวหน้างาน)</span>;
-            case 'Pending_IT': return <span className="px-2.5 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-semibold flex items-center gap-1"><Clock className="w-3 h-3"/> รออนุมัติ (IT Manager)</span>;
+            case 'Pending_IT': return <span className="px-2.5 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-semibold flex items-center gap-1"><Clock className="w-3 h-3"/> รอดำเนินการ (IT Software)</span>;
+            case 'Pending_IT_Supervisor': return <span className="px-2.5 py-1 bg-cyan-100 text-cyan-700 rounded-full text-xs font-semibold flex items-center gap-1"><Clock className="w-3 h-3"/> รอตรวจสอบ (IT Supervisor)</span>;
+            case 'Pending_IT_Manager': return <span className="px-2.5 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-semibold flex items-center gap-1"><Clock className="w-3 h-3"/> รออนุมัติ (IT Manager)</span>;
             case 'In_Progress': return <span className="px-2.5 py-1 bg-indigo-100 text-indigo-700 rounded-full text-xs font-semibold flex items-center gap-1"><Edit className="w-3 h-3"/> กำลังพัฒนาโปรแกรม</span>;
             case 'Pending_User_Acceptance': return <span className="px-2.5 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-semibold flex items-center gap-1"><Clock className="w-3 h-3"/> รอส่งมอบ (User ยอมรับ)</span>;
             case 'Completed': return <span className="px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-semibold flex items-center gap-1"><CheckCircle className="w-3 h-3"/> เสร็จสิ้น</span>;
@@ -234,6 +301,7 @@ const AdminChangeRequests = () => {
                               req.request_details?.toLowerCase().includes(searchTerm.toLowerCase());
                               
         const matchesStatus = statusFilter === 'All' || req.status === statusFilter;
+        const matchesRoleQueue = visibleStatuses === null || (visibleStatuses || []).includes(req.status);
         
         const reqDate = new Date(req.created_at);
         let matchesDate = true;
@@ -247,7 +315,7 @@ const AdminChangeRequests = () => {
             matchesDate = matchesDate && reqDate <= endDate;
         }
         
-        return matchesSearch && matchesStatus && matchesDate;
+        return matchesSearch && matchesRoleQueue && matchesStatus && matchesDate;
     });
 
     return (
@@ -284,7 +352,9 @@ const AdminChangeRequests = () => {
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="All">All</SelectItem>
-                                <SelectItem value="Pending_IT">Pending IT Manager</SelectItem>
+                                <SelectItem value="Pending_IT">Pending IT Software</SelectItem>
+                                <SelectItem value="Pending_IT_Supervisor">Pending IT Supervisor</SelectItem>
+                                <SelectItem value="Pending_IT_Manager">Pending IT Manager</SelectItem>
                                 <SelectItem value="In_Progress">In Progress</SelectItem>
                                 <SelectItem value="Pending_User_Acceptance">Pending User Acceptance</SelectItem>
                                 <SelectItem value="Completed">Completed</SelectItem>
@@ -364,7 +434,8 @@ const AdminChangeRequests = () => {
                                         <td className="p-4 align-top">
                                             <button 
                                                 onClick={() => handleStatusChange(req.id, req.status)}
-                                                className={`transition-all hover:scale-105 active:scale-95`}
+                                                disabled={!canActOnStatus(req.status)}
+                                                className={`transition-all ${canActOnStatus(req.status) ? 'hover:scale-105 active:scale-95 cursor-pointer' : 'cursor-default'}`}
                                             >
                                                 {getStatusBadge(req.status)}
                                             </button>
@@ -383,6 +454,31 @@ const AdminChangeRequests = () => {
             )}
 
             {/* Action form Modal Config */}
+            {approvalSignRequest && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl animate-fade-in border">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-xl font-bold flex items-center gap-2">
+                                <CheckCircle className="w-6 h-6 text-emerald-500" />
+                                {approvalSignRequest.status === 'Pending_IT_Supervisor' ? 'IT Supervisor ลงนาม' : 'IT Manager ลงนาม'}
+                            </h3>
+                            <button onClick={() => setApprovalSignRequest(null)} className="text-slate-400 hover:text-rose-500"><XCircle className="w-6 h-6" /></button>
+                        </div>
+                        <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 text-sm text-slate-600 mb-4">
+                            ผู้ลงนาม: <span className="font-semibold text-slate-800">{currentAdmin?.name || '-'}</span>
+                        </div>
+                        <div className="border shadow-inner bg-slate-50 h-36 relative rounded-xl overflow-hidden">
+                            <SignatureCanvas ref={itManagerSignatureRef} canvasProps={{ className: 'w-full h-full xl-signature' }} />
+                            <button className="absolute top-2 right-2 text-xs text-red-500 font-semibold" onClick={() => itManagerSignatureRef.current?.clear()}>ล้าง</button>
+                        </div>
+                        <div className="flex gap-3 mt-6">
+                            <button onClick={() => setApprovalSignRequest(null)} className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 font-bold rounded-xl text-slate-700">ยกเลิก</button>
+                            <button onClick={handleApprovalSign} className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-lg">ยืนยัน</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {isActionModalOpen && selectedRequest && (
                 <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                     <div className="bg-white rounded-3xl p-6 w-full max-w-lg shadow-2xl animate-fade-in border overflow-y-auto max-h-[90vh]">

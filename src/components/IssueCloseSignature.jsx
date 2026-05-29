@@ -4,6 +4,7 @@ import { CheckCircle2, ClipboardCheck, Eraser, FileSignature, Loader2, XCircle }
 import Swal from 'sweetalert2';
 import { mysql } from '../mysqlClient';
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Label, Textarea } from '@/components/ui';
+import { toMysqlDateTime } from '../utils/dateTime';
 
 const IssueCloseSignature = ({ issueId, onCloseIssue }) => {
     const signatureRef = useRef(null);
@@ -72,7 +73,7 @@ const IssueCloseSignature = ({ issueId, onCloseIssue }) => {
                 user_close_name: formData.name.trim(),
                 user_close_note: formData.note.trim(),
                 user_close_sign: signature,
-                user_closed_at: new Date().toISOString()
+                user_closed_at: toMysqlDateTime()
             }));
             Swal.fire('ปิดจบงานแล้ว', 'บันทึกลายเซ็นผู้ใช้งานเรียบร้อย', 'success');
         }

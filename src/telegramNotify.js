@@ -1,33 +1,19 @@
-const BOT_TOKEN = import.meta.env.VITE_TELEGRAM_BOT_TOKEN;
-const CHAT_ID = import.meta.env.VITE_TELEGRAM_CHAT_ID;
+import { API_URL } from './mysqlClient';
 
 const sendTelegramMessage = async (message) => {
-    if (!BOT_TOKEN || !CHAT_ID) {
-        console.error('[Telegram] ❌ BOT_TOKEN หรือ CHAT_ID ยังไม่ได้ตั้งค่า');
-        return;
-    }
-    if (BOT_TOKEN.includes('ใส่') || CHAT_ID.includes('ใส่')) {
-        console.error('[Telegram] ❌ BOT_TOKEN หรือ CHAT_ID ยังเป็นค่า placeholder');
-        return;
-    }
-
     try {
-        const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
-        const response = await fetch(url, {
+        const base = API_URL.endsWith('/') ? API_URL.slice(0, -1) : API_URL;
+        const response = await fetch(new URL(`${base}/api/telegram/notify`, window.location.origin).toString(), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                chat_id: CHAT_ID,
-                text: message,
-                parse_mode: 'HTML',
-            }),
+            body: JSON.stringify({ message }),
         });
-        const result = await response.json();
-        if (!result.ok) {
-            console.error('[Telegram] ❌ API error:', result);
+        const result = await response.json().catch(() => null);
+        if (!response.ok || result?.error) {
+            console.error('[Telegram] API error:', result);
         }
     } catch (error) {
-        console.error('[Telegram] ❌ ส่งข้อความไม่สำเร็จ:', error);
+        console.error('[Telegram] Send failed:', error);
     }
 };
 
@@ -80,9 +66,9 @@ export const notifyRepairUpdate = (issue, details) => {
 };
 
 export const notifyGlpiSync = (stats) => {
-    const hasChanges = stats.assetsAdded > 0 || stats.assetsUpdated > 0 || stats.assetsDeleted > 0 || 
+    const hasChanges = stats.assetsAdded > 0 || stats.assetsUpdated > 0 || stats.assetsDeleted > 0 ||
                        stats.usersAdded > 0 || stats.usersUpdated > 0 || stats.usersDeleted > 0;
-                       
+
     if (!hasChanges) return Promise.resolve(); // ไม่ต้องส่งถ้าไม่มีอะไรเปลี่ยน
 
     const message =
@@ -98,7 +84,7 @@ export const notifyGlpiSync = (stats) => {
         `   🗑️ ลบออก: ${stats.usersDeleted}\n` +
         `━━━━━━━━━━━━━━\n` +
         `💡 <i>อัปเดตข้อมูลล่าสุดเมื่อ: ${new Date().toLocaleTimeString('th-TH')}</i>`;
-        
+
     return sendTelegramMessage(message);
 };
 
@@ -107,7 +93,7 @@ export const notifyNewAccessRequest = (data) => {
         .filter(key => data.systems[key] && key !== 'other')
         .map(key => key.toUpperCase())
         .join(', ');
-        
+
     const otherSystem = data.systems.other ? `อื่นๆ (${data.otherSystemDetails})` : '';
     const allRequestedSystems = [requestedSystemsList, otherSystem].filter(Boolean).join(', ');
 

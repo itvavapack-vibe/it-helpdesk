@@ -9,7 +9,7 @@ function requireAdminsAccess(req) {
     error.status = 401
     throw error
   }
-  if (!['superadmin', 'it'].includes(admin.role)) {
+  if (!['superadmin', 'it_support'].includes(admin.role)) {
     const error = new Error('Permission denied')
     error.status = 403
     throw error

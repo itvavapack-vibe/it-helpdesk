@@ -13,9 +13,10 @@ import {
   updateTable,
   upsertTable,
 } from './lib/handlers.js'
-import { getAdminFromRequest, loginAdmin } from './lib/auth.js'
+import { getAdminFromRequest, getAdminProfile, loginAdmin, updateAdminProfile } from './lib/auth.js'
 import { proxyGlpiRequest } from './lib/glpi-proxy.js'
 import { getLanAddresses } from './lib/network.js'
+import { sendTelegramNotification } from './lib/telegram.js'
 
 dotenv.config()
 
@@ -48,21 +49,33 @@ const storage = multer.diskStorage({
   },
 })
 
-const upload = multer({ 
+const upload = multer({
   storage,
-  limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  fileFilter: (req, file, cb) => {
+    if (String(file.mimetype || '').startsWith('image/')) {
+      cb(null, true)
+      return
+    }
+    cb(new Error('Only image uploads are allowed'))
+  },
 })
 
-app.post('/api/upload', upload.array('files'), (req, res) => {
-  try {
-    const files = req.files.map(file => ({
+const uploadImages = upload.array('files')
+
+app.post('/api/upload', (req, res) => {
+  uploadImages(req, res, (error) => {
+    if (error) {
+      const status = error instanceof multer.MulterError ? 400 : 415
+      return res.status(status).json({ error: error.message })
+    }
+
+    const files = (req.files || []).map(file => ({
       name: file.originalname,
       url: `/uploads/${file.filename}`
     }))
-    res.json({ data: files })
-  } catch (error) {
-    res.status(500).json({ error: error.message })
-  }
+    return res.json({ data: files })
+  })
 })
 
 app.use('/glpi-proxy', (req, res) => proxyGlpiRequest(req, res))
@@ -83,6 +96,34 @@ app.post('/api/auth/login', async (req, res) => {
   }
 })
 
+app.put('/api/auth/profile', async (req, res) => {
+  try {
+    const admin = getAdminFromRequest(req)
+    if (!admin) return res.status(401).json({ error: 'Authentication required' })
+    return res.json({ data: await updateAdminProfile(admin.id, req.body || {}) })
+  } catch (error) {
+    return res.status(error.status || 500).json({ error: error.message })
+  }
+})
+
+app.get('/api/auth/profile', async (req, res) => {
+  try {
+    const admin = getAdminFromRequest(req)
+    if (!admin) return res.status(401).json({ error: 'Authentication required' })
+    return res.json({ data: await getAdminProfile(admin.id) })
+  } catch (error) {
+    return res.status(error.status || 500).json({ error: error.message })
+  }
+})
+
+app.post('/api/telegram/notify', async (req, res) => {
+  try {
+    return res.json({ data: await sendTelegramNotification(req.body || {}) })
+  } catch (error) {
+    return res.status(error.status || 500).json({ error: error.message })
+  }
+})
+
 function requireAdminsAccess(req, action) {
   const admin = getAdminFromRequest(req)
   if (!admin) {
@@ -95,7 +136,7 @@ function requireAdminsAccess(req, action) {
     error.status = 403
     throw error
   }
-  if (!['superadmin', 'it'].includes(admin.role)) {
+  if (!['superadmin', 'it_support'].includes(admin.role)) {
     const error = new Error('Permission denied')
     error.status = 403
     throw error

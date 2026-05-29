@@ -7,7 +7,6 @@ import {
     ClipboardList,
     ShieldCheck,
     ArrowRight,
-    Code
 } from 'lucide-react';
 import { Badge, Button, Card } from '@/components/ui';
 import { HOME_QUICK_ACTIONS, canSee } from '../config/navigation';
@@ -40,9 +39,7 @@ const HomePage = ({ onNavigateTo, currentRole = 'public' }) => {
     );
 
     const getButtonClassName = (id) => {
-        if (id === 'admin') {
-            return 'rounded-2xl';
-        }
+        if (id === 'admin') return 'rounded-2xl';
 
         const gradients = {
             repair: 'from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 shadow-lg shadow-indigo-300/50 dark:shadow-indigo-900/50',
@@ -56,12 +53,9 @@ const HomePage = ({ onNavigateTo, currentRole = 'public' }) => {
     return (
         <div className="space-y-12 animate-fade-in">
             <Card className="relative overflow-hidden rounded-3xl p-6 sm:p-8 md:p-12 lg:p-16">
-                <div className="absolute -top-10 -left-10 w-64 h-64 bg-indigo-400/20 dark:bg-indigo-600/20 rounded-full blur-3xl pointer-events-none" />
-                <div className="absolute -bottom-10 -right-10 w-64 h-64 bg-violet-400/20 dark:bg-violet-600/20 rounded-full blur-3xl pointer-events-none" />
-
                 <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
-                    {/* Left Content Column */}
                     <div className="lg:col-span-7 text-center lg:text-left space-y-6 flex flex-col items-center lg:items-start justify-center">
+                        <Badge variant="secondary" className="rounded-full px-4 py-1.5">IT Helpdesk</Badge>
                         <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-800 dark:text-white leading-tight">
                             ระบบแจ้งซ่อม<br />
                             <span className="bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">
@@ -69,7 +63,7 @@ const HomePage = ({ onNavigateTo, currentRole = 'public' }) => {
                             </span>
                         </h1>
                         <p className="text-base md:text-lg text-slate-500 dark:text-slate-400 max-w-xl mx-auto lg:mx-0 leading-relaxed">
-                            แจ้งปัญหาคอมพิวเตอร์และอุปกรณ์ IT ของคุณได้อย่างง่ายดาย ทีมงานของเราพร้อมช่วยเหลือคุณทุกวัน
+                            แจ้งปัญหาคอมพิวเตอร์และอุปกรณ์ IT ได้ง่าย ทีม IT พร้อมช่วยเหลือ ตรวจสอบ และอัปเดตสถานะงานให้ติดตามได้ในระบบเดียว
                         </p>
                         <div className="flex flex-col sm:flex-row flex-wrap justify-center lg:justify-start gap-3 pt-2 w-full sm:w-auto">
                             {visibleActions.map((action) => {
@@ -91,17 +85,12 @@ const HomePage = ({ onNavigateTo, currentRole = 'public' }) => {
                         </div>
                     </div>
 
-                    {/* Right Mascot Column */}
                     <div className="lg:col-span-5 flex justify-center items-center">
                         <div className="relative group w-full max-w-[280px] sm:max-w-[340px] lg:max-w-full">
-                            {/* Ambient colorful backdrop glow */}
-                            <div className="absolute inset-0 bg-gradient-to-tr from-indigo-500/30 to-violet-500/30 rounded-3xl filter blur-3xl group-hover:scale-110 transition-transform duration-500 pointer-events-none" />
-                            
-                            {/* Mascot Image with floating effect */}
                             <div className="relative z-10 bg-white/40 dark:bg-slate-800/40 backdrop-blur-md p-3 sm:p-4 rounded-3xl border border-white/60 dark:border-slate-700/60 shadow-2xl transition-all duration-500 group-hover:shadow-indigo-500/10 dark:group-hover:shadow-indigo-500/5 group-hover:-translate-y-2 animate-float">
                                 <img
                                     src="/it-helpdesk-hero.jpg"
-                                    alt="VAVA PACK IT Helpdesk Mascot"
+                                    alt="VAVA PACK IT Helpdesk"
                                     className="w-full h-auto object-contain rounded-2xl max-h-[300px] sm:max-h-[350px] lg:max-h-[380px]"
                                 />
                             </div>
@@ -113,13 +102,13 @@ const HomePage = ({ onNavigateTo, currentRole = 'public' }) => {
             <section>
                 <div className="text-center mb-8">
                     <h2 className="text-2xl font-extrabold text-slate-800 dark:text-white mb-2">บริการของเรา</h2>
-                    <p className="text-slate-500 dark:text-slate-400 text-sm">ครอบคลุมทุกปัญหา IT ที่คุณพบเจอ</p>
+                    <p className="text-slate-500 dark:text-slate-400 text-sm">ครอบคลุมปัญหา IT ที่พบได้ในการทำงานประจำวัน</p>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
                     <FeatureCard
                         icon={MonitorCheck}
                         title="ซ่อมคอมพิวเตอร์"
-                        desc="แก้ไขปัญหา Hardware และ Software พีซีและแล็ปท็อปทุกยี่ห้อ"
+                        desc="แก้ไขปัญหา Hardware และ Software สำหรับพีซีและแล็ปท็อป"
                         color="bg-gradient-to-br from-indigo-500 to-indigo-600"
                     />
                     <FeatureCard
@@ -131,25 +120,25 @@ const HomePage = ({ onNavigateTo, currentRole = 'public' }) => {
                     <FeatureCard
                         icon={HardDrive}
                         title="อุปกรณ์ต่อพ่วง"
-                        desc="ปริ้นเตอร์ สแกนเนอร์ กล้อง และอุปกรณ์สำนักงานทุกชนิด"
+                        desc="ดูแลปริ้นเตอร์ สแกนเนอร์ กล้อง และอุปกรณ์สำนักงานที่เกี่ยวข้อง"
                         color="bg-gradient-to-br from-violet-500 to-purple-600"
                     />
                     <FeatureCard
                         icon={ShieldCheck}
                         title="ความปลอดภัย"
-                        desc="ป้องกันไวรัส มัลแวร์ และตั้งค่าความปลอดภัยของข้อมูลองค์กร"
+                        desc="ช่วยตรวจสอบไวรัส มัลแวร์ และตั้งค่าความปลอดภัยของข้อมูล"
                         color="bg-gradient-to-br from-emerald-500 to-teal-600"
                     />
                     <FeatureCard
                         icon={LayoutDashboard}
-                        title="ซอฟต์แวร์ & ระบบ"
-                        desc="ติดตั้ง อัปเดต และแก้ไขปัญหาโปรแกรมและระบบปฏิบัติการ"
+                        title="ซอฟต์แวร์และระบบ"
+                        desc="ติดตั้ง อัปเดต และแก้ไขปัญหาโปรแกรมหรือระบบปฏิบัติการ"
                         color="bg-gradient-to-br from-amber-500 to-orange-600"
                     />
                     <FeatureCard
                         icon={ClipboardList}
                         title="ติดตามสถานะ"
-                        desc="ตรวจสอบความคืบหน้าการซ่อม พร้อมรับการอัปเดตแบบ Real-time"
+                        desc="ติดตามความคืบหน้าการซ่อมและรับอัปเดตเมื่อสถานะเปลี่ยน"
                         color="bg-gradient-to-br from-rose-500 to-pink-600"
                     />
                 </div>
@@ -158,25 +147,25 @@ const HomePage = ({ onNavigateTo, currentRole = 'public' }) => {
             <Card className="rounded-3xl p-8">
                 <div className="text-center mb-8">
                     <h2 className="text-2xl font-extrabold text-slate-800 dark:text-white mb-2">วิธีแจ้งซ่อม</h2>
-                    <p className="text-slate-500 dark:text-slate-400 text-sm">ง่าย ๆ แค่ 3 ขั้นตอน</p>
+                    <p className="text-slate-500 dark:text-slate-400 text-sm">ทำงานง่าย ๆ เพียง 3 ขั้นตอน</p>
                 </div>
                 <div className="max-w-lg mx-auto space-y-8">
                     <StepCard
                         num="1"
                         title="กรอกฟอร์มแจ้งปัญหา"
-                        desc="ระบุชื่อ แผนก หมวดหมู่ปัญหา และอธิบายอาการที่พบโดยละเอียด"
+                        desc="ระบุชื่อ แผนก หมวดหมู่ปัญหา และรายละเอียดอาการที่พบ"
                     />
                     <div className="w-px h-6 bg-gradient-to-b from-indigo-300 to-violet-300 ml-4.5 dark:from-indigo-700 dark:to-violet-700" />
                     <StepCard
                         num="2"
                         title="รอทีม IT รับงาน"
-                        desc="ระบบจะแจ้งไปยังทีม IT Support เพื่อตรวจสอบและรับงานซ่อมของคุณ"
+                        desc="ระบบจะส่งงานให้ทีม IT Support ตรวจสอบและรับงานซ่อมของคุณ"
                     />
                     <div className="w-px h-6 bg-gradient-to-b from-violet-300 to-emerald-300 ml-4.5 dark:from-violet-700 dark:to-emerald-700" />
                     <StepCard
                         num="3"
                         title="ติดตามและรับการแก้ไข"
-                        desc="ทีม IT จะดำเนินการแก้ไขพร้อมอัปเดตสถานะ และออกรายงานเมื่อเสร็จสิ้น"
+                        desc="ทีม IT จะดำเนินการแก้ไข พร้อมอัปเดตสถานะจนงานเสร็จสิ้น"
                     />
                 </div>
                 <div className="text-center mt-10">

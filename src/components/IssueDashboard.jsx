@@ -14,6 +14,12 @@ import { ISSUE_CATEGORIES } from '../config/issueOptions';
 const ITEMS_PER_PAGE = 10;
 const STATUS_FLOW = ['Pending', 'In Progress', 'External Repair', 'Waiting for Parts', 'Resolved', 'Cancelled'];
 
+const resolveAttachmentUrl = (url) => {
+    if (!url) return '';
+    if (/^(data:|blob:|https?:\/\/)/i.test(url)) return url;
+    return `${API_URL}${url}`;
+};
+
 const getStatusLabel = (status) => {
     switch (status) {
         case 'Pending': return 'รอดำเนินการ';
@@ -205,9 +211,12 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
         XLSX.writeFile(workbook, `IT_Helpdesk_Report_${new Date().toISOString().split('T')[0]}.xlsx`);
     };
 
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm, filterStatus, filterCategory, filterDateFrom, filterDateTo, filterAdmin]);
+
     // Derived filtered issues based on search and filters
     const filteredIssues = useMemo(() => {
-        setCurrentPage(1); // reset to page 1 when filter changes
         if (!issues) return [];
         return issues.filter(issue => {
             const matchSearch = issue.id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -1146,7 +1155,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                                 className="group relative aspect-video rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-all"
                                             >
                                                 <img 
-                                                    src={`${API_URL}${file.url}`} 
+                                                    src={resolveAttachmentUrl(file.url)}
                                                     alt={file.name} 
                                                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
                                                 />
@@ -1185,7 +1194,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                             <X className="w-8 h-8" />
                         </button>
                         <img 
-                            src={`${API_URL}${previewImage}`} 
+                            src={resolveAttachmentUrl(previewImage)}
                             alt="Preview" 
                             className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl"
                             onClick={(e) => e.stopPropagation()}

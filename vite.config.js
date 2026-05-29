@@ -6,8 +6,6 @@ import path from 'node:path'
 // https://vite.dev/config/
 export default ({ mode }) => {
   const env = loadEnv(mode, process.cwd())
-  const glpiUrl = (env.VITE_GLPI_URL || 'http://192.168.10.9/glpi').replace(/\/+$/, '')
-  const proxyTarget = glpiUrl.replace(/\/glpi$/, '')
   const apiTarget = (env.VITE_API_URL || `http://localhost:${env.API_PORT || '4000'}`).replace(/\/+$/, '')
 
   return defineConfig({
@@ -22,6 +20,45 @@ export default ({ mode }) => {
     },
     define: {
       'process.env': {}
+    },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (!id.includes('node_modules')) return undefined
+
+            if (/[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/.test(id)) {
+              return 'vendor-react'
+            }
+            if (/[\\/]node_modules[\\/](@radix-ui|cmdk)[\\/]/.test(id)) {
+              return 'vendor-ui'
+            }
+            if (/[\\/]node_modules[\\/](jspdf|jspdf-autotable)[\\/]/.test(id)) {
+              return 'vendor-jspdf'
+            }
+            if (/[\\/]node_modules[\\/](html2canvas|html2canvas-pro|dompurify)[\\/]/.test(id)) {
+              return 'vendor-html-render'
+            }
+            if (/[\\/]node_modules[\\/](xlsx|cfb|ssf|codepage)[\\/]/.test(id)) {
+              return 'vendor-xlsx'
+            }
+            if (/[\\/]node_modules[\\/](recharts|d3-|victory-vendor)[\\/]/.test(id)) {
+              return 'vendor-charts'
+            }
+            if (/[\\/]node_modules[\\/](lucide-react|react-draggable|react-signature-canvas|qrcode.react)[\\/]/.test(id)) {
+              return 'vendor-widgets'
+            }
+            if (/[\\/]node_modules[\\/](mysql2|express|multer|cors|dotenv|concurrently)[\\/]/.test(id)) {
+              return 'vendor-server'
+            }
+            if (/[\\/]node_modules[\\/](tailwind-merge|clsx|react-is)[\\/]/.test(id)) {
+              return 'vendor-utils'
+            }
+
+            return 'vendor'
+          },
+        },
+      },
     },
     server: {
       host: '0.0.0.0',
@@ -38,10 +75,8 @@ export default ({ mode }) => {
           changeOrigin: true,
         },
         '/glpi-proxy': {
-          target: proxyTarget,
+          target: apiTarget,
           changeOrigin: true,
-          secure: false,
-          rewrite: (path) => path.replace(/^\/glpi-proxy/, '/glpi'),
         },
       },
     },

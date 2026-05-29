@@ -6,6 +6,7 @@ import SignatureCanvas from 'react-signature-canvas';
 import Fmit15PdfPreview from './Fmit15PdfPreview';
 import { Combobox } from './ui/combobox';
 import { copyText } from '../utils/closeIssueLink';
+import { insertWithDailyTicket } from '../utils/ticketNumber';
 
 const DEPARTMENTS = [
     'แอดมิน', 'บุคคลและธุรการ', 'วิศวกรรม', 'การตลาดและขาย (ในประเทศ)',
@@ -82,40 +83,24 @@ const ChangeRequestForm = ({ onCancel }) => {
         setIsSubmitting(true);
 
         try {
-            // Generate Ticket Number (ITC ddmmyy/xxx)
-            const today = new Date();
-            const startOfDay = new Date(today.setHours(0,0,0,0)).toISOString();
-            const endOfDay = new Date(today.setHours(23,59,59,999)).toISOString();
-            
-            const { count } = await mysql
-                .from('change_requests')
-                .select('*', { count: 'exact', head: true })
-                .gte('created_at', startOfDay)
-                .lte('created_at', endOfDay);
-                
-            const currDate = new Date(); // Need fresh date obj after setHours mutation
-            const dd = String(currDate.getDate()).padStart(2, '0');
-            const mm = String(currDate.getMonth() + 1).padStart(2, '0');
-            const yy = String(currDate.getFullYear()).slice(-2);
-            const sequenceNum = String((count || 0) + 1).padStart(3, '0');
-            const generatedTicket = `ITC ${dd}${mm}${yy}/${sequenceNum}`;
-
-            // Save to Supabase
-            const { data: insertedData, error } = await mysql.from('change_requests').insert([{
-                ticket_number: generatedTicket,
-                req_type: formData.reqType,
-                req_type_other: formData.reqTypeOther,
-                employee_id: formData.employeeId,
-                department: formData.department,
-                details: formData.requestDetails,
-                reason: formData.reason,
-                requester_name: formData.requesterName,
-                requester_position: formData.requesterPosition,
-                requester_sign: currentSignature,
-                status: 'Pending_Manager'
-            }]).select();
-
-            if (error) throw error;
+            const { data: insertedData, generatedTicket } = await insertWithDailyTicket({
+                mysql,
+                table: 'change_requests',
+                prefix: 'ITC',
+                buildRow: (ticketNumber) => ({
+                    ticket_number: ticketNumber,
+                    req_type: formData.reqType,
+                    req_type_other: formData.reqTypeOther,
+                    employee_id: formData.employeeId,
+                    department: formData.department,
+                    details: formData.requestDetails,
+                    reason: formData.reason,
+                    requester_name: formData.requesterName,
+                    requester_position: formData.requesterPosition,
+                    requester_sign: currentSignature,
+                    status: 'Pending_Manager'
+                })
+            });
             
             const reqId = insertedData[0].id;
             const approvalLink = `${window.location.origin}/?approveChangeReq=${reqId}`;

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { mysql } from './mysqlClient';
+import { getAdminProfile, mysql, updateAdminProfile } from './mysqlClient';
 import IssueForm from './components/IssueForm';
 import IssueDashboard from './components/IssueDashboard';
 import AdminLogin from './components/AdminLogin';
@@ -14,28 +14,26 @@ import ManagerApproval from './components/ManagerApproval';
 import ITManagerApproval from './components/ITManagerApproval';
 import ChangeRequestForm from './components/ChangeRequestForm';
 import AdminChangeRequests from './components/AdminChangeRequests';
+import ApprovedDocuments from './components/ApprovedDocuments';
 import IssueCloseSignature from './components/IssueCloseSignature';
-import { Settings, LogOut } from 'lucide-react';
-import { ADMIN_SUB_TABS, MAIN_NAV_ITEMS, canSee, normalizeRole, NAV_ROLES } from './config/navigation';
+import ChangeManagerApproval from './components/ChangeManagerApproval';
+import { ChevronDown, LogOut, Settings, UserCog } from 'lucide-react';
+import { ADMIN_SUB_TABS, MAIN_NAV_ITEMS, canSee, normalizeRole } from './config/navigation';
+import { ACCESS_QUEUE_STATUS_BY_ROLE, CHANGE_QUEUE_STATUS_BY_ROLE, ROLE_LABELS, countVisibleQueue } from './config/roles';
 import Swal from 'sweetalert2';
 import { notifyNewIssue, notifyStatusChange, notifyRepairUpdate } from './telegramNotify';
 import { buildCloseIssueLink, showCloseIssueLinkDialog } from './utils/closeIssueLink';
+import { toMysqlDateTime } from './utils/dateTime';
 
 const ACTIVE_TAB_STORAGE_KEY = 'it-helpdesk-active-tab';
 const ADMIN_SUB_TAB_STORAGE_KEY = 'it-helpdesk-admin-sub-tab';
-const TRANSIENT_TABS = new Set(['manager_approval', 'it_manager_approval', 'issue_close']);
-const ROLE_LABELS = {
-    superadmin: 'Super Admin',
-    it: 'IT',
-    hr: 'HR',
-    admin: 'IT'
-};
-
+const TRANSIENT_TABS = new Set(['manager_approval', 'change_manager_approval', 'it_manager_approval', 'issue_close']);
 function App() {
     const [activeTab, setActiveTab] = useState(() => {
         // หากเปิดจาก QR Code (มี assetId) หรือลิงก์ขอสิทธิ์
         const params = new URLSearchParams(window.location.search);
         if (params.has('approveRequest')) return 'manager_approval';
+        if (params.has('approveChangeReq')) return 'change_manager_approval';
         if (params.has('itApproveRequest')) return 'it_manager_approval';
         if (params.has('closeIssue')) return 'issue_close';
         if (params.has('assetId')) return 'user';
@@ -55,6 +53,10 @@ function App() {
         const params = new URLSearchParams(window.location.search);
         return params.get('approveRequest');
     });
+    const [approveChangeRequestId] = useState(() => {
+        const params = new URLSearchParams(window.location.search);
+        return params.get('approveChangeReq');
+    });
     const [itApproveRequestId] = useState(() => {
         const params = new URLSearchParams(window.location.search);
         return params.get('itApproveRequest');
@@ -67,6 +69,11 @@ function App() {
     const [issues, setIssues] = useState([]);
     const [isIssuesLoading, setIsIssuesLoading] = useState(true);
     const [isAdminAuth, setIsAdminAuth] = useState(null);
+    const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+    const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+    const [isSavingProfile, setIsSavingProfile] = useState(false);
+    const [profileForm, setProfileForm] = useState({ username: '', name: '', password: '' });
+    const [approvalQueues, setApprovalQueues] = useState({ access: [], change: [] });
     const currentRole = normalizeRole(isAdminAuth);
     const visibleMainNavItems = MAIN_NAV_ITEMS.filter((item) => canSee(item.roles, currentRole));
     const visibleAdminSubTabs = ADMIN_SUB_TABS.filter((item) => canSee(item.roles, currentRole));
@@ -101,6 +108,51 @@ function App() {
         const canSeeAdminSubTab = visibleAdminSubTabs.some((item) => item.id === adminSubTab);
         if (!canSeeAdminSubTab) setAdminSubTab(visibleAdminSubTabs[0].id);
     }, [adminSubTab, visibleAdminSubTabs]);
+
+    useEffect(() => {
+        if (!isAdminAuth) {
+            setApprovalQueues({ access: [], change: [] });
+            setIsProfileMenuOpen(false);
+            setIsProfileModalOpen(false);
+            return;
+        }
+
+        const fetchApprovalQueues = async () => {
+            const [accessResult, changeResult] = await Promise.all([
+                mysql.from('access_requests').select('id, status'),
+                mysql.from('change_requests').select('id, status')
+            ]);
+            setApprovalQueues({
+                access: accessResult.error ? [] : accessResult.data || [],
+                change: changeResult.error ? [] : changeResult.data || []
+            });
+        };
+
+        fetchApprovalQueues();
+        const intervalId = setInterval(fetchApprovalQueues, 10000);
+        window.addEventListener('approval-queues:refresh', fetchApprovalQueues);
+        return () => {
+            clearInterval(intervalId);
+            window.removeEventListener('approval-queues:refresh', fetchApprovalQueues);
+        };
+    }, [isAdminAuth]);
+
+    useEffect(() => {
+        if (!isAdminAuth?.id) return;
+
+        let cancelled = false;
+        const refreshCurrentAdmin = async () => {
+            const { data, error } = await getAdminProfile();
+            if (!cancelled && !error && data) {
+                handleCurrentAdminUpdated(data);
+            }
+        };
+
+        refreshCurrentAdmin();
+        return () => {
+            cancelled = true;
+        };
+    }, [isAdminAuth?.id]);
 
     // Check auth state from localStorage initially
     useEffect(() => {
@@ -258,13 +310,6 @@ function App() {
         return `${datePrefix}${seqStr}`;
     };
 
-    const toMysqlDateTime = (value = new Date()) => {
-        const date = value instanceof Date ? value : new Date(value);
-        if (Number.isNaN(date.getTime())) return null;
-        const pad = (num) => String(num).padStart(2, '0');
-        return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
-    };
-
     const addIssue = async (newIssue) => {
         const issueId = generateDocId();
         const issueWithId = {
@@ -413,7 +458,7 @@ function App() {
             user_close_name: closeData.name,
             user_close_note: closeData.note || '',
             user_close_sign: closeData.signature,
-            user_closed_at: new Date().toISOString().slice(0, 19).replace('T', ' ')
+            user_closed_at: toMysqlDateTime()
         };
 
         const { error } = await mysql
@@ -461,8 +506,67 @@ function App() {
 
     const handleAdminLogout = () => {
         setIsAdminAuth(null);
+        setIsProfileMenuOpen(false);
+        setIsProfileModalOpen(false);
         localStorage.setItem('it-helpdesk-admin-auth', JSON.stringify(null));
         setActiveTab('admin');
+    };
+
+    const handleProfileSettings = () => {
+        setIsProfileMenuOpen(false);
+        setProfileForm({
+            username: isAdminAuth?.username || '',
+            name: isAdminAuth?.name || '',
+            password: ''
+        });
+        setIsProfileModalOpen(true);
+    };
+
+    const handleProfileFormChange = (event) => {
+        const { name, value } = event.target;
+        setProfileForm((previous) => ({ ...previous, [name]: value }));
+    };
+
+    const handleProfileSubmit = async (event) => {
+        event.preventDefault();
+
+        if (!profileForm.username.trim() || !profileForm.name.trim()) {
+            Swal.fire('ข้อมูลไม่ครบ', 'กรุณากรอกชื่อผู้ใช้และชื่อที่แสดง', 'warning');
+            return;
+        }
+
+        setIsSavingProfile(true);
+        const { data, error, status } = await updateAdminProfile({
+            username: profileForm.username,
+            name: profileForm.name,
+            password: profileForm.password
+        });
+        setIsSavingProfile(false);
+
+        if (error) {
+            const message = status === 409 ? 'ชื่อผู้ใช้นี้มีอยู่ในระบบแล้ว' : 'ไม่สามารถบันทึกโปรไฟล์ได้';
+            Swal.fire('Error', message, 'error');
+            return;
+        }
+
+        handleCurrentAdminUpdated(data);
+        setProfileForm((previous) => ({ ...previous, password: '' }));
+        setIsProfileModalOpen(false);
+        Swal.fire({
+            icon: 'success',
+            title: 'บันทึกโปรไฟล์แล้ว',
+            showConfirmButton: false,
+            timer: 1500
+        });
+    };
+
+    const handleCurrentAdminUpdated = (updates) => {
+        setIsAdminAuth((previousAuth) => {
+            if (!previousAuth) return previousAuth;
+            const nextAuth = { ...previousAuth, ...updates };
+            localStorage.setItem('it-helpdesk-admin-auth', JSON.stringify(nextAuth));
+            return nextAuth;
+        });
     };
 
     const renderContent = () => {
@@ -490,6 +594,10 @@ function App() {
             return <ManagerApproval requestId={approveRequestId} />;
         }
 
+        if (activeTab === 'change_manager_approval') {
+            return <ChangeManagerApproval requestId={approveChangeRequestId} />;
+        }
+
         if (activeTab === 'it_manager_approval') {
             return <ITManagerApproval requestId={itApproveRequestId} />;
         }
@@ -498,21 +606,26 @@ function App() {
             if (isAdminAuth) {
                 return (
                     <div className="space-y-6">
-                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+                        <div className="hidden sm:flex sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
                             <div className="flex items-center gap-2">
                                 <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-bold">
                                     {isAdminAuth.name.charAt(0)}
                                 </div>
                                 <div>
                                     <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{isAdminAuth.name}</p>
-                                    <p className="text-xs text-slate-500 dark:text-slate-400">{ROLE_LABELS[isAdminAuth.role] || 'IT'}</p>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">{ROLE_LABELS[currentRole] || ROLE_LABELS[isAdminAuth.role] || 'IT Support'}</p>
                                 </div>
                             </div>
 
                             <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-                                <div className="grid grid-cols-3 sm:flex flex-wrap bg-slate-100/80 dark:bg-slate-800/80 p-1 rounded-xl w-full sm:w-auto gap-1">
+                                <div className="flex flex-wrap bg-slate-100/80 dark:bg-slate-800/80 p-1 rounded-xl w-auto gap-1">
                                     {visibleAdminSubTabs.map((item) => {
                                         const Icon = item.icon;
+                                        const pendingCount = item.id === 'access_requests'
+                                            ? countVisibleQueue(approvalQueues.access, currentRole, ACCESS_QUEUE_STATUS_BY_ROLE)
+                                            : item.id === 'change_requests'
+                                                ? countVisibleQueue(approvalQueues.change, currentRole, CHANGE_QUEUE_STATUS_BY_ROLE)
+                                                : 0;
                                         return (
                                             <button
                                                 key={item.id}
@@ -522,7 +635,15 @@ function App() {
                                                 }}
                                                 className={`px-1 sm:px-4 py-2 sm:py-1.5 rounded-lg font-medium transition-all flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 ${selectedAdminSubTab === item.id ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-md sm:shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
                                             >
-                                                <Icon className="w-[18px] h-[18px] sm:w-4 sm:h-4" /> <span className="text-[11px] sm:text-sm whitespace-nowrap">{item.label}</span>
+                                                <span className="relative">
+                                                    <Icon className="w-[18px] h-[18px] sm:w-4 sm:h-4" />
+                                                    {pendingCount > 0 && (
+                                                        <span className="absolute -right-2 -top-2 min-w-4 h-4 px-1 rounded-full bg-red-500 text-white text-[10px] leading-4 text-center shadow">
+                                                            {pendingCount > 99 ? '99+' : pendingCount}
+                                                        </span>
+                                                    )}
+                                                </span>
+                                                <span className="text-[11px] sm:text-sm whitespace-nowrap">{item.label}</span>
                                             </button>
                                         );
                                     })}
@@ -543,15 +664,21 @@ function App() {
                         ) : selectedAdminSubTab === 'assets' ? (
                             <AssetInventory issues={issues} />
                         ) : selectedAdminSubTab === 'access_requests' ? (
-                            <AdminAccessRequests />
+                            <AdminAccessRequests currentAdmin={isAdminAuth} />
                         ) : selectedAdminSubTab === 'change_requests' ? (
-                            <AdminChangeRequests />
+                            <AdminChangeRequests currentAdmin={isAdminAuth} />
+                        ) : selectedAdminSubTab === 'approved_documents' ? (
+                            <ApprovedDocuments />
                         ) : selectedAdminSubTab === 'stats' ? (
                             <IssueStatistics issues={issues} />
                         ) : selectedAdminSubTab === 'employees' ? (
                             <EmployeeManagement />
                         ) : selectedAdminSubTab === 'users' ? (
-                            <UserManagement currentAdmin={isAdminAuth} />
+                            <UserManagement
+                                currentAdmin={isAdminAuth}
+                                onAuthExpired={handleAdminLogout}
+                                onCurrentAdminUpdated={handleCurrentAdminUpdated}
+                            />
                         ) : (
                             <EmployeeManagement />
                         )}
@@ -571,7 +698,7 @@ function App() {
     return (
         <div className="min-h-screen font-sans text-slate-800 dark:text-slate-200 flex flex-col relative w-full overflow-hidden">
             <header className="fixed w-full z-50 top-0 transition-all duration-300 glass-panel border-b border-white/40 dark:border-slate-700/50">
-                <div className="container mx-auto px-4 md:px-8 py-3 flex flex-col sm:flex-row justify-between items-center gap-4 max-w-[95%] 2xl:max-w-[1500px]">
+                <div className="container mx-auto px-4 md:px-8 py-3 flex flex-row justify-between items-center gap-3 max-w-[95%] 2xl:max-w-[1500px]">
                     <div className="flex items-center gap-3">
                         <div className="bg-indigo-600 dark:bg-indigo-500 text-white p-2 rounded-xl shadow-lg shadow-indigo-200 dark:shadow-indigo-900/30">
                             <Settings className="w-6 h-6" />
@@ -583,12 +710,71 @@ function App() {
                     </div>
 
                     {isAdminAuth ? (
-                        <button
-                            onClick={handleAdminLogout}
-                            className="flex px-4 py-2 rounded-xl transition-all duration-300 font-medium items-center gap-2 bg-red-600 text-white shadow-md shadow-red-200 hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-400 dark:shadow-red-900/40"
-                        >
-                            <LogOut className="w-4 h-4" /> ออกจากระบบ
-                        </button>
+                        <div className="relative">
+                            <button
+                                onClick={() => setIsProfileMenuOpen((open) => !open)}
+                                className="group flex items-center gap-0 sm:gap-3 rounded-full sm:rounded-2xl bg-transparent p-1 sm:px-2 sm:py-1.5 hover:bg-white/55 dark:hover:bg-slate-800/55 transition-colors"
+                                aria-haspopup="menu"
+                                aria-expanded={isProfileMenuOpen}
+                                title="เมนูโปรไฟล์"
+                            >
+                                <span className="w-9 h-9 sm:w-10 sm:h-10 rounded-full overflow-hidden bg-gradient-to-br from-indigo-100 to-sky-100 dark:from-indigo-900/70 dark:to-sky-900/50 text-indigo-700 dark:text-indigo-200 flex items-center justify-center font-bold ring-1 ring-white/80 dark:ring-slate-700/70 group-hover:ring-indigo-200 dark:group-hover:ring-indigo-800 transition-shadow">
+                                    {isAdminAuth.profile_image_url || isAdminAuth.avatar_url ? (
+                                        <img
+                                            src={isAdminAuth.profile_image_url || isAdminAuth.avatar_url}
+                                            alt={isAdminAuth.name || 'Profile'}
+                                            className="w-full h-full object-cover"
+                                        />
+                                    ) : (
+                                        (isAdminAuth.name || isAdminAuth.username || 'U').charAt(0).toUpperCase()
+                                    )}
+                                </span>
+                                <span className="hidden md:flex min-w-0 flex-col items-start">
+                                    <span className="max-w-40 truncate text-sm font-semibold text-slate-800 dark:text-slate-100 leading-5">{isAdminAuth.name}</span>
+                                    <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 leading-4">{ROLE_LABELS[currentRole] || ROLE_LABELS[isAdminAuth.role] || 'IT Support'}</span>
+                                </span>
+                                <ChevronDown className={`hidden sm:block w-4 h-4 text-slate-400 group-hover:text-indigo-500 transition-transform ${isProfileMenuOpen ? 'rotate-180' : ''}`} />
+                            </button>
+
+                            {isProfileMenuOpen && (
+                                <div className="absolute right-0 mt-3 w-[calc(100vw-2rem)] max-w-72 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl shadow-slate-200/70 dark:shadow-slate-950/50 overflow-hidden z-[60]">
+                                    <div className="px-4 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/50 flex items-center gap-3">
+                                        <span className="w-11 h-11 rounded-full overflow-hidden bg-gradient-to-br from-indigo-100 to-sky-100 dark:from-indigo-900/70 dark:to-sky-900/50 text-indigo-700 dark:text-indigo-200 flex items-center justify-center font-bold border border-white dark:border-slate-700">
+                                            {isAdminAuth.profile_image_url || isAdminAuth.avatar_url ? (
+                                                <img
+                                                    src={isAdminAuth.profile_image_url || isAdminAuth.avatar_url}
+                                                    alt={isAdminAuth.name || 'Profile'}
+                                                    className="w-full h-full object-cover"
+                                                />
+                                            ) : (
+                                                (isAdminAuth.name || isAdminAuth.username || 'U').charAt(0).toUpperCase()
+                                            )}
+                                        </span>
+                                        <div className="min-w-0">
+                                            <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">{isAdminAuth.name}</p>
+                                            <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{isAdminAuth.username}</p>
+                                            <p className="mt-1 inline-flex rounded-full bg-indigo-50 dark:bg-indigo-950/50 px-2 py-0.5 text-[11px] font-semibold text-indigo-600 dark:text-indigo-300">
+                                                {ROLE_LABELS[currentRole] || ROLE_LABELS[isAdminAuth.role] || 'IT Support'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="p-1.5">
+                                    <button
+                                        onClick={handleProfileSettings}
+                                        className="w-full px-3 py-2.5 rounded-xl text-left text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2 transition-colors"
+                                    >
+                                        <UserCog className="w-4 h-4" /> ตั้งค่าโปรไฟล์
+                                    </button>
+                                    <button
+                                        onClick={handleAdminLogout}
+                                        className="w-full px-3 py-2.5 rounded-xl text-left text-sm font-medium text-rose-600 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/30 flex items-center gap-2 transition-colors"
+                                    >
+                                        <LogOut className="w-4 h-4" /> ออกจากระบบ
+                                    </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     ) : (
                         <nav className="hidden sm:flex bg-slate-100/80 dark:bg-slate-800/80 backdrop-blur-md p-1.5 rounded-2xl border border-white dark:border-slate-700 shadow-inner">
                             {visibleMainNavItems.map((item) => {
@@ -609,11 +795,114 @@ function App() {
                 </div>
             </header>
 
-            <main className="flex-grow container mx-auto p-4 md:p-8 mt-24 relative z-10 w-full max-w-[95%] 2xl:max-w-[1500px] mb-20 sm:mb-0">
+            <main className="flex-grow container mx-auto p-4 md:p-8 mt-24 relative z-10 w-full max-w-[95%] 2xl:max-w-[1500px] mb-24 sm:mb-0">
                 <div className="animate-fade-in">
                     {renderContent()}
                 </div>
             </main>
+
+            {isProfileModalOpen && (
+                <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-950/50 backdrop-blur-sm">
+                    <div className="w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden">
+                        <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                            <div>
+                                <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">ตั้งค่าโปรไฟล์</h2>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">แก้ไขข้อมูลบัญชีของคุณ</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setIsProfileModalOpen(false)}
+                                className="w-9 h-9 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:text-slate-200 dark:hover:bg-slate-800"
+                                aria-label="ปิด"
+                            >
+                                ×
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleProfileSubmit} className="p-6 space-y-4">
+                            <div className="flex items-center gap-3">
+                                <div className="w-14 h-14 rounded-full overflow-hidden bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-200 flex items-center justify-center text-xl font-bold border border-indigo-200 dark:border-indigo-800">
+                                    {isAdminAuth?.profile_image_url || isAdminAuth?.avatar_url ? (
+                                        <img
+                                            src={isAdminAuth.profile_image_url || isAdminAuth.avatar_url}
+                                            alt={isAdminAuth.name || 'Profile'}
+                                            className="w-full h-full object-cover"
+                                        />
+                                    ) : (
+                                        (profileForm.name || profileForm.username || 'U').charAt(0).toUpperCase()
+                                    )}
+                                </div>
+                                <div>
+                                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{profileForm.name || '-'}</p>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">รองรับรูปโปรไฟล์ในอนาคต</p>
+                                </div>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300">ชื่อผู้ใช้</label>
+                                <input
+                                    type="text"
+                                    name="username"
+                                    value={profileForm.username}
+                                    onChange={handleProfileFormChange}
+                                    className="w-full input-modern"
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300">ชื่อที่แสดง</label>
+                                <input
+                                    type="text"
+                                    name="name"
+                                    value={profileForm.name}
+                                    onChange={handleProfileFormChange}
+                                    className="w-full input-modern"
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300">สิทธิ์การใช้งาน</label>
+                                <input
+                                    type="text"
+                                    value={ROLE_LABELS[currentRole] || ROLE_LABELS[isAdminAuth?.role] || 'IT Support'}
+                                    className="w-full input-modern opacity-80 cursor-not-allowed"
+                                    disabled
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300">รหัสผ่านใหม่</label>
+                                <input
+                                    type="password"
+                                    name="password"
+                                    value={profileForm.password}
+                                    onChange={handleProfileFormChange}
+                                    className="w-full input-modern"
+                                    placeholder="เว้นว่างไว้หากไม่ต้องการเปลี่ยน"
+                                />
+                            </div>
+
+                            <div className="pt-4 flex gap-3 border-t border-slate-100 dark:border-slate-800">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsProfileModalOpen(false)}
+                                    className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 dark:text-slate-300 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors"
+                                    disabled={isSavingProfile}
+                                >
+                                    ยกเลิก
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 shadow-md shadow-indigo-200 disabled:opacity-60 disabled:cursor-not-allowed"
+                                    disabled={isSavingProfile}
+                                >
+                                    {isSavingProfile ? 'กำลังบันทึก...' : 'บันทึก'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
 
             <footer className="py-6 mt-auto relative z-10 hidden sm:block">
                 <div className="container mx-auto px-4 text-center text-slate-500/70 dark:text-slate-400/70 text-sm font-medium">
@@ -640,6 +929,43 @@ function App() {
                     })}
                 </div>
             </nav>}
+
+            {isAdminAuth && visibleAdminSubTabs.length > 0 && (
+                <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-lg border-t border-slate-200 dark:border-slate-800 pt-2 px-2 pb-3">
+                    <div className="flex items-center gap-1 overflow-x-auto">
+                        {visibleAdminSubTabs.map((item) => {
+                            const Icon = item.icon;
+                            const pendingCount = item.id === 'access_requests'
+                                ? countVisibleQueue(approvalQueues.access, currentRole, ACCESS_QUEUE_STATUS_BY_ROLE)
+                                : item.id === 'change_requests'
+                                    ? countVisibleQueue(approvalQueues.change, currentRole, CHANGE_QUEUE_STATUS_BY_ROLE)
+                                    : 0;
+                            const isSelected = selectedAdminSubTab === item.id;
+
+                            return (
+                                <button
+                                    key={item.id}
+                                    onClick={() => {
+                                        if (item.id === 'issues') fetchIssues();
+                                        setAdminSubTab(item.id);
+                                    }}
+                                    className={`relative min-w-[74px] h-14 rounded-2xl flex flex-col items-center justify-center gap-1 transition-colors ${isSelected ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200 dark:bg-indigo-500 dark:shadow-indigo-950/40' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+                                >
+                                    <span className="relative">
+                                        <Icon className="w-5 h-5" strokeWidth={isSelected ? 2.5 : 2} />
+                                        {pendingCount > 0 && (
+                                            <span className="absolute -right-2.5 -top-2.5 min-w-4 h-4 px-1 rounded-full bg-red-500 text-white text-[10px] leading-4 text-center shadow">
+                                                {pendingCount > 99 ? '99+' : pendingCount}
+                                            </span>
+                                        )}
+                                    </span>
+                                    <span className="max-w-[66px] truncate text-[10px] font-semibold leading-none">{item.label}</span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </nav>
+            )}
         </div>
     )
 }

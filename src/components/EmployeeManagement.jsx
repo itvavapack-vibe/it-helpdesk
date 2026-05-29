@@ -15,6 +15,7 @@ import {
 import Swal from 'sweetalert2';
 import SignatureCanvas from 'react-signature-canvas';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { toLocalDateInputValue, toMysqlDateTime } from '../utils/dateTime';
 
 const DEPARTMENTS = [
     'แอดมิน',
@@ -87,22 +88,10 @@ const emptyForm = {
 const getStatusMeta = (status) =>
     STATUS_OPTIONS.find((option) => option.value === status) || STATUS_OPTIONS[0];
 
-const toMysqlDateTime = (value = new Date()) => {
-    const date = value instanceof Date ? value : new Date(value);
-    if (Number.isNaN(date.getTime())) return null;
-    const pad = (num) => String(num).padStart(2, '0');
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
-};
-
 const toDateInputValue = (value) => {
     if (!value) return '';
     if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
-
-    const date = value instanceof Date ? value : new Date(value);
-    if (Number.isNaN(date.getTime())) return '';
-
-    const pad = (num) => String(num).padStart(2, '0');
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+    return toLocalDateInputValue(value);
 };
 
 const EmployeeManagement = () => {
@@ -110,7 +99,7 @@ const EmployeeManagement = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('All');
-    const [monthFilter, setMonthFilter] = useState(() => new Date().toISOString().slice(0, 7));
+    const [monthFilter, setMonthFilter] = useState(() => toLocalDateInputValue().slice(0, 7));
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalMode, setModalMode] = useState('add');
     const [formData, setFormData] = useState(emptyForm);

@@ -3,6 +3,7 @@ import { mysql } from '../mysqlClient';
 import { Key, CheckCircle, Clock } from 'lucide-react';
 import Swal from 'sweetalert2';
 import SignatureCanvas from 'react-signature-canvas';
+import { toMysqlDateTime } from '../utils/dateTime';
 
 const ITManagerApproval = ({ requestId, onBack }) => {
     const [request, setRequest] = useState(null);
@@ -56,7 +57,7 @@ const ITManagerApproval = ({ requestId, onBack }) => {
                 .update({
                     status: 'Completed',
                     it_manager_sign: signData,
-                    it_manager_date: new Date().toISOString().slice(0, 19).replace('T', ' ')
+                    it_manager_date: toMysqlDateTime()
                 })
                 .eq('id', requestId);
 
