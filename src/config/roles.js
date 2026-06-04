@@ -70,6 +70,8 @@ export const isItRole = (role) => [
 
 export const canManageAdminUsers = (role) => normalizeRoleValue(role) === ROLES.SUPERADMIN;
 
+export const canManageAllWork = (role) => normalizeRoleValue(role) === ROLES.SUPERADMIN;
+
 export const canDeleteRecords = (role) => {
     const rawRole = String(role || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
     return rawRole === 'admin' || normalizeRoleValue(role) === ROLES.SUPERADMIN;
@@ -87,6 +89,7 @@ export const CHANGE_QUEUE_STATUS_BY_ROLE = {
 };
 
 export const APPROVAL_QUEUE_STATUS_BY_ROLE = {
+    [ROLES.SUPERADMIN]: ['Pending_IT_Supervisor', 'Pending_IT_Manager'],
     [ROLES.IT_SUPERVISOR]: ['Pending_IT_Supervisor'],
     [ROLES.IT_MANAGER]: ['Pending_IT_Manager'],
 };

@@ -5,7 +5,7 @@ import Swal from 'sweetalert2';
 import { mysql } from '../mysqlClient';
 import Fmit12PdfPreview from './Fmit12PdfPreview';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { ACCESS_QUEUE_STATUS_BY_ROLE, canDeleteRecords, normalizeRoleValue, visibleQueueStatuses } from '../config/roles';
+import { ACCESS_QUEUE_STATUS_BY_ROLE, canDeleteRecords, canManageAllWork, normalizeRoleValue, visibleQueueStatuses } from '../config/roles';
 import { toMysqlDateTime } from '../utils/dateTime';
 import { showAcknowledgeAccessRequestLinkDialog } from '../utils/closeIssueLink';
 
@@ -70,6 +70,7 @@ const AdminAccessRequests = ({ currentAdmin }) => {
 
     const currentRole = normalizeRoleValue(currentAdmin?.role);
     const canDeleteRecord = canDeleteRecords(currentAdmin?.role);
+    const canEditAllWork = canManageAllWork(currentAdmin?.role);
     const visibleStatuses = visibleQueueStatuses(currentRole, ACCESS_QUEUE_STATUS_BY_ROLE);
     const canActOnStatus = (status) => {
         const normalizedStatus = status === 'Pending' || !status ? 'Pending_Manager' : status;
@@ -399,7 +400,7 @@ const AdminAccessRequests = ({ currentAdmin }) => {
                                                         <Trash2 className="w-4 h-4" />
                                                     </button>
                                                 )}
-                                                {!canDeleteRecord && !['Cancelled', 'Completed', 'Rejected'].includes(req.status) && (
+                                                {(!canDeleteRecord || canEditAllWork) && !['Cancelled', 'Completed', 'Rejected'].includes(req.status) && (
                                                     <button onClick={() => handleCancelRequest(req)} className="p-1.5 text-rose-500 hover:text-white hover:bg-rose-600 rounded-lg transition-colors" title="ตั้งสถานะยกเลิก">
                                                         <XCircle className="w-4 h-4" />
                                                     </button>

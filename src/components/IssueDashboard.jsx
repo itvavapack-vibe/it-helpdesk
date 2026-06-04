@@ -11,7 +11,7 @@ import MaintenanceReportPdfPreview from './MaintenanceReportPdfPreview';
 import Swal from 'sweetalert2';
 import { mysql, API_URL } from '../mysqlClient';
 import { ISSUE_CATEGORIES } from '../config/issueOptions';
-import { canDeleteRecords } from '../config/roles';
+import { canDeleteRecords, canManageAllWork } from '../config/roles';
 
 const ITEMS_PER_PAGE = 10;
 const STATUS_FLOW = ['Pending', 'In Progress', 'External Repair', 'Waiting for Parts', 'Resolved', 'Cancelled'];
@@ -109,7 +109,8 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
     const inspectorSignatureRef = useRef(null);
     const repairListScrollYRef = useRef(0);
     const canDeleteRecord = canDeleteRecords(currentAdmin?.role);
-    const isRepairReadOnly = isIssueClosed(currentRepairIssue);
+    const canEditAllWork = canManageAllWork(currentAdmin?.role);
+    const isRepairReadOnly = isIssueClosed(currentRepairIssue) && !canEditAllWork;
     
     // For read more modal
     const [readMoreIssue, setReadMoreIssue] = useState(null);
@@ -883,7 +884,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                                     </button>
                                                 </>
                                             )}
-                                            {!canDeleteRecord && issue.status !== 'Cancelled' && issue.status !== 'Closed' && (
+                                            {(!canDeleteRecord || canEditAllWork) && issue.status !== 'Cancelled' && issue.status !== 'Closed' && (
                                                 <>
                                                     <div className="w-px h-5 bg-slate-200 dark:bg-slate-700 mx-1"></div>
                                                     <button

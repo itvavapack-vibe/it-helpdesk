@@ -5,7 +5,7 @@ import Swal from 'sweetalert2';
 import SignatureCanvas from 'react-signature-canvas';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { toLocalDateInputValue, toMysqlDateTime } from '../utils/dateTime';
-import { CHANGE_QUEUE_STATUS_BY_ROLE, canDeleteRecords, canHandleChangeRequestCategory, normalizeRoleValue, visibleQueueStatuses } from '../config/roles';
+import { CHANGE_QUEUE_STATUS_BY_ROLE, canDeleteRecords, canHandleChangeRequestCategory, canManageAllWork, normalizeRoleValue, visibleQueueStatuses } from '../config/roles';
 import { getChangeRequestTypeLabel } from '../config/changeRequestTypes';
 import { showAcceptChangeRequestLinkDialog } from '../utils/closeIssueLink';
 import Fmit15PdfPreview from './Fmit15PdfPreview';
@@ -69,6 +69,7 @@ const AdminChangeRequests = ({ currentAdmin }) => {
     const itManagerSignatureRef = useRef(null);
     const currentRole = normalizeRoleValue(currentAdmin?.role);
     const canDeleteRecord = canDeleteRecords(currentAdmin?.role);
+    const canEditAllWork = canManageAllWork(currentAdmin?.role);
     const visibleStatuses = visibleQueueStatuses(currentRole, CHANGE_QUEUE_STATUS_BY_ROLE);
     const canActOnStatus = (status) => (canDeleteRecord && ['Pending_IT', 'In_Progress', 'In_Development'].includes(status)) || (visibleStatuses || []).includes(status);
     const canActOnRequest = (request) => canActOnStatus(request.status) && canHandleChangeRequestCategory(currentRole, request);
@@ -217,9 +218,9 @@ const AdminChangeRequests = ({ currentAdmin }) => {
     };
 
     const handleActionFileChange = (event) => {
-        if (selectedActionStatus !== 'In_Development' || actionType !== 'it_schedule') {
+        if (selectedActionStatus !== 'Pending_User_Acceptance' || actionType !== 'it_staff') {
             event.target.value = '';
-            Swal.fire('ยังแนบไฟล์ไม่ได้', 'สามารถแนบไฟล์เพิ่มเติมได้ตอนเปลี่ยนสถานะเป็นกำลังดำเนินการเท่านั้น', 'warning');
+            Swal.fire('ยังแนบไฟล์ไม่ได้', 'สามารถแนบไฟล์เพิ่มเติมได้ในหน้าบันทึกการดำเนินการเท่านั้น', 'warning');
             return;
         }
 
@@ -257,15 +258,34 @@ const AdminChangeRequests = ({ currentAdmin }) => {
         const attachments = parseAttachments(req.attachments_json);
         if (!attachments.length) return;
 
+        const isItAttachment = (file) => file.uploadedByType === 'it' || (!file.uploadedByType && Boolean(file.uploadedBy));
+        const requesterAttachments = attachments.filter((file) => !isItAttachment(file));
+        const itAttachments = attachments.filter(isItAttachment);
+        const renderAttachmentGroup = (title, files, accentColor) => {
+            if (!files.length) return '';
+            return `
+                <section style="display:flex;flex-direction:column;gap:8px;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 2px;">
+                        <strong style="font-size:14px;color:${accentColor};">${escapeHtml(title)}</strong>
+                        <span style="font-size:12px;color:#94a3b8;">${files.length} ไฟล์</span>
+                    </div>
+                    ${files.map((file, index) => `
+                        <a href="${escapeHtml(resolveAttachmentUrl(file.url))}" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;gap:10px;padding:10px;border:1px solid #e2e8f0;border-radius:10px;text-decoration:none;color:#334155;">
+                            <span style="font-weight:700;color:${accentColor};">${index + 1}</span>
+                            <span style="flex:1;min-width:0;">
+                                <span style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(file.name || 'ไฟล์แนบ')}</span>
+                                ${file.uploadedBy ? `<span style="display:block;margin-top:2px;font-size:11px;color:#94a3b8;">แนบโดย ${escapeHtml(file.uploadedBy)}</span>` : ''}
+                            </span>
+                            <span style="font-size:12px;color:#94a3b8;">${escapeHtml(formatFileSize(file.size))}</span>
+                        </a>
+                    `).join('')}
+                </section>
+            `;
+        };
         const html = `
-            <div style="display:flex;flex-direction:column;gap:8px;text-align:left;">
-                ${attachments.map((file, index) => `
-                    <a href="${escapeHtml(resolveAttachmentUrl(file.url))}" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;gap:10px;padding:10px;border:1px solid #e2e8f0;border-radius:10px;text-decoration:none;color:#334155;">
-                        <span style="font-weight:700;color:#10b981;">${index + 1}</span>
-                        <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(file.name || 'ไฟล์แนบ')}</span>
-                        <span style="font-size:12px;color:#94a3b8;">${escapeHtml(formatFileSize(file.size))}</span>
-                    </a>
-                `).join('')}
+            <div style="display:flex;flex-direction:column;gap:18px;text-align:left;">
+                ${renderAttachmentGroup('ไฟล์จากผู้แจ้ง', requesterAttachments, '#2563eb')}
+                ${renderAttachmentGroup('ไฟล์จาก IT', itAttachments, '#10b981')}
             </div>
         `;
 
@@ -321,15 +341,9 @@ const AdminChangeRequests = ({ currentAdmin }) => {
                 if (!itForm.operationDate || !itForm.targetDate) {
                     return Swal.fire('ข้อมูลไม่ครบ', 'ระบุวันที่ดำเนินการและวันที่นัดหมายแล้วเสร็จให้ครบ', 'warning');
                 }
-                const existingAttachments = parseAttachments(selectedRequest.attachments_json);
-                const newAttachments = await uploadAttachmentFiles(
-                    actionFiles.map(({ file }) => file),
-                    { uploadedBy: currentAdmin?.name || currentAdmin?.username || '' },
-                );
                 const updateData = {
                     it_operation_date: itForm.operationDate,
                     it_target_date: itForm.targetDate,
-                    attachments_json: JSON.stringify([...existingAttachments, ...newAttachments]),
                     status: 'In_Development'
                 };
 
@@ -341,12 +355,18 @@ const AdminChangeRequests = ({ currentAdmin }) => {
                     return Swal.fire('ข้อมูลไม่ครบ', 'ระบุวิธีแก้ไข ผู้ดำเนินการ ตำแหน่ง และลายเซ็นให้ครบ', 'warning');
                 }
                 const signData = staffSignatureRef.current.getCanvas().toDataURL('image/png');
+                const existingAttachments = parseAttachments(selectedRequest.attachments_json);
+                const newAttachments = await uploadAttachmentFiles(
+                    actionFiles.map(({ file }) => file),
+                    { uploadedBy: currentAdmin?.name || currentAdmin?.username || '', uploadedByType: 'it' },
+                );
                 const updateData = {
                     it_solution: itForm.solution,
                     it_staff_name: itForm.staffName,
                     it_staff_position: itForm.staffPosition,
                     it_staff_sign: signData,
                     it_staff_date: toMysqlDateTime(),
+                    attachments_json: JSON.stringify([...existingAttachments, ...newAttachments]),
                     status: 'Pending_User_Acceptance'
                 };
                 
@@ -624,7 +644,7 @@ const AdminChangeRequests = ({ currentAdmin }) => {
                                                     <Trash2 className="w-4 h-4" />
                                                 </button>
                                             )}
-                                            {!canDeleteRecord && !['Cancelled', 'Completed', 'Rejected'].includes(req.status) && (
+                                            {(!canDeleteRecord || canEditAllWork) && !['Cancelled', 'Completed', 'Rejected'].includes(req.status) && (
                                                 <button onClick={() => handleCancelRequest(req)} className="p-2 text-rose-500 hover:text-white hover:bg-rose-600 rounded-lg" title="ตั้งสถานะยกเลิก">
                                                     <XCircle className="w-4 h-4" />
                                                 </button>
@@ -734,6 +754,23 @@ const AdminChangeRequests = ({ currentAdmin }) => {
                                 <div className="rounded-xl border border-sky-100 bg-sky-50 px-3 py-2 text-xs text-sky-700">
                                     บันทึกวันที่แล้วระบบจะเปลี่ยนสถานะเป็นกำลังดำเนินการ
                                 </div>
+                            </div>
+                        )}
+
+                        {selectedActionStatus === 'Pending_User_Acceptance' && actionType === 'it_staff' && (
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="text-xs font-semibold mb-1 block">วิธีแก้ไข/พัฒนา (Solution)</label>
+                                    <textarea className="input-modern w-full text-sm p-3 min-h-[100px]" placeholder="เพิ่ม Database Table, สร้าง หน้าเว็บใหม่ ..." value={itForm.solution} onChange={e => setItForm({...itForm, solution: e.target.value})} />
+                                </div>
+                                <hr className="my-2 border-slate-200" />
+                                <div className="grid grid-cols-2 gap-3">
+                                    <input type="text" className="input-modern" placeholder="ชื่อผู้ดำเนินการ" value={itForm.staffName} onChange={e => setItForm({...itForm, staffName: e.target.value})} />
+                                    <input type="text" className="input-modern" placeholder="ตำแหน่ง" value={itForm.staffPosition} onChange={e => setItForm({...itForm, staffPosition: e.target.value})} />
+                                </div>
+                                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                                    ลงวันที่: {new Date().toLocaleDateString('th-TH')}
+                                </div>
                                 <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3">
                                     <label className="mb-2 flex items-center gap-2 text-xs font-semibold text-slate-700">
                                         <Paperclip className="h-4 w-4 text-emerald-500" />
@@ -756,23 +793,6 @@ const AdminChangeRequests = ({ currentAdmin }) => {
                                             ))}
                                         </div>
                                     )}
-                                </div>
-                            </div>
-                        )}
-
-                        {selectedActionStatus === 'Pending_User_Acceptance' && actionType === 'it_staff' && (
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="text-xs font-semibold mb-1 block">วิธีแก้ไข/พัฒนา (Solution)</label>
-                                    <textarea className="input-modern w-full text-sm p-3 min-h-[100px]" placeholder="เพิ่ม Database Table, สร้าง หน้าเว็บใหม่ ..." value={itForm.solution} onChange={e => setItForm({...itForm, solution: e.target.value})} />
-                                </div>
-                                <hr className="my-2 border-slate-200" />
-                                <div className="grid grid-cols-2 gap-3">
-                                    <input type="text" className="input-modern" placeholder="ชื่อผู้ดำเนินการ" value={itForm.staffName} onChange={e => setItForm({...itForm, staffName: e.target.value})} />
-                                    <input type="text" className="input-modern" placeholder="ตำแหน่ง" value={itForm.staffPosition} onChange={e => setItForm({...itForm, staffPosition: e.target.value})} />
-                                </div>
-                                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-                                    ลงวันที่: {new Date().toLocaleDateString('th-TH')}
                                 </div>
                                 <div className="border shadow-inner bg-slate-50 h-32 relative rounded-xl overflow-hidden">
                                      <SignatureCanvas ref={staffSignatureRef} canvasProps={{ className: 'w-full h-full xl-signature' }} />

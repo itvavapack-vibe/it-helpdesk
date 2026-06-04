@@ -123,7 +123,10 @@ const ChangeRequestForm = ({ onCancel }) => {
         setIsSubmitting(true);
 
         try {
-            const attachments = await uploadAttachmentFiles(selectedFiles.map(({ file }) => file));
+            const attachments = await uploadAttachmentFiles(
+                selectedFiles.map(({ file }) => file),
+                { uploadedBy: formData.requesterName, uploadedByType: 'requester' },
+            );
             const { data: insertedData, generatedTicket } = await insertWithMonthlyDocumentNumber({
                 mysql,
                 table: 'change_requests',

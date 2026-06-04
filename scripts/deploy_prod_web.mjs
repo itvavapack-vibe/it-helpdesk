@@ -18,12 +18,36 @@ const npmCommand = os.platform() === 'win32' ? 'npm.cmd' : 'npm'
 let isDeploying = false
 const clients = new Set()
 
+function sendEvent(payload) {
+  for (const client of clients) {
+    client.write(`data: ${JSON.stringify(payload)}\n\n`)
+  }
+}
+
 function sendLog(message) {
   const line = `[${new Date().toLocaleTimeString()}] ${message}`
   console.log(line)
-  for (const client of clients) {
-    client.write(`data: ${JSON.stringify(line)}\n\n`)
-  }
+  sendEvent({ type: 'log', line })
+}
+
+function sendStep(id, label, status, detail = '') {
+  sendEvent({
+    type: 'step',
+    id,
+    label,
+    status,
+    detail,
+    time: new Date().toLocaleTimeString(),
+  })
+}
+
+function sendDeployState(status, message) {
+  sendEvent({
+    type: 'deploy',
+    status,
+    message,
+    time: new Date().toLocaleTimeString(),
+  })
 }
 
 function readJson(filePath, fallback = {}) {
@@ -239,66 +263,126 @@ function validateDeployPayload(payload) {
 async function deploy(payload) {
   if (isDeploying) throw new Error('A deploy is already running.')
   isDeploying = true
+  let activeStep = null
+
+  const step = async (id, label, action) => {
+    activeStep = { id, label }
+    sendStep(id, label, 'running')
+    try {
+      const detail = await action()
+      sendStep(id, label, 'success', detail || '')
+      activeStep = null
+      return detail
+    } catch (error) {
+      sendStep(id, label, 'error', error.message)
+      activeStep = null
+      throw error
+    }
+  }
 
   try {
-    const values = validateDeployPayload(payload)
-    writeJson(configPath, values)
+    sendDeployState('running', 'กำลัง Deploy Production...')
+    let values
+    let productionStatus
+    let sourceStatus
+    await step('validate', 'ตรวจสอบโปรเจกต์และการตั้งค่า', async () => {
+      values = validateDeployPayload(payload)
+      writeJson(configPath, values)
 
-    const sourceBranch = await output('git', ['branch', '--show-current'], values.sourcePath)
-    if (sourceBranch !== values.branch) {
-      throw new Error(`Test project is on branch '${sourceBranch}', not '${values.branch}'.`)
-    }
+      const sourceBranch = await output('git', ['branch', '--show-current'], values.sourcePath)
+      if (sourceBranch !== values.branch) {
+        throw new Error(`Test project is on branch '${sourceBranch}', not '${values.branch}'.`)
+      }
 
-    const productionStatus = await output('git', ['status', '--short'], values.productionPath)
-    if (productionStatus && !values.stashProductionChanges) {
-      throw new Error(`Production has uncommitted files:\n${productionStatus}`)
-    }
+      productionStatus = await output('git', ['status', '--short'], values.productionPath)
+      if (productionStatus && !values.stashProductionChanges) {
+        throw new Error(`Production has uncommitted files:\n${productionStatus}`)
+      }
+      sourceStatus = await output('git', ['status', '--short'], values.sourcePath)
+      return `Branch: ${values.branch}\nChanged files: ${sourceStatus ? sourceStatus.split(/\r?\n/).length : 0}`
+    })
 
-    const sourceStatus = await output('git', ['status', '--short'], values.sourcePath)
     sendLog('Starting production deploy...')
     if (sourceStatus) {
       sendLog(`Changed files:\n${sourceStatus}`)
-      await run('git', ['add', '-A'], values.sourcePath)
-      await run('git', ['commit', '-m', values.commitMessage], values.sourcePath)
+      await step('commit', 'บันทึกการเปลี่ยนแปลงจากฝั่งทดสอบ', async () => {
+        await run('git', ['add', '-A'], values.sourcePath)
+        await run('git', ['commit', '-m', values.commitMessage], values.sourcePath)
+        return sourceStatus
+      })
     } else {
       sendLog('No local test-project changes to commit.')
+      sendStep('commit', 'บันทึกการเปลี่ยนแปลงจากฝั่งทดสอบ', 'skipped', 'ไม่มีไฟล์ใหม่ที่ต้อง commit')
     }
 
-    await run('git', ['push', 'origin', values.branch], values.sourcePath)
+    await step('push', 'ส่งโค้ดขึ้น GitHub', async () => {
+      await run('git', ['push', 'origin', values.branch], values.sourcePath)
+      return `Pushed branch: ${values.branch}`
+    })
+
     if (productionStatus) {
       sendLog(`Production has uncommitted files. Backing them up before deploy:\n${productionStatus}`)
-      const stashMessage = `pre-deploy backup ${new Date().toISOString()}`
-      await run('git', ['stash', 'push', '--include-untracked', '-m', stashMessage], values.productionPath)
-      sendLog(`Production local changes were saved in git stash: ${stashMessage}`)
-      sendLog('The backup will stay in git stash and will not overwrite the deployed version.')
+      await step('backup', 'สำรองไฟล์ที่ค้างใน Production', async () => {
+        const stashMessage = `pre-deploy backup ${new Date().toISOString()}`
+        await run('git', ['stash', 'push', '--include-untracked', '-m', stashMessage], values.productionPath)
+        sendLog(`Production local changes were saved in git stash: ${stashMessage}`)
+        sendLog('The backup will stay in git stash and will not overwrite the deployed version.')
+        return `${stashMessage}\n${productionStatus}`
+      })
+    } else {
+      sendStep('backup', 'สำรองไฟล์ที่ค้างใน Production', 'skipped', 'Production ไม่มีไฟล์ที่ยังไม่ commit')
     }
-    await run('git', ['checkout', values.branch], values.productionPath)
-    await run('git', ['pull', '--ff-only', 'origin', values.branch], values.productionPath)
-    await run(npmCommand, ['install'], values.productionPath)
+
+    await step('update-production', 'อัปเดตโค้ด Production', async () => {
+      await run('git', ['checkout', values.branch], values.productionPath)
+      await run('git', ['pull', '--ff-only', 'origin', values.branch], values.productionPath)
+      return `Production updated from origin/${values.branch}`
+    })
+
+    await step('install', 'ติดตั้งแพ็กเกจ Production', async () => {
+      await run(npmCommand, ['install'], values.productionPath)
+      return 'npm install completed'
+    })
 
     if (values.runMigrations) {
-      if (!values.migrations.length) {
-        throw new Error('Run database migrations is checked, but no migrations were selected.')
-      }
       sendLog('Running production database migrations...')
-      for (const migration of values.migrations) {
-        const migrationPath = path.join(values.productionPath, migration)
-        if (!fs.existsSync(migrationPath)) {
-          throw new Error(`Migration file does not exist in production: ${migration}`)
+      await step('migrations', 'อัปเดตฐานข้อมูล Production', async () => {
+        if (!values.migrations.length) {
+          throw new Error('Run database migrations is checked, but no migrations were selected.')
         }
-        await run('node', [migration], values.productionPath)
-      }
+        for (const migration of values.migrations) {
+          const migrationPath = path.join(values.productionPath, migration)
+          if (!fs.existsSync(migrationPath)) {
+            throw new Error(`Migration file does not exist in production: ${migration}`)
+          }
+          await run('node', [migration], values.productionPath)
+        }
+        return values.migrations.join('\n')
+      })
     } else {
       sendLog('Database migrations skipped.')
+      sendStep('migrations', 'อัปเดตฐานข้อมูล Production', 'skipped', 'ไม่ได้เลือกให้อัปเดตฐานข้อมูล')
     }
 
-    const env = readEnvFile(path.join(values.productionPath, '.env'))
-    const webPort = Number(env.VITE_WEB_PORT || 5173)
-    const apiPort = Number(env.API_PORT || 4000)
-    if (values.stopPorts) await stopWindowsPorts([webPort, apiPort])
+    await step('restart', 'รีสตาร์ตเว็บและ API Production', async () => {
+      const env = readEnvFile(path.join(values.productionPath, '.env'))
+      const webPort = Number(env.VITE_WEB_PORT || 5173)
+      const apiPort = Number(env.API_PORT || 4000)
+      if (values.stopPorts) {
+        await stopWindowsPorts([webPort, apiPort])
+      }
+      startProduction(values.productionPath)
+      return `Web port: ${webPort}\nAPI port: ${apiPort}`
+    })
 
-    startProduction(values.productionPath)
     sendLog('Deploy completed successfully.')
+    sendDeployState('success', 'Deploy Production สำเร็จ')
+  } catch (error) {
+    if (activeStep) {
+      sendStep(activeStep.id, activeStep.label, 'error', error.message)
+    }
+    sendDeployState('error', error.message)
+    throw error
   } finally {
     isDeploying = false
   }
@@ -344,6 +428,24 @@ function pageHtml(saved) {
     button { width: 100%; border: 0; border-radius: 12px; padding: 13px 16px; background: #38bdf8; color: #082f49; font-weight: 800; cursor: pointer; }
     button:disabled { opacity: .55; cursor: wait; }
     .danger { color: #fca5a5; }
+    .summary { margin-top: 20px; border: 1px solid #334155; border-radius: 14px; overflow: hidden; background: #0b1220; }
+    .summary-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid #334155; font-weight: 800; }
+    .summary-head.running { color: #7dd3fc; }
+    .summary-head.success { color: #6ee7b7; }
+    .summary-head.error { color: #fda4af; }
+    .steps { display: grid; gap: 1px; background: #334155; }
+    .step { display: grid; grid-template-columns: 28px 1fr auto; gap: 10px; align-items: start; padding: 12px 14px; background: #111827; }
+    .step-icon { width: 24px; height: 24px; border-radius: 999px; display: grid; place-items: center; font-size: 14px; font-weight: 900; }
+    .step.running .step-icon { color: #082f49; background: #38bdf8; }
+    .step.success .step-icon { color: #052e16; background: #4ade80; }
+    .step.error .step-icon { color: #450a0a; background: #fb7185; }
+    .step.skipped .step-icon { color: #1e293b; background: #94a3b8; }
+    .step-title { color: #e2e8f0; font-weight: 750; }
+    .step-detail { margin-top: 4px; color: #94a3b8; font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .step-status { color: #94a3b8; font-size: 12px; text-transform: uppercase; font-weight: 800; }
+    .step.running .step-status { color: #7dd3fc; }
+    .step.success .step-status { color: #6ee7b7; }
+    .step.error .step-status { color: #fda4af; }
     pre { min-height: 260px; max-height: 420px; overflow: auto; white-space: pre-wrap; background: #020617; border: 1px solid #334155; border-radius: 14px; padding: 16px; color: #d1fae5; }
     .muted { color: #94a3b8; font-size: 13px; }
   </style>
@@ -415,6 +517,10 @@ function pageHtml(saved) {
 
       <p class="muted">The production .env is not copied or overwritten. The database used by migrations comes from the production folder's .env.</p>
       <button id="deploy">Deploy Code + Selected Database Changes</button>
+      <div class="summary">
+        <div id="summaryHead" class="summary-head">● พร้อม Deploy</div>
+        <div id="steps" class="steps"></div>
+      </div>
       <h2>Log</h2>
       <pre id="log"></pre>
     </section>
@@ -430,13 +536,59 @@ function pageHtml(saved) {
       else element.value = saved[id] || ''
     }
     const log = document.getElementById('log')
+    const deployButton = document.getElementById('deploy')
+    const summaryHead = document.getElementById('summaryHead')
+    const steps = document.getElementById('steps')
+    const stepElements = new Map()
+    const statusMeta = {
+      running: { icon: '↻', text: 'กำลังทำ' },
+      success: { icon: '✓', text: 'สำเร็จ' },
+      error: { icon: '!', text: 'ล้มเหลว' },
+      skipped: { icon: '−', text: 'ข้าม' },
+    }
+    const escapeHtml = value => String(value || '')
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#039;')
+    const resetSummary = () => {
+      stepElements.clear()
+      steps.innerHTML = ''
+      summaryHead.className = 'summary-head running'
+      summaryHead.textContent = '↻ กำลังเตรียม Deploy...'
+    }
+    const renderStep = event => {
+      let element = stepElements.get(event.id)
+      if (!element) {
+        element = document.createElement('div')
+        steps.appendChild(element)
+        stepElements.set(event.id, element)
+      }
+      const meta = statusMeta[event.status] || statusMeta.running
+      element.className = 'step ' + event.status
+      element.innerHTML =
+        '<span class="step-icon">' + meta.icon + '</span>' +
+        '<div><div class="step-title">' + escapeHtml(event.label) + '</div>' +
+        (event.detail ? '<div class="step-detail">' + escapeHtml(event.detail) + '</div>' : '') +
+        '</div><span class="step-status">' + meta.text + '</span>'
+    }
     const events = new EventSource('/api/logs?token=' + encodeURIComponent(token || ''))
     events.onmessage = event => {
-      log.textContent += JSON.parse(event.data) + '\\n'
-      log.scrollTop = log.scrollHeight
+      const payload = JSON.parse(event.data)
+      if (payload.type === 'log') {
+        log.textContent += payload.line + '\\n'
+        log.scrollTop = log.scrollHeight
+      } else if (payload.type === 'step') {
+        renderStep(payload)
+      } else if (payload.type === 'deploy') {
+        summaryHead.className = 'summary-head ' + payload.status
+        summaryHead.textContent = (payload.status === 'success' ? '✓ ' : payload.status === 'error' ? '! ' : '↻ ') + payload.message
+        if (payload.status === 'success' || payload.status === 'error') deployButton.disabled = false
+      }
     }
 
-    document.getElementById('deploy').addEventListener('click', async () => {
+    deployButton.addEventListener('click', async () => {
       const runMigrations = document.getElementById('runMigrations').checked
       const migrations = [...document.querySelectorAll('.migration:checked')].map(input => input.value)
       const payload = {
@@ -453,8 +605,9 @@ function pageHtml(saved) {
       const dbWarning = runMigrations ? '\\n\\nThis will run migrations against the PRODUCTION database.' : ''
       if (!confirm('Deploy production now?' + stashWarning + dbWarning)) return
 
-      const button = document.getElementById('deploy')
-      button.disabled = true
+      resetSummary()
+      log.textContent = ''
+      deployButton.disabled = true
       try {
         const response = await fetch('/api/deploy?token=' + encodeURIComponent(token || ''), {
           method: 'POST',
@@ -462,9 +615,13 @@ function pageHtml(saved) {
           body: JSON.stringify(payload),
         })
         const result = await response.json()
-        if (!response.ok) alert(result.error || 'Deploy failed')
-      } finally {
-        button.disabled = false
+        if (!response.ok) {
+          deployButton.disabled = false
+          alert(result.error || 'Deploy failed')
+        }
+      } catch (error) {
+        deployButton.disabled = false
+        alert(error.message || 'Deploy failed')
       }
     })
   </script>

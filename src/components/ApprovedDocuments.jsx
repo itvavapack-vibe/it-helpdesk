@@ -327,7 +327,7 @@ const ApprovedDocuments = ({ currentAdmin }) => {
                                 <SelectTrigger className="input-modern w-full">
                                     <SelectValue placeholder="เลือกสถานะ" />
                                 </SelectTrigger>
-                                <SelectContent>
+                                <SelectContent className="z-[200]">
                                     {getApprovalActionOptions(approvalDocument).map((option) => (
                                         <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
                                     ))}

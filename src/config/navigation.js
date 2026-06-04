@@ -63,7 +63,7 @@ export const ADMIN_SUB_TABS = [
     { id: 'assets', label: 'ทรัพย์สิน', icon: Monitor, iconColor: 'text-sky-600 dark:text-sky-300', iconAura: '14, 165, 233', roles: ALL_IT_ROLES },
     { id: 'access_requests', label: 'ขอสิทธิ์', icon: Key, iconColor: 'text-amber-600 dark:text-amber-300', iconAura: '245, 158, 11', roles: ALL_IT_ROLES },
     { id: 'change_requests', label: 'ขอพัฒนาระบบ', icon: ClipboardPenLine, iconColor: 'text-emerald-600 dark:text-emerald-300', iconAura: '16, 185, 129', roles: ALL_IT_ROLES },
-    { id: 'approved_documents', label: 'เอกสารอนุมัติ', icon: FileCheck2, iconColor: 'text-violet-600 dark:text-violet-300', iconAura: '139, 92, 246', roles: [NAV_ROLES.IT_SUPERVISOR, NAV_ROLES.IT_MANAGER] },
+    { id: 'approved_documents', label: 'เอกสารอนุมัติ', icon: FileCheck2, iconColor: 'text-violet-600 dark:text-violet-300', iconAura: '139, 92, 246', roles: [NAV_ROLES.IT_SUPERVISOR, NAV_ROLES.IT_MANAGER, NAV_ROLES.SUPERADMIN] },
     { id: 'stats', label: 'สถิติ', icon: TrendingUp, iconColor: 'text-orange-600 dark:text-orange-300', iconAura: '249, 115, 22', roles: ALL_IT_ROLES },
     { id: 'employees', label: 'พนักงาน', icon: Users, iconColor: 'text-blue-600 dark:text-blue-300', iconAura: '37, 99, 235', roles: [...ALL_IT_ROLES, NAV_ROLES.HR] },
     { id: 'users', label: 'ผู้ใช้งาน', icon: Users, iconColor: 'text-fuchsia-600 dark:text-fuchsia-300', iconAura: '192, 38, 211', roles: [NAV_ROLES.SUPERADMIN] },
