@@ -14,7 +14,7 @@ import { ISSUE_CATEGORIES } from '../config/issueOptions';
 import { canDeleteRecords } from '../config/roles';
 
 const ITEMS_PER_PAGE = 10;
-const STATUS_FLOW = ['Pending', 'In Progress', 'External Repair', 'Waiting for Parts', 'Resolved', 'Closed', 'Cancelled'];
+const STATUS_FLOW = ['Pending', 'In Progress', 'External Repair', 'Waiting for Parts', 'Resolved', 'Cancelled'];
 const ASSIGNABLE_STATUSES = ['In Progress', 'External Repair', 'Waiting for Parts', 'Resolved'];
 
 const isIssueClosed = (issue) => issue?.status === 'Closed' || Boolean(issue?.userCloseSign || issue?.userClosedAt);
@@ -71,7 +71,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
     const [filterAdmin, setFilterAdmin] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
 
-    // Modal state for repair details
+    // Page state for repair details
     const [isRepairModalOpen, setIsRepairModalOpen] = useState(false);
     const [currentRepairIssue, setCurrentRepairIssue] = useState(null);
     const [editFormData, setEditFormData] = useState({
@@ -98,7 +98,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
     const [isMaintenanceReportOpen, setIsMaintenanceReportOpen] = useState(false);
     const [currentMaintenanceIssue, setCurrentMaintenanceIssue] = useState(null);
 
-    // Asset and User states (for Edit Modal)
+    // Asset and User states for the repair details page
     const [computers, setComputers] = useState([]);
     const [glpiUsers, setGlpiUsers] = useState([]);
     const [glpiUsersRaw, setGlpiUsersRaw] = useState([]);
@@ -107,6 +107,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
     const [assetSearchTerm, setAssetSearchTerm] = useState('');
     const [isAssetDropdownOpen, setIsAssetDropdownOpen] = useState(false);
     const inspectorSignatureRef = useRef(null);
+    const repairListScrollYRef = useRef(0);
     const canDeleteRecord = canDeleteRecords(currentAdmin?.role);
     const isRepairReadOnly = isIssueClosed(currentRepairIssue);
     
@@ -153,17 +154,6 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
             inspectorSignatureRef.current?.clear();
         }
     }, [isRepairModalOpen, currentRepairIssue?.id]);
-
-    useEffect(() => {
-        if (!isRepairModalOpen) return;
-        const originalOverflow = document.body.style.overflow;
-        document.body.style.overflow = 'hidden';
-        document.body.classList.add('repair-modal-open');
-        return () => {
-            document.body.style.overflow = originalOverflow;
-            document.body.classList.remove('repair-modal-open');
-        };
-    }, [isRepairModalOpen]);
 
     useEffect(() => {
         if (glpiUsersRaw.length === 0) return;
@@ -284,8 +274,9 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
     const totalPages = Math.ceil(filteredIssues.length / ITEMS_PER_PAGE);
     const paginatedIssues = filteredIssues.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
-    // Handlers for Repair Details Modal
+    // Handlers for Repair Details Page
     const openRepairModal = (issue) => {
+        repairListScrollYRef.current = window.scrollY;
         setCurrentRepairIssue(issue);
         setEditFormData({
             name: issue.name || '',
@@ -308,6 +299,14 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
         });
         setAssetSearchTerm(issue.assetName || issue.assetId || '');
         setIsRepairModalOpen(true);
+        requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'auto' }));
+    };
+
+    const closeRepairPage = () => {
+        setIsRepairModalOpen(false);
+        setCurrentRepairIssue(null);
+        setIsAssetDropdownOpen(false);
+        requestAnimationFrame(() => window.scrollTo({ top: repairListScrollYRef.current, behavior: 'auto' }));
     };
 
     const handleEditFormChange = (e) => {
@@ -422,8 +421,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
             if (didSaveStatus === false) return;
         }
 
-        setIsRepairModalOpen(false);
-        setCurrentRepairIssue(null);
+        closeRepairPage();
     };
 
     const handleDelete = (id) => {
@@ -575,6 +573,8 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
 
     return (
         <div className="space-y-8 animate-fade-in">
+            {!isRepairModalOpen && (
+            <>
             <div className="glass-card rounded-3xl p-5 shadow-sm">
                 <div className="flex items-center gap-3">
                     <div className="rounded-xl bg-rose-100 p-2.5 text-rose-600 dark:bg-rose-900/50 dark:text-rose-300">
@@ -949,25 +949,37 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                     </div>
                 )}
             </div>
+            </>
+            )}
 
-            {/* Repair Details Modal */}
+            {/* Repair Details Page */}
             {isRepairModalOpen && (
-                <div className="repair-modal-overlay fixed inset-0 z-[120] flex items-start sm:items-center justify-center overflow-y-auto p-3 sm:p-4 bg-slate-900/40 dark:bg-slate-900/80 backdrop-blur-sm animate-fade-in">
-                    <div className="repair-modal-card bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-2xl h-[calc(100dvh-1.5rem)] sm:h-auto sm:max-h-[calc(100dvh-2rem)] overflow-hidden border border-white/20 dark:border-slate-700 transform scale-100 transition-all grid grid-rows-[auto,minmax(0,1fr),auto]">
-                        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/80">
+                <div className="animate-fade-in space-y-4">
+                    <button
+                        type="button"
+                        onClick={closeRepairPage}
+                        className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 shadow-sm transition-colors hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-indigo-700 dark:hover:bg-indigo-900/30 dark:hover:text-indigo-300"
+                    >
+                        <ChevronLeft className="h-4 w-4" />
+                        ย้อนกลับไปหน้ารายการแจ้งซ่อม
+                    </button>
+
+                    <div className="w-full overflow-visible rounded-3xl border border-slate-200 bg-white shadow-xl shadow-indigo-100/40 dark:border-slate-700 dark:bg-slate-800 dark:shadow-indigo-950/20">
+                        <div className="px-5 py-4 sm:px-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/80 rounded-t-3xl">
                             <h3 className="text-lg font-bold text-indigo-950 dark:text-indigo-100 flex items-center gap-2">
                                 {isRepairReadOnly ? <Eye className="w-5 h-5 text-indigo-600 dark:text-indigo-400" /> : <MessageSquare className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />} {isRepairReadOnly ? 'รายละเอียดงานแจ้งซ่อม' : 'บันทึกรายละเอียดการซ่อม'}
                             </h3>
                             <button
-                                onClick={() => setIsRepairModalOpen(false)}
-                                className="text-slate-400 hover:text-rose-500 transition-colors"
+                                onClick={closeRepairPage}
+                                className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-indigo-600 transition-colors"
                             >
-                                <X className="w-5 h-5" />
+                                <ChevronLeft className="w-4 h-4" />
+                                <span className="hidden sm:inline">ย้อนกลับ</span>
                             </button>
                         </div>
 
                         {isRepairReadOnly ? (
-                            <div className="min-h-0 overflow-y-auto custom-scrollbar px-5 py-4 sm:px-6 sm:py-5">
+                            <div className="px-5 py-4 sm:px-6 sm:py-5">
                                 <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4 dark:border-slate-700">
                                     <div>
                                         <div className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">เลขที่เอกสาร</div>
@@ -1017,7 +1029,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                 )}
                             </div>
                         ) : (
-                        <fieldset disabled={isRepairReadOnly} className="m-0 min-w-0 min-h-0 border-0 p-5 sm:p-6 space-y-4 overflow-y-auto custom-scrollbar disabled:cursor-default">
+                        <fieldset disabled={isRepairReadOnly} className="m-0 min-w-0 border-0 p-5 sm:p-6 space-y-4 disabled:cursor-default">
                             <div className="bg-indigo-50/50 dark:bg-indigo-900/30 p-3 rounded-lg border border-indigo-100 dark:border-indigo-700/50 text-sm flex items-center gap-2">
                                 <span className="font-semibold text-slate-700 dark:text-slate-300">เลขที่เอกสาร:</span> <span className="text-indigo-700 dark:text-indigo-400 font-bold px-2 py-0.5 bg-white dark:bg-slate-800 rounded border border-indigo-200 dark:border-slate-700">{currentRepairIssue?.id}</span>
                             </div>
@@ -1421,7 +1433,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                             <div className="repair-modal-actions mt-5 flex gap-3 border-t border-slate-100 pt-4 pb-[calc(env(safe-area-inset-bottom,0px)+0.25rem)] dark:border-slate-700">
                                 <button
                                     type="button"
-                                    onClick={() => setIsRepairModalOpen(false)}
+                                    onClick={closeRepairPage}
                                     className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all"
                                 >
                                     ยกเลิก
@@ -1438,12 +1450,12 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                         )}
 
                         {isRepairReadOnly && (
-                            <div className="repair-modal-footer sticky bottom-0 z-20 shrink-0 px-4 sm:px-6 py-3 sm:py-4 bg-slate-50/95 dark:bg-slate-700/95 backdrop-blur-md flex justify-end gap-3 border-t border-slate-100 dark:border-slate-700 shadow-[0_-8px_20px_rgba(15,23,42,0.08)]">
+                            <div className="px-4 sm:px-6 py-3 sm:py-4 bg-slate-50/95 dark:bg-slate-700/95 flex justify-end gap-3 border-t border-slate-100 dark:border-slate-700 rounded-b-3xl">
                                 <button
-                                    onClick={() => setIsRepairModalOpen(false)}
+                                    onClick={closeRepairPage}
                                     className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all"
                                 >
-                                    ปิด
+                                    ย้อนกลับ
                                 </button>
                             </div>
                         )}

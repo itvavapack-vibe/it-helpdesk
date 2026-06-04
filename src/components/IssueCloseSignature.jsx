@@ -80,6 +80,7 @@ const IssueCloseSignature = ({ issueId, onCloseIssue }) => {
         if (ok) {
             setIssue(prev => ({
                 ...prev,
+                status: 'Closed',
                 user_close_name: formData.name.trim(),
                 user_close_position: formData.position.trim(),
                 user_close_note: formData.note.trim(),

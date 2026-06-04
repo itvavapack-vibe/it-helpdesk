@@ -581,6 +581,11 @@ function App() {
     };
 
     const updateIssueStatus = async (id, newStatus, adminName = null) => {
+        if (newStatus === 'Closed') {
+            Swal.fire('ไม่สามารถปิดจบจากหน้านี้ได้', 'สถานะปิดจบจะเปลี่ยนหลังจากผู้แจ้งเซ็นยืนยันเท่านั้น', 'warning');
+            return false;
+        }
+
         const updateData = { status: newStatus };
         const currentIssue = issues.find(issue => issue.id === id);
         const shouldSetOperationStartedAt =
@@ -593,12 +598,6 @@ function App() {
         if (operationStartedAt) {
             updateData.operation_started_at = operationStartedAt;
         }
-        if (newStatus === 'Closed' && !currentIssue?.userClosedAt && !currentIssue?.userCloseSign) {
-            updateData.user_close_name = currentIssue?.name || null;
-            updateData.user_close_note = 'Closed by IT without requester signature.';
-            updateData.user_closed_at = toMysqlDateTime();
-        }
-
         const { error } = await mysql
             .from('issues')
             .update(updateData)
@@ -649,6 +648,7 @@ function App() {
 
     const closeIssueByUser = async (id, closeData) => {
         const payload = {
+            status: 'Closed',
             user_close_name: closeData.name,
             user_close_position: closeData.position,
             user_close_note: closeData.note || '',
@@ -669,6 +669,7 @@ function App() {
 
         setIssues(currentIssues => currentIssues.map(issue => issue.id === id ? {
             ...issue,
+            status: 'Closed',
             userCloseName: closeData.name,
             userClosePosition: closeData.position,
             userCloseNote: closeData.note || '',
