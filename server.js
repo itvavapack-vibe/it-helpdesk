@@ -13,7 +13,16 @@ import {
   updateTable,
   upsertTable,
 } from './lib/handlers.js'
-import { getAdminFromRequest, getAdminProfile, loginAdmin, updateAdminProfile } from './lib/auth.js'
+import {
+  changeExpiredPassword,
+  getAdminFromRequest,
+  getAdminProfile,
+  getAdminSecuritySettings,
+  loginAdmin,
+  unlockAdminAccount,
+  updateAdminProfile,
+  updateAdminSecuritySettings,
+} from './lib/auth.js'
 import { proxyGlpiRequest } from './lib/glpi-proxy.js'
 import { getLanAddresses } from './lib/network.js'
 import { sendTelegramNotification } from './lib/telegram.js'
@@ -112,7 +121,25 @@ app.post('/api/auth/login', async (req, res) => {
   try {
     return res.json({ data: await loginAdmin(req.body || {}) })
   } catch (error) {
-    return res.status(error.status || 500).json({ error: error.message })
+    return res.status(error.status || 500).json({
+      error: error.message,
+      code: error.code,
+      changeToken: error.changeToken,
+      attemptsRemaining: error.attemptsRemaining,
+    })
+  }
+})
+
+app.post('/api/auth/change-password', async (req, res) => {
+  try {
+    const { changeToken, password } = req.body || {}
+    return res.json({ data: await changeExpiredPassword(changeToken, password) })
+  } catch (error) {
+    return res.status(error.status || 500).json({
+      error: error.message,
+      code: error.code,
+      policyErrors: error.policyErrors,
+    })
   }
 })
 
@@ -122,7 +149,11 @@ app.put('/api/auth/profile', async (req, res) => {
     if (!admin) return res.status(401).json({ error: 'Authentication required' })
     return res.json({ data: await updateAdminProfile(admin.id, req.body || {}) })
   } catch (error) {
-    return res.status(error.status || 500).json({ error: error.message })
+    return res.status(error.status || 500).json({
+      error: error.message,
+      code: error.code,
+      policyErrors: error.policyErrors,
+    })
   }
 })
 
@@ -133,6 +164,39 @@ app.get('/api/auth/profile', async (req, res) => {
     return res.json({ data: await getAdminProfile(admin.id) })
   } catch (error) {
     return res.status(error.status || 500).json({ error: error.message })
+  }
+})
+
+app.post('/api/auth/admins/:id/unlock', async (req, res) => {
+  try {
+    const admin = getAdminFromRequest(req)
+    if (!admin) return res.status(401).json({ error: 'Authentication required' })
+    if (admin.role !== 'superadmin') return res.status(403).json({ error: 'Only Administrator can unlock accounts' })
+    return res.json({ data: await unlockAdminAccount(req.params.id) })
+  } catch (error) {
+    return res.status(error.status || 500).json({ error: error.message, code: error.code })
+  }
+})
+
+app.get('/api/auth/security-settings', async (req, res) => {
+  try {
+    const admin = getAdminFromRequest(req)
+    if (!admin) return res.status(401).json({ error: 'Authentication required' })
+    if (admin.role !== 'superadmin') return res.status(403).json({ error: 'Only Administrator can view security settings' })
+    return res.json({ data: await getAdminSecuritySettings() })
+  } catch (error) {
+    return res.status(error.status || 500).json({ error: error.message, code: error.code })
+  }
+})
+
+app.put('/api/auth/security-settings', async (req, res) => {
+  try {
+    const admin = getAdminFromRequest(req)
+    if (!admin) return res.status(401).json({ error: 'Authentication required' })
+    if (admin.role !== 'superadmin') return res.status(403).json({ error: 'Only Administrator can update security settings' })
+    return res.json({ data: await updateAdminSecuritySettings(req.body || {}) })
+  } catch (error) {
+    return res.status(error.status || 500).json({ error: error.message, code: error.code })
   }
 })
 
@@ -151,13 +215,8 @@ function requireAdminsAccess(req, action) {
     error.status = 401
     throw error
   }
-  if (action === 'delete' && admin.role !== 'superadmin') {
-    const error = new Error('Only Super Admin can delete users')
-    error.status = 403
-    throw error
-  }
-  if (!['superadmin', 'it_support'].includes(admin.role)) {
-    const error = new Error('Permission denied')
+  if (admin.role !== 'superadmin') {
+    const error = new Error(`Only Administrator can ${action} users`)
     error.status = 403
     throw error
   }

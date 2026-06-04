@@ -64,6 +64,10 @@ async function request(url, init) {
     return {
       data: null,
       error: payload?.error || response.statusText,
+      code: payload?.code || null,
+      changeToken: payload?.changeToken || null,
+      attemptsRemaining: payload?.attemptsRemaining ?? null,
+      policyErrors: payload?.policyErrors || null,
       status: response.status,
     }
   }
@@ -252,6 +256,40 @@ export async function loginAdmin(username, password) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, password }),
+  })
+}
+
+export async function changeExpiredAdminPassword(changeToken, password) {
+  const base = API_URL.endsWith('/') ? API_URL.slice(0, -1) : API_URL
+  return request(new URL(`${base}/api/auth/change-password`, window.location.origin).toString(), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ changeToken, password }),
+  })
+}
+
+export async function unlockAdminAccount(adminId) {
+  const base = API_URL.endsWith('/') ? API_URL.slice(0, -1) : API_URL
+  return request(new URL(`${base}/api/auth/admins/${adminId}/unlock`, window.location.origin).toString(), {
+    method: 'POST',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+  })
+}
+
+export async function getAdminSecuritySettings() {
+  const base = API_URL.endsWith('/') ? API_URL.slice(0, -1) : API_URL
+  return request(new URL(`${base}/api/auth/security-settings`, window.location.origin).toString(), {
+    method: 'GET',
+    headers: authHeaders(),
+  })
+}
+
+export async function updateAdminSecuritySettings(settings) {
+  const base = API_URL.endsWith('/') ? API_URL.slice(0, -1) : API_URL
+  return request(new URL(`${base}/api/auth/security-settings`, window.location.origin).toString(), {
+    method: 'PUT',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(settings),
   })
 }
 

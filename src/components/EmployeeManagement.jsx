@@ -16,6 +16,7 @@ import Swal from 'sweetalert2';
 import SignatureCanvas from 'react-signature-canvas';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { toLocalDateInputValue, toMysqlDateTime } from '../utils/dateTime';
+import { loadSignatureIntoCanvas } from '../utils/signatureCanvas';
 
 const DEPARTMENTS = [
     'แอดมิน',
@@ -94,7 +95,7 @@ const toDateInputValue = (value) => {
     return toLocalDateInputValue(value);
 };
 
-const EmployeeManagement = () => {
+const EmployeeManagement = ({ currentAdmin }) => {
     const [employees, setEmployees] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -220,6 +221,10 @@ const EmployeeManagement = () => {
     };
 
     const updateFormField = (field, value) => {
+        if (field === 'status' && value === EMPLOYEE_STATUS.RESIGNED) {
+            loadSignatureIntoCanvas(cancelSignatureRef, currentAdmin?.signature);
+        }
+
         setFormData((prev) => {
             const next = { ...prev, [field]: value };
 
@@ -235,6 +240,7 @@ const EmployeeManagement = () => {
                 }
                 if (value === EMPLOYEE_STATUS.RESIGNED) {
                     next.transfer_date = '';
+                    next.cancel_it_name = prev.cancel_it_name || currentAdmin?.name || currentAdmin?.username || '';
                 }
             }
 

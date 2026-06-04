@@ -10,9 +10,25 @@ CREATE TABLE IF NOT EXISTS admins (
   password VARCHAR(255) NOT NULL,
   name VARCHAR(255) NOT NULL,
   position VARCHAR(255),
+  signature MEDIUMTEXT,
   role VARCHAR(50) NOT NULL DEFAULT 'it',
+  failed_login_attempts TINYINT UNSIGNED NOT NULL DEFAULT 0,
+  locked_at DATETIME,
+  password_changed_at DATETIME,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS admin_security_settings (
+  id TINYINT UNSIGNED NOT NULL PRIMARY KEY,
+  max_failed_login_attempts TINYINT UNSIGNED NOT NULL DEFAULT 3,
+  password_max_age_days SMALLINT UNSIGNED NOT NULL DEFAULT 90,
+  login_timeout_minutes SMALLINT UNSIGNED NOT NULL DEFAULT 5,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+INSERT INTO admin_security_settings (id, max_failed_login_attempts, password_max_age_days, login_timeout_minutes)
+VALUES (1, 3, 90, 5)
+ON DUPLICATE KEY UPDATE id = VALUES(id);
 
 -- Change Requests (FMIT 15)
 CREATE TABLE IF NOT EXISTS change_requests (

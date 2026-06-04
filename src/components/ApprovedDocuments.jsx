@@ -5,6 +5,7 @@ import Swal from 'sweetalert2';
 import { mysql } from '../mysqlClient';
 import { APPROVAL_QUEUE_STATUS_BY_ROLE, normalizeRoleValue, visibleQueueStatuses } from '../config/roles';
 import { toMysqlDateTime } from '../utils/dateTime';
+import { loadSignatureIntoCanvas } from '../utils/signatureCanvas';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
 const STATUS_LABELS = {
@@ -103,6 +104,11 @@ const ApprovedDocuments = ({ currentAdmin }) => {
         };
     }, []);
 
+    useEffect(() => {
+        if (!approvalDocument || !selectedApprovalStatus) return;
+        loadSignatureIntoCanvas(signatureRef, currentAdmin?.signature);
+    }, [approvalDocument, selectedApprovalStatus]);
+
     const filteredDocuments = useMemo(() => {
         const keyword = searchTerm.trim().toLowerCase();
         return documents.filter((doc) => {
@@ -132,7 +138,6 @@ const ApprovedDocuments = ({ currentAdmin }) => {
     const openApproval = (doc) => {
         setApprovalDocument(doc);
         setSelectedApprovalStatus('');
-        setTimeout(() => signatureRef.current?.clear(), 50);
     };
 
     const handleApprove = async () => {

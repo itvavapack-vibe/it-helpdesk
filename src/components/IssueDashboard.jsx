@@ -12,6 +12,7 @@ import Swal from 'sweetalert2';
 import { mysql, API_URL } from '../mysqlClient';
 import { ISSUE_CATEGORIES } from '../config/issueOptions';
 import { canDeleteRecords, canManageAllWork } from '../config/roles';
+import { loadSignatureIntoCanvas } from '../utils/signatureCanvas';
 
 const ITEMS_PER_PAGE = 10;
 const STATUS_FLOW = ['Pending', 'In Progress', 'External Repair', 'Waiting for Parts', 'Resolved', 'Cancelled'];
@@ -155,6 +156,11 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
             inspectorSignatureRef.current?.clear();
         }
     }, [isRepairModalOpen, currentRepairIssue?.id]);
+
+    useEffect(() => {
+        if (!isRepairModalOpen || editFormData.status !== 'Resolved' || editFormData.inspectorSign) return;
+        loadSignatureIntoCanvas(inspectorSignatureRef, currentAdmin?.signature);
+    }, [editFormData.inspectorSign, editFormData.status, isRepairModalOpen]);
 
     useEffect(() => {
         if (glpiUsersRaw.length === 0) return;

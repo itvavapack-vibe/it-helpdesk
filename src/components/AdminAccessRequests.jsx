@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { ACCESS_QUEUE_STATUS_BY_ROLE, canDeleteRecords, canManageAllWork, normalizeRoleValue, visibleQueueStatuses } from '../config/roles';
 import { toMysqlDateTime } from '../utils/dateTime';
 import { showAcknowledgeAccessRequestLinkDialog } from '../utils/closeIssueLink';
+import { loadSignatureIntoCanvas } from '../utils/signatureCanvas';
 
 const STATUS_LABELS = {
     Pending: 'ร้องขอ',
@@ -105,6 +106,11 @@ const AdminAccessRequests = ({ currentAdmin }) => {
         return () => clearInterval(intervalId);
     }, []);
 
+    useEffect(() => {
+        if (!isSignModalOpen || selectedActionStatus !== 'Pending_IT_Supervisor') return;
+        loadSignatureIntoCanvas(adminSignatureRef, currentAdmin?.signature);
+    }, [isSignModalOpen, selectedActionStatus]);
+
     const getActionStatusOptions = (status) => {
         const effectiveStatus = status === 'Pending' || !status ? 'Pending_Manager' : status;
         if (effectiveStatus === 'Pending_IT') {
@@ -124,7 +130,6 @@ const AdminAccessRequests = ({ currentAdmin }) => {
         setItStaffName(currentAdmin?.name || currentAdmin?.username || '');
         setActionResult('');
         setIsSignModalOpen(true);
-        setTimeout(() => adminSignatureRef.current?.clear(), 50);
     };
 
     const handleSignAndForward = async () => {

@@ -403,6 +403,8 @@ function pageHtml(saved) {
       'scripts/run-migrate-issue-report.mjs',
       'scripts/run-migrate-change-request-category.mjs',
       'scripts/run-migrate-admin-position.mjs',
+      'scripts/run-migrate-admin-signature.mjs',
+      'scripts/run-migrate-admin-security.mjs',
       'scripts/run-migrate-access-request-acknowledgement.mjs',
     ],
   }).replaceAll('<', '\\u003c')
@@ -508,6 +510,14 @@ function pageHtml(saved) {
         <div class="check">
           <input class="migration" type="checkbox" value="scripts/run-migrate-admin-position.mjs" checked />
           <label>admin position migration</label>
+        </div>
+        <div class="check">
+          <input class="migration" type="checkbox" value="scripts/run-migrate-admin-signature.mjs" checked />
+          <label>admin signature migration</label>
+        </div>
+        <div class="check">
+          <input class="migration" type="checkbox" value="scripts/run-migrate-admin-security.mjs" checked />
+          <label>admin login security and policy settings migration</label>
         </div>
         <div class="check">
           <input class="migration" type="checkbox" value="scripts/run-migrate-access-request-acknowledgement.mjs" checked />

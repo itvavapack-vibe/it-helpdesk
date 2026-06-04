@@ -1,22 +1,39 @@
 import React, { useState } from 'react';
 import { Lock, User } from 'lucide-react';
-import { loginAdmin } from '../mysqlClient';
+import { changeExpiredAdminPassword, loginAdmin } from '../mysqlClient';
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Label } from '@/components/ui';
+import { PASSWORD_POLICY_TEXT, getPasswordPolicyErrors } from '../../shared/passwordPolicy';
 
 const AdminLogin = ({ onLogin }) => {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
+    const [changeToken, setChangeToken] = useState('');
+    const [newPassword, setNewPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
 
         try {
-            const { data, error: fetchError } = await loginAdmin(username, password);
+            setIsSubmitting(true);
+            const { data, error: fetchError, code, changeToken: nextChangeToken, attemptsRemaining } = await loginAdmin(username, password);
 
             if (fetchError || !data) {
-                setError('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');
+                if (code === 'PASSWORD_CHANGE_REQUIRED' && nextChangeToken) {
+                    setChangeToken(nextChangeToken);
+                    setError('ต้องตั้งรหัสผ่านใหม่ก่อนเข้าสู่ระบบ');
+                    return;
+                }
+                if (code === 'ACCOUNT_LOCKED') {
+                    setError('บัญชีถูกล็อก กรุณาติดต่อ Administrator เพื่อปลดล็อก');
+                    return;
+                }
+                setError(attemptsRemaining != null
+                    ? `ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง เหลือโอกาสอีก ${attemptsRemaining} ครั้ง`
+                    : 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');
                 return;
             }
 
@@ -28,7 +45,42 @@ const AdminLogin = ({ onLogin }) => {
         } catch (err) {
             console.error('Login error: ', err);
             setError('เกิดข้อผิดพลาดในการเข้าสู่ระบบ');
+        } finally {
+            setIsSubmitting(false);
         }
+    };
+
+    const handlePasswordChange = async (event) => {
+        event.preventDefault();
+        setError('');
+
+        const policyErrors = getPasswordPolicyErrors(newPassword);
+        if (policyErrors.length > 0) {
+            setError(`รหัสผ่านยังขาด: ${policyErrors.join(', ')}`);
+            return;
+        }
+        if (newPassword !== confirmPassword) {
+            setError('ยืนยันรหัสผ่านใหม่ไม่ตรงกัน');
+            return;
+        }
+
+        setIsSubmitting(true);
+        const { data, error: changeError, code } = await changeExpiredAdminPassword(changeToken, newPassword);
+        setIsSubmitting(false);
+
+        if (changeError || !data) {
+            if (code === 'INVALID_CHANGE_TOKEN') {
+                setChangeToken('');
+                setNewPassword('');
+                setConfirmPassword('');
+                setError('หมดเวลาตั้งรหัสผ่าน กรุณาเข้าสู่ระบบใหม่อีกครั้ง');
+                return;
+            }
+            setError('ไม่สามารถเปลี่ยนรหัสผ่านได้');
+            return;
+        }
+
+        onLogin(data);
     };
 
     return (
@@ -41,7 +93,7 @@ const AdminLogin = ({ onLogin }) => {
                     เข้าสู่ระบบสำหรับเจ้าหน้าที่
                 </CardTitle>
                 <CardDescription className="font-medium">
-                    กรุณาเข้าสู่ระบบเพื่อจัดการรายการแจ้งซ่อม
+                    {changeToken ? 'ตั้งรหัสผ่านใหม่เพื่อเข้าสู่ระบบ' : 'กรุณาเข้าสู่ระบบเพื่อจัดการรายการแจ้งซ่อม'}
                 </CardDescription>
             </CardHeader>
 
@@ -52,7 +104,7 @@ const AdminLogin = ({ onLogin }) => {
                     </div>
                 )}
 
-                <form onSubmit={handleSubmit} className="space-y-6">
+                {!changeToken ? <form onSubmit={handleSubmit} className="space-y-6">
                     <div className="space-y-2">
                         <Label htmlFor="username" className="ml-1">ชื่อผู้ใช้ (Username)</Label>
                         <div className="relative">
@@ -83,19 +135,50 @@ const AdminLogin = ({ onLogin }) => {
                         </div>
                     </div>
 
-                    <Button type="submit" className="w-full mt-8">
-                        เข้าสู่ระบบ
+                    <Button type="submit" className="w-full mt-8" disabled={isSubmitting}>
+                        {isSubmitting ? 'กำลังตรวจสอบ...' : 'เข้าสู่ระบบ'}
                     </Button>
-                </form>
-
-                <div className="mt-8 text-center text-xs text-slate-500 dark:text-slate-400 font-medium">
-                    <p>
-                        สำหรับสาธิต: ใช้ Username:{' '}
-                        <span className="font-bold text-slate-700 dark:text-slate-300">admin1, admin2, หรือ admin3</span>
-                        {' '} / Password:{' '}
-                        <span className="font-bold text-slate-700 dark:text-slate-300">admin123</span>
-                    </p>
-                </div>
+                </form> : <form onSubmit={handlePasswordChange} className="space-y-5">
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-medium text-amber-700 dark:border-amber-900/60 dark:bg-amber-900/20 dark:text-amber-300">
+                        รหัสผ่านต้องมี {PASSWORD_POLICY_TEXT}
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="new-password" className="ml-1">รหัสผ่านใหม่</Label>
+                        <Input
+                            type="password"
+                            id="new-password"
+                            value={newPassword}
+                            onChange={(event) => setNewPassword(event.target.value)}
+                            required
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="confirm-password" className="ml-1">ยืนยันรหัสผ่านใหม่</Label>
+                        <Input
+                            type="password"
+                            id="confirm-password"
+                            value={confirmPassword}
+                            onChange={(event) => setConfirmPassword(event.target.value)}
+                            required
+                        />
+                    </div>
+                    <Button type="submit" className="w-full" disabled={isSubmitting}>
+                        {isSubmitting ? 'กำลังบันทึก...' : 'ตั้งรหัสผ่านใหม่และเข้าสู่ระบบ'}
+                    </Button>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setChangeToken('');
+                            setNewPassword('');
+                            setConfirmPassword('');
+                            setPassword('');
+                            setError('');
+                        }}
+                        className="w-full text-sm font-semibold text-slate-500 hover:text-indigo-600"
+                    >
+                        กลับไปหน้าเข้าสู่ระบบ
+                    </button>
+                </form>}
             </CardContent>
         </Card>
     );

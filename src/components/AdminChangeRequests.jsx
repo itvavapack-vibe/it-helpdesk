@@ -10,6 +10,7 @@ import { getChangeRequestTypeLabel } from '../config/changeRequestTypes';
 import { showAcceptChangeRequestLinkDialog } from '../utils/closeIssueLink';
 import Fmit15PdfPreview from './Fmit15PdfPreview';
 import { MAX_ATTACHMENT_SIZE, resolveAttachmentUrl, uploadAttachmentFiles } from '../utils/fileUpload';
+import { loadSignatureIntoCanvas } from '../utils/signatureCanvas';
 
 const parseAttachments = (value) => {
     if (!value) return [];
@@ -122,6 +123,16 @@ const AdminChangeRequests = ({ currentAdmin }) => {
     }, [currentAdmin?.name, currentAdmin?.position, currentAdmin?.username]);
 
     useEffect(() => {
+        if (!isActionModalOpen || !selectedActionStatus) return;
+        if (actionType === 'it_manager') {
+            loadSignatureIntoCanvas(itManagerSignatureRef, currentAdmin?.signature);
+        }
+        if (actionType === 'it_staff') {
+            loadSignatureIntoCanvas(staffSignatureRef, currentAdmin?.signature);
+        }
+    }, [actionType, isActionModalOpen, selectedActionStatus]);
+
+    useEffect(() => {
         const intervalId = setInterval(() => {
             if (document.visibilityState === 'visible') {
                 fetchRequests({ silent: true });
@@ -201,7 +212,6 @@ const AdminChangeRequests = ({ currentAdmin }) => {
                 staffName: currentAdmin?.name || currentAdmin?.username || f.staffName,
                 staffPosition: currentAdmin?.position || f.staffPosition,
             }));
-            setTimeout(() => staffSignatureRef.current?.clear(), 100);
             return;
         }
     };

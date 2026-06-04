@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import SignatureCanvas from 'react-signature-canvas';
 import { getAdminProfile, mysql, updateAdminProfile } from './mysqlClient';
 import IssueForm from './components/IssueForm';
 import IssueTracking from './components/IssueTracking';
@@ -30,6 +31,8 @@ import { notifyNewIssue, notifyStatusChange, notifyRepairUpdate } from './telegr
 import { buildCloseIssueLink, showCloseIssueLinkDialog } from './utils/closeIssueLink';
 import { toMysqlDateTime } from './utils/dateTime';
 import { insertWithMonthlyDocumentNumber } from './utils/ticketNumber';
+import { loadSignatureIntoCanvas } from './utils/signatureCanvas';
+import { PASSWORD_POLICY_TEXT, getPasswordPolicyErrors } from '../shared/passwordPolicy';
 
 const AUTO_CLOSE_AFTER_MS = 3 * 24 * 60 * 60 * 1000;
 
@@ -166,8 +169,9 @@ function App() {
     const [isAdminMoreOpen, setIsAdminMoreOpen] = useState(false);
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === 'true');
     const [isSavingProfile, setIsSavingProfile] = useState(false);
-    const [profileForm, setProfileForm] = useState({ username: '', name: '', position: '', password: '' });
+    const [profileForm, setProfileForm] = useState({ username: '', name: '', position: '', signature: '', password: '' });
     const [approvalQueues, setApprovalQueues] = useState({ access: [], change: [] });
+    const profileSignatureRef = useRef(null);
     const currentRole = normalizeRole(isAdminAuth);
     const adminNavItem = MAIN_NAV_ITEMS.find((item) => item.id === 'admin');
     const visibleMainNavItems = MAIN_NAV_ITEMS.filter((item) =>
@@ -291,6 +295,11 @@ function App() {
         const refreshCurrentAdmin = async () => {
             const { data, error } = await getAdminProfile();
             if (!cancelled && !error && data) {
+                if (data.password_change_required) {
+                    handleAdminLogout();
+                    Swal.fire('ต้องเปลี่ยนรหัสผ่าน', 'กรุณาเข้าสู่ระบบอีกครั้งเพื่อตั้งรหัสผ่านใหม่', 'warning');
+                    return;
+                }
                 handleCurrentAdminUpdated(data);
             }
         };
@@ -300,6 +309,24 @@ function App() {
             cancelled = true;
         };
     }, [isAdminAuth?.id]);
+
+    useEffect(() => {
+        if (!isAdminAuth?.session_expires_at) return;
+
+        const remainingTime = new Date(isAdminAuth.session_expires_at).getTime() - Date.now();
+        const handleSessionTimeout = () => {
+            handleAdminLogout();
+            Swal.fire('หมดเวลาเข้าสู่ระบบ', 'กรุณาเข้าสู่ระบบใหม่อีกครั้ง', 'warning');
+        };
+
+        if (remainingTime <= 0) {
+            handleSessionTimeout();
+            return;
+        }
+
+        const timeoutId = setTimeout(handleSessionTimeout, remainingTime);
+        return () => clearTimeout(timeoutId);
+    }, [isAdminAuth?.session_expires_at]);
 
     // Check auth state from localStorage initially
     useEffect(() => {
@@ -717,10 +744,16 @@ function App() {
             username: isAdminAuth?.username || '',
             name: isAdminAuth?.name || '',
             position: isAdminAuth?.position || '',
+            signature: isAdminAuth?.signature || '',
             password: ''
         });
         setIsProfileModalOpen(true);
     };
+
+    useEffect(() => {
+        if (!isProfileModalOpen) return;
+        loadSignatureIntoCanvas(profileSignatureRef, profileForm.signature);
+    }, [isProfileModalOpen]);
 
     const handleProfileFormChange = (event) => {
         const { name, value } = event.target;
@@ -734,12 +767,21 @@ function App() {
             Swal.fire('ข้อมูลไม่ครบ', 'กรุณากรอกชื่อผู้ใช้ ชื่อที่แสดง และตำแหน่ง', 'warning');
             return;
         }
+        const passwordErrors = profileForm.password ? getPasswordPolicyErrors(profileForm.password) : [];
+        if (passwordErrors.length > 0) {
+            Swal.fire('รหัสผ่านไม่ผ่านนโยบาย', `รหัสผ่านยังขาด: ${passwordErrors.join(', ')}`, 'warning');
+            return;
+        }
 
         setIsSavingProfile(true);
+        const signature = profileSignatureRef.current && !profileSignatureRef.current.isEmpty()
+            ? profileSignatureRef.current.getCanvas().toDataURL('image/png')
+            : '';
         const { data, error, status } = await updateAdminProfile({
             username: profileForm.username,
             name: profileForm.name,
             position: profileForm.position,
+            signature,
             password: profileForm.password
         });
         setIsSavingProfile(false);
@@ -898,7 +940,7 @@ function App() {
                         ) : selectedAdminSubTab === 'stats' ? (
                             <IssueStatistics issues={issues} />
                         ) : selectedAdminSubTab === 'employees' ? (
-                            <EmployeeManagement />
+                            <EmployeeManagement currentAdmin={isAdminAuth} />
                         ) : selectedAdminSubTab === 'users' ? (
                             <UserManagement
                                 currentAdmin={isAdminAuth}
@@ -906,7 +948,7 @@ function App() {
                                 onCurrentAdminUpdated={handleCurrentAdminUpdated}
                             />
                         ) : (
-                            <EmployeeManagement />
+                            <EmployeeManagement currentAdmin={isAdminAuth} />
                         )}
                     </div>
                 );
@@ -1280,6 +1322,27 @@ function App() {
                             </div>
 
                             <div className="space-y-2">
+                                <div className="flex items-center justify-between gap-3">
+                                    <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300">ลายเซ็นประจำโปรไฟล์</label>
+                                    <button
+                                        type="button"
+                                        onClick={() => profileSignatureRef.current?.clear()}
+                                        className="text-xs font-semibold text-rose-500 hover:text-rose-600"
+                                    >
+                                        ล้างลายเซ็น
+                                    </button>
+                                </div>
+                                <div className="h-36 overflow-hidden rounded-xl border-2 border-dashed border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-950">
+                                    <SignatureCanvas
+                                        ref={profileSignatureRef}
+                                        penColor="black"
+                                        canvasProps={{ className: 'h-full w-full xl-signature', 'aria-label': 'ลายเซ็นประจำโปรไฟล์' }}
+                                    />
+                                </div>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">ระบบจะดึงลายเซ็นนี้ไปเติมให้อัตโนมัติ และยังแก้ไขก่อนยืนยันงานได้</p>
+                            </div>
+
+                            <div className="space-y-2">
                                 <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300">รหัสผ่านใหม่</label>
                                 <input
                                     type="password"
@@ -1289,6 +1352,10 @@ function App() {
                                     className="w-full input-modern"
                                     placeholder="เว้นว่างไว้หากไม่ต้องการเปลี่ยน"
                                 />
+                                <p className="text-xs text-slate-500 dark:text-slate-400">
+                                    ต้องมี {PASSWORD_POLICY_TEXT}
+                                    {isAdminAuth?.password_never_expires ? ' บัญชี Administrator ไม่มีวันหมดอายุ' : ''}
+                                </p>
                             </div>
 
                             <div className="pt-4 flex gap-3 border-t border-slate-100 dark:border-slate-800">

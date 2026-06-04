@@ -1,14 +1,20 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Check, Edit2, Search, Shield, Trash2, User, UserPlus, Users, X } from 'lucide-react';
+import { Check, Edit2, LockKeyhole, LockOpen, Save, Search, Settings, Shield, Trash2, User, UserPlus, Users, X } from 'lucide-react';
 import Swal from 'sweetalert2';
-import { mysql } from '../mysqlClient';
+import { getAdminSecuritySettings, mysql, unlockAdminAccount, updateAdminSecuritySettings } from '../mysqlClient';
 import { ROLE_LABELS, ROLE_OPTIONS, ROLES, canManageAdminUsers, normalizeRoleValue } from '../config/roles';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { PASSWORD_POLICY_TEXT, getPasswordPolicyErrors } from '../../shared/passwordPolicy';
 
 const normalizeRole = normalizeRoleValue;
 const canDeleteUsers = (admin) => canManageAdminUsers(admin?.role);
 const canManageRoles = (admin) => canManageAdminUsers(admin?.role);
 const getRoleOption = (role) => ROLE_OPTIONS.find((option) => option.value === normalizeRole(role)) || ROLE_OPTIONS[1];
+const DEFAULT_SECURITY_SETTINGS = {
+    max_failed_login_attempts: 3,
+    password_max_age_days: 90,
+    login_timeout_minutes: 5
+};
 
 const UserManagement = ({ currentAdmin, onAuthExpired, onCurrentAdminUpdated }) => {
     const [users, setUsers] = useState([]);
@@ -16,6 +22,9 @@ const UserManagement = ({ currentAdmin, onAuthExpired, onCurrentAdminUpdated }) 
     const [searchTerm, setSearchTerm] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalMode, setModalMode] = useState('add');
+    const [securitySettings, setSecuritySettings] = useState(DEFAULT_SECURITY_SETTINGS);
+    const [isSecuritySettingsLoading, setIsSecuritySettingsLoading] = useState(true);
+    const [isSecuritySettingsSaving, setIsSecuritySettingsSaving] = useState(false);
     const [formData, setFormData] = useState({
         id: null,
         username: '',
@@ -26,7 +35,19 @@ const UserManagement = ({ currentAdmin, onAuthExpired, onCurrentAdminUpdated }) 
 
     useEffect(() => {
         fetchUsers();
+        if (canManageRoles(currentAdmin)) fetchSecuritySettings();
     }, []);
+
+    const fetchSecuritySettings = async () => {
+        setIsSecuritySettingsLoading(true);
+        const { data, error, status } = await getAdminSecuritySettings();
+        if (error) {
+            await handleAdminApiError(error, status, 'ไม่สามารถโหลดการตั้งค่านโยบายรหัสผ่านได้');
+        } else if (data) {
+            setSecuritySettings(data);
+        }
+        setIsSecuritySettingsLoading(false);
+    };
 
     const fetchUsers = async () => {
         setIsLoading(true);
@@ -34,7 +55,7 @@ const UserManagement = ({ currentAdmin, onAuthExpired, onCurrentAdminUpdated }) 
         const startTime = Date.now();
         const { data, error, status } = await mysql
             .from('admins')
-            .select('id, username, name, role, created_at')
+            .select('id, username, name, role, failed_login_attempts, locked_at, password_changed_at, created_at')
             .order('created_at', { ascending: false });
 
         const elapsedTime = Date.now() - startTime;
@@ -131,8 +152,52 @@ const UserManagement = ({ currentAdmin, onAuthExpired, onCurrentAdminUpdated }) 
         return true;
     };
 
+    const handleSecuritySettingsSubmit = async (event) => {
+        event.preventDefault();
+        const maxFailedLoginAttempts = Number(securitySettings.max_failed_login_attempts);
+        const passwordMaxAgeDays = Number(securitySettings.password_max_age_days);
+        const loginTimeoutMinutes = Number(securitySettings.login_timeout_minutes);
+
+        if (!Number.isInteger(maxFailedLoginAttempts) || maxFailedLoginAttempts < 1 || maxFailedLoginAttempts > 20) {
+            Swal.fire('ข้อมูลไม่ถูกต้อง', 'จำนวนครั้งก่อนล็อกต้องเป็นเลขจำนวนเต็มระหว่าง 1 ถึง 20 ครั้ง', 'warning');
+            return;
+        }
+        if (!Number.isInteger(passwordMaxAgeDays) || passwordMaxAgeDays < 1 || passwordMaxAgeDays > 3650) {
+            Swal.fire('ข้อมูลไม่ถูกต้อง', 'อายุรหัสผ่านต้องเป็นเลขจำนวนเต็มระหว่าง 1 ถึง 3,650 วัน', 'warning');
+            return;
+        }
+        if (!Number.isInteger(loginTimeoutMinutes) || loginTimeoutMinutes < 1 || loginTimeoutMinutes > 1440) {
+            Swal.fire('ข้อมูลไม่ถูกต้อง', 'ระยะเวลาเข้าสู่ระบบต้องเป็นเลขจำนวนเต็มระหว่าง 1 ถึง 1,440 นาที', 'warning');
+            return;
+        }
+
+        setIsSecuritySettingsSaving(true);
+        const { data, error, status } = await updateAdminSecuritySettings({
+            max_failed_login_attempts: maxFailedLoginAttempts,
+            password_max_age_days: passwordMaxAgeDays,
+            login_timeout_minutes: loginTimeoutMinutes
+        });
+        setIsSecuritySettingsSaving(false);
+
+        if (await handleAdminApiError(error, status, 'ไม่สามารถบันทึกการตั้งค่านโยบายรหัสผ่านได้')) return;
+
+        setSecuritySettings(data);
+        Swal.fire({
+            icon: 'success',
+            title: 'บันทึกนโยบายรหัสผ่านแล้ว',
+            text: 'ระบบจะใช้ค่าใหม่กับการเข้าสู่ระบบครั้งถัดไป',
+            showConfirmButton: false,
+            timer: 1800
+        });
+    };
+
     const handleSubmit = async (event) => {
         event.preventDefault();
+        const passwordErrors = formData.password ? getPasswordPolicyErrors(formData.password) : [];
+        if (passwordErrors.length > 0) {
+            Swal.fire('รหัสผ่านไม่ผ่านนโยบาย', `รหัสผ่านยังขาด: ${passwordErrors.join(', ')}`, 'warning');
+            return;
+        }
 
         if (modalMode === 'add') {
             if (!formData.username || !formData.password || !formData.name) {
@@ -229,6 +294,25 @@ const UserManagement = ({ currentAdmin, onAuthExpired, onCurrentAdminUpdated }) 
         handleCloseModal();
     };
 
+    const handleUnlock = async (user) => {
+        const result = await Swal.fire({
+            title: 'ปลดล็อกบัญชี?',
+            text: `ต้องการปลดล็อกบัญชี "${user.username}" ใช่หรือไม่`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#10b981',
+            confirmButtonText: 'ปลดล็อก',
+            cancelButtonText: 'ยกเลิก',
+        });
+        if (!result.isConfirmed) return;
+
+        const { error, status } = await unlockAdminAccount(user.id);
+        if (await handleAdminApiError(error, status, 'ไม่สามารถปลดล็อกบัญชีได้')) return;
+
+        Swal.fire('ปลดล็อกแล้ว', 'บัญชีสามารถเข้าสู่ระบบได้อีกครั้ง', 'success');
+        fetchUsers();
+    };
+
     const handleDelete = (id, username, role) => {
         if (!canDeleteUsers(currentAdmin)) {
             Swal.fire('สิทธิ์ไม่เพียงพอ', 'เฉพาะ Super Admin เท่านั้นที่ลบผู้ใช้งานได้', 'error');
@@ -309,6 +393,87 @@ const UserManagement = ({ currentAdmin, onAuthExpired, onCurrentAdminUpdated }) 
                 </button>
             </div>
 
+            {canManageRoles(currentAdmin) && (
+                <form onSubmit={handleSecuritySettingsSubmit} className="glass-card p-5 sm:p-6 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.2)]">
+                    <div className="flex flex-col lg:flex-row lg:items-end gap-5">
+                        <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="w-10 h-10 rounded-xl bg-violet-100 dark:bg-violet-900/40 flex items-center justify-center text-violet-600 dark:text-violet-300">
+                                    <Settings className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-slate-800 dark:text-slate-100">ตั้งค่านโยบายรหัสผ่าน</h3>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                                <label className="space-y-2">
+                                    <span className="block text-sm font-semibold text-slate-700 dark:text-slate-300"> Account Lockout Threshold</span>
+                                    <div className="relative">
+                                        <input
+                                            type="number"
+                                            min="1"
+                                            max="20"
+                                            step="1"
+                                            value={securitySettings.max_failed_login_attempts}
+                                            onChange={(event) => setSecuritySettings((previous) => ({ ...previous, max_failed_login_attempts: event.target.value }))}
+                                            className="w-full input-modern !pr-16"
+                                            disabled={isSecuritySettingsLoading || isSecuritySettingsSaving}
+                                            required
+                                        />
+                                        <span className="absolute right-3 top-2.5 text-sm text-slate-400">ครั้ง</span>
+                                    </div>
+                                    <span className="block text-xs text-slate-500 dark:text-slate-400">กำหนดได้ 1-20 ครั้ง</span>
+                                </label>
+                                <label className="space-y-2">
+                                    <span className="block text-sm font-semibold text-slate-700 dark:text-slate-300">Password Expiration</span>
+                                    <div className="relative">
+                                        <input
+                                            type="number"
+                                            min="1"
+                                            max="3650"
+                                            step="1"
+                                            value={securitySettings.password_max_age_days}
+                                            onChange={(event) => setSecuritySettings((previous) => ({ ...previous, password_max_age_days: event.target.value }))}
+                                            className="w-full input-modern !pr-14"
+                                            disabled={isSecuritySettingsLoading || isSecuritySettingsSaving}
+                                            required
+                                        />
+                                        <span className="absolute right-3 top-2.5 text-sm text-slate-400">วัน</span>
+                                    </div>
+                                    <span className="block text-xs text-slate-500 dark:text-slate-400">กำหนดได้ 1-3,650 วัน</span>
+                                </label>
+                                <label className="space-y-2">
+                                    <span className="block text-sm font-semibold text-slate-700 dark:text-slate-300">Login Session Timeout</span>
+                                    <div className="relative">
+                                        <input
+                                            type="number"
+                                            min="1"
+                                            max="1440"
+                                            step="1"
+                                            value={securitySettings.login_timeout_minutes}
+                                            onChange={(event) => setSecuritySettings((previous) => ({ ...previous, login_timeout_minutes: event.target.value }))}
+                                            className="w-full input-modern !pr-14"
+                                            disabled={isSecuritySettingsLoading || isSecuritySettingsSaving}
+                                            required
+                                        />
+                                        <span className="absolute right-3 top-2.5 text-sm text-slate-400">นาที</span>
+                                    </div>
+                                    <span className="block text-xs text-slate-500 dark:text-slate-400">ออกจากระบบเมื่อครบเวลา กำหนดได้ 1-1,440 นาที</span>
+                                </label>
+                            </div>
+                        </div>
+                        <button
+                            type="submit"
+                            disabled={isSecuritySettingsLoading || isSecuritySettingsSaving}
+                            className="w-full lg:w-auto px-5 py-2.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl shadow-lg shadow-violet-200 dark:shadow-violet-900/30 flex items-center justify-center gap-2 transition-all"
+                        >
+                            <Save className="w-4 h-4" />
+                            {isSecuritySettingsSaving ? 'กำลังบันทึก...' : 'บันทึกการตั้งค่า'}
+                        </button>
+                    </div>
+                </form>
+            )}
+
             <div className="glass-card p-4 rounded-2xl flex flex-col sm:flex-row justify-between items-center gap-4">
                 <div className="w-full sm:w-1/2 md:w-1/3 relative">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -358,7 +523,20 @@ const UserManagement = ({ currentAdmin, onAuthExpired, onCurrentAdminUpdated }) 
                                                 <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500 dark:text-slate-400 font-bold border border-slate-200 dark:border-slate-700">
                                                     {user.username.charAt(0).toUpperCase()}
                                                 </div>
-                                                <span className="font-semibold text-slate-800 dark:text-slate-200">{user.username}</span>
+                                                <div>
+                                                    <span className="font-semibold text-slate-800 dark:text-slate-200">{user.username}</span>
+                                                    {user.locked_at && normalizeRole(user.role) !== ROLES.SUPERADMIN && (
+                                                        <div className="mt-1 inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-700 dark:bg-rose-900/30 dark:text-rose-300">
+                                                            <LockKeyhole className="h-3 w-3" /> บัญชีถูกล็อก
+                                                        </div>
+                                                    )}
+                                                    {!user.password_changed_at && (
+                                                        <div className="mt-1 text-[11px] font-medium text-amber-600 dark:text-amber-400">ต้องตั้งรหัสผ่านใหม่</div>
+                                                    )}
+                                                    {user.password_changed_at && normalizeRole(user.role) === ROLES.SUPERADMIN && (
+                                                        <div className="mt-1 text-[11px] font-medium text-violet-600 dark:text-violet-400">รหัสผ่านไม่มีวันหมดอายุ</div>
+                                                    )}
+                                                </div>
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
@@ -391,6 +569,15 @@ const UserManagement = ({ currentAdmin, onAuthExpired, onCurrentAdminUpdated }) 
                                                 >
                                                     <Edit2 className="w-4 h-4" />
                                                 </button>
+                                                {user.locked_at && normalizeRole(user.role) !== ROLES.SUPERADMIN && (
+                                                    <button
+                                                        onClick={() => handleUnlock(user)}
+                                                        className="p-1.5 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/40 rounded-lg transition-colors"
+                                                        title="ปลดล็อกบัญชี"
+                                                    >
+                                                        <LockOpen className="w-4 h-4" />
+                                                    </button>
+                                                )}
                                                 {canDeleteUsers(currentAdmin) && user.id !== currentAdmin?.id && (
                                                     <button
                                                         onClick={() => handleDelete(user.id, user.username, user.role)}
@@ -468,6 +655,7 @@ const UserManagement = ({ currentAdmin, onAuthExpired, onCurrentAdminUpdated }) 
                                     className="w-full input-modern"
                                     placeholder={modalMode === 'add' ? 'กำหนดรหัสผ่าน' : 'เว้นว่างไว้หากไม่ต้องการเปลี่ยน'}
                                 />
+                                <p className="text-xs text-slate-500 dark:text-slate-400 ml-1">ต้องมี {PASSWORD_POLICY_TEXT}</p>
                             </div>
 
                             <div className="space-y-2">
