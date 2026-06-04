@@ -166,7 +166,7 @@ function App() {
     const [isAdminMoreOpen, setIsAdminMoreOpen] = useState(false);
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === 'true');
     const [isSavingProfile, setIsSavingProfile] = useState(false);
-    const [profileForm, setProfileForm] = useState({ username: '', name: '', password: '' });
+    const [profileForm, setProfileForm] = useState({ username: '', name: '', position: '', password: '' });
     const [approvalQueues, setApprovalQueues] = useState({ access: [], change: [] });
     const currentRole = normalizeRole(isAdminAuth);
     const adminNavItem = MAIN_NAV_ITEMS.find((item) => item.id === 'admin');
@@ -715,6 +715,7 @@ function App() {
         setProfileForm({
             username: isAdminAuth?.username || '',
             name: isAdminAuth?.name || '',
+            position: isAdminAuth?.position || '',
             password: ''
         });
         setIsProfileModalOpen(true);
@@ -728,8 +729,8 @@ function App() {
     const handleProfileSubmit = async (event) => {
         event.preventDefault();
 
-        if (!profileForm.username.trim() || !profileForm.name.trim()) {
-            Swal.fire('ข้อมูลไม่ครบ', 'กรุณากรอกชื่อผู้ใช้และชื่อที่แสดง', 'warning');
+        if (!profileForm.username.trim() || !profileForm.name.trim() || !profileForm.position.trim()) {
+            Swal.fire('ข้อมูลไม่ครบ', 'กรุณากรอกชื่อผู้ใช้ ชื่อที่แสดง และตำแหน่ง', 'warning');
             return;
         }
 
@@ -737,6 +738,7 @@ function App() {
         const { data, error, status } = await updateAdminProfile({
             username: profileForm.username,
             name: profileForm.name,
+            position: profileForm.position,
             password: profileForm.password
         });
         setIsSavingProfile(false);
@@ -1251,6 +1253,18 @@ function App() {
                                     value={profileForm.name}
                                     onChange={handleProfileFormChange}
                                     className="w-full input-modern"
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300">ตำแหน่ง</label>
+                                <input
+                                    type="text"
+                                    name="position"
+                                    value={profileForm.position}
+                                    onChange={handleProfileFormChange}
+                                    className="w-full input-modern"
+                                    placeholder="ระบุตำแหน่ง"
                                 />
                             </div>
 

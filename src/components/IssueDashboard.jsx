@@ -302,7 +302,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
             operationStartedAt: toDateTimeLocalValue(issue.operationStartedAt),
             budget: issue.budget ?? '',
             inspectorName: issue.inspectorName || currentAdmin?.name || '',
-            inspectorPosition: issue.inspectorPosition || '',
+            inspectorPosition: issue.inspectorPosition || currentAdmin?.position || '',
             inspectorSign: issue.inspectorSign || '',
             inspectorSignedAt: issue.inspectorSignedAt || ''
         });
@@ -1344,7 +1344,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                     <input
                                         id="edit-user-closed-at"
                                         type="text"
-                                        value={currentRepairIssue?.userClosedAt ? formatDate(currentRepairIssue.userClosedAt) : '-'}
+                                        value={currentRepairIssue?.inspectorSignedAt ? formatDate(currentRepairIssue.inspectorSignedAt) : '-'}
                                         readOnly
                                         className="w-full input-modern bg-slate-50 dark:bg-slate-900/40"
                                     />
@@ -1417,25 +1417,36 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                     </div>
                                 </div>
                             )}
-                        </fieldset>
-                        )}
 
-                        <div className="repair-modal-footer sticky bottom-0 z-20 shrink-0 px-4 sm:px-6 py-3 sm:py-4 bg-slate-50/95 dark:bg-slate-700/95 backdrop-blur-md flex justify-end gap-3 border-t border-slate-100 dark:border-slate-700 shadow-[0_-8px_20px_rgba(15,23,42,0.08)]">
-                            <button
-                                onClick={() => setIsRepairModalOpen(false)}
-                                className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all"
-                            >
-                                {isRepairReadOnly ? 'ปิด' : 'ยกเลิก'}
-                            </button>
-                            {!isRepairReadOnly && (
+                            <div className="repair-modal-actions mt-5 flex gap-3 border-t border-slate-100 pt-4 pb-[calc(env(safe-area-inset-bottom,0px)+0.25rem)] dark:border-slate-700">
                                 <button
+                                    type="button"
+                                    onClick={() => setIsRepairModalOpen(false)}
+                                    className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all"
+                                >
+                                    ยกเลิก
+                                </button>
+                                <button
+                                    type="button"
                                     onClick={handleSaveRepairDetails}
-                                    className="flex-1 sm:flex-none px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 shadow-md shadow-indigo-200 flex items-center justify-center gap-2 transform hover:-translate-y-0.5 transition-all"
+                                    className="flex-1 px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 shadow-md shadow-indigo-200 flex items-center justify-center gap-2 transform hover:-translate-y-0.5 transition-all"
                                 >
                                     <Save className="w-4 h-4" /> บันทึกข้อมูล
                                 </button>
-                            )}
-                        </div>
+                            </div>
+                        </fieldset>
+                        )}
+
+                        {isRepairReadOnly && (
+                            <div className="repair-modal-footer sticky bottom-0 z-20 shrink-0 px-4 sm:px-6 py-3 sm:py-4 bg-slate-50/95 dark:bg-slate-700/95 backdrop-blur-md flex justify-end gap-3 border-t border-slate-100 dark:border-slate-700 shadow-[0_-8px_20px_rgba(15,23,42,0.08)]">
+                                <button
+                                    onClick={() => setIsRepairModalOpen(false)}
+                                    className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all"
+                                >
+                                    ปิด
+                                </button>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

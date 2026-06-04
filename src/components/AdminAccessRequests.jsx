@@ -120,7 +120,7 @@ const AdminAccessRequests = ({ currentAdmin }) => {
 
         setSigningRequestId(req.id);
         setSelectedActionStatus('');
-        setItStaffName('');
+        setItStaffName(currentAdmin?.name || currentAdmin?.username || '');
         setActionResult('');
         setIsSignModalOpen(true);
         setTimeout(() => adminSignatureRef.current?.clear(), 50);

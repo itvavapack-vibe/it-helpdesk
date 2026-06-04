@@ -95,15 +95,29 @@ function requireToken(req, res) {
   return false
 }
 
+function spawnCommand(command, args, options) {
+  if (os.platform() === 'win32' && /\.(cmd|bat)$/i.test(command)) {
+    return spawn('cmd.exe', ['/d', '/s', '/c', command, ...args], options)
+  }
+  return spawn(command, args, options)
+}
+
 function run(command, args, cwd) {
   return new Promise((resolve, reject) => {
-    sendLog(`> ${command} ${args.join(' ')}`)
-    const child = spawn(command, args, {
-      cwd,
-      shell: false,
-      env: process.env,
-      windowsHide: true,
-    })
+    const display = `${command} ${args.join(' ')}`
+    sendLog(`> ${display}`)
+    let child
+    try {
+      child = spawnCommand(command, args, {
+        cwd,
+        shell: false,
+        env: process.env,
+        windowsHide: true,
+      })
+    } catch (error) {
+      reject(new Error(`Cannot start command "${display}": ${error.message}`))
+      return
+    }
 
     child.stdout.on('data', chunk => {
       for (const line of String(chunk).split(/\r?\n/).filter(Boolean)) sendLog(line)
@@ -111,21 +125,28 @@ function run(command, args, cwd) {
     child.stderr.on('data', chunk => {
       for (const line of String(chunk).split(/\r?\n/).filter(Boolean)) sendLog(line)
     })
-    child.on('error', reject)
+    child.on('error', error => reject(new Error(`Cannot start command "${display}": ${error.message}`)))
     child.on('close', code => {
       if (code === 0) resolve()
-      else reject(new Error(`Command failed: ${command} ${args.join(' ')}`))
+      else reject(new Error(`Command failed (${code}): ${display}`))
     })
   })
 }
 
 function output(command, args, cwd) {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
-      cwd,
-      shell: false,
-      windowsHide: true,
-    })
+    const display = `${command} ${args.join(' ')}`
+    let child
+    try {
+      child = spawnCommand(command, args, {
+        cwd,
+        shell: false,
+        windowsHide: true,
+      })
+    } catch (error) {
+      reject(new Error(`Cannot start command "${display}": ${error.message}`))
+      return
+    }
     let text = ''
     child.stdout.on('data', chunk => {
       text += chunk
@@ -133,10 +154,10 @@ function output(command, args, cwd) {
     child.stderr.on('data', chunk => {
       text += chunk
     })
-    child.on('error', reject)
+    child.on('error', error => reject(new Error(`Cannot start command "${display}": ${error.message}`)))
     child.on('close', code => {
       if (code === 0) resolve(text.trim())
-      else reject(new Error(text.trim() || `Command failed: ${command} ${args.join(' ')}`))
+      else reject(new Error(text.trim() || `Command failed (${code}): ${display}`))
     })
   })
 }
@@ -297,6 +318,7 @@ function pageHtml(saved) {
       'scripts/run-migrate-change-request-attachments.mjs',
       'scripts/run-migrate-issue-report.mjs',
       'scripts/run-migrate-change-request-category.mjs',
+      'scripts/run-migrate-admin-position.mjs',
     ],
   }).replaceAll('<', '\\u003c')
 
@@ -379,6 +401,10 @@ function pageHtml(saved) {
         <div class="check">
           <input class="migration" type="checkbox" value="scripts/run-migrate-change-request-category.mjs" checked />
           <label>change request category migration</label>
+        </div>
+        <div class="check">
+          <input class="migration" type="checkbox" value="scripts/run-migrate-admin-position.mjs" checked />
+          <label>admin position migration</label>
         </div>
       </div>
 

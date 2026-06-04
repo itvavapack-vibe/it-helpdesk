@@ -100,6 +100,19 @@ const AdminChangeRequests = ({ currentAdmin }) => {
     }, []);
 
     useEffect(() => {
+        const adminName = currentAdmin?.name || currentAdmin?.username || '';
+        const adminPosition = currentAdmin?.position || '';
+        if (!adminName && !adminPosition) return;
+        setItForm((form) => ({
+            ...form,
+            staffName: form.staffName || adminName,
+            staffPosition: form.staffPosition || adminPosition,
+            managerName: form.managerName || adminName,
+            managerPosition: form.managerPosition || adminPosition,
+        }));
+    }, [currentAdmin?.name, currentAdmin?.position, currentAdmin?.username]);
+
+    useEffect(() => {
         const intervalId = setInterval(() => {
             if (document.visibilityState === 'visible') {
                 fetchRequests({ silent: true });
@@ -176,6 +189,8 @@ const AdminChangeRequests = ({ currentAdmin }) => {
                 receivedDate: req.it_received_date ? toLocalDateInputValue(req.it_received_date) : f.receivedDate,
                 operationDate: req.it_operation_date ? toLocalDateInputValue(req.it_operation_date) : f.operationDate,
                 targetDate: req.it_target_date ? toLocalDateInputValue(req.it_target_date) : f.targetDate,
+                staffName: currentAdmin?.name || currentAdmin?.username || f.staffName,
+                staffPosition: currentAdmin?.position || f.staffPosition,
             }));
             setTimeout(() => staffSignatureRef.current?.clear(), 100);
             return;

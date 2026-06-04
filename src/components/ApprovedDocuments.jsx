@@ -153,12 +153,14 @@ const ApprovedDocuments = ({ currentAdmin }) => {
                 ? {
                     status: selectedApprovalStatus,
                     it_supervisor_name: currentAdmin?.name || '',
+                    it_supervisor_position: currentAdmin?.position || '',
                     it_supervisor_sign: signature,
                     it_supervisor_date: toMysqlDateTime(),
                 }
                 : {
                     status: selectedApprovalStatus,
                     it_manager_name: currentAdmin?.name || '',
+                    it_manager_position: currentAdmin?.position || '',
                     it_manager_sign: signature,
                     it_manager_date: toMysqlDateTime(),
                 }
@@ -166,6 +168,7 @@ const ApprovedDocuments = ({ currentAdmin }) => {
                 ? {
                     status: selectedApprovalStatus,
                     it_supervisor_name: currentAdmin?.name || '',
+                    it_supervisor_position: currentAdmin?.position || '',
                     it_supervisor_sign: signature,
                     it_supervisor_date: toMysqlDateTime(),
                 }
@@ -173,6 +176,7 @@ const ApprovedDocuments = ({ currentAdmin }) => {
                     status: selectedApprovalStatus,
                     it_approval_status: 'Approved',
                     it_manager_name: currentAdmin?.name || '',
+                    it_manager_position: currentAdmin?.position || '',
                     it_manager_sign: signature,
                     it_manager_date: toMysqlDateTime(),
                 };
@@ -315,6 +319,7 @@ const ApprovedDocuments = ({ currentAdmin }) => {
                         </div>
                         <div className="mb-4 rounded-xl border border-slate-100 bg-slate-50 p-3 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300">
                             ผู้ลงนาม: <span className="font-semibold text-slate-800 dark:text-slate-100">{currentAdmin?.name || '-'}</span>
+                            <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">ตำแหน่ง: {currentAdmin?.position || '-'}</div>
                         </div>
                         <div className="mb-4">
                             <label className="mb-1 block text-sm font-semibold text-slate-700 dark:text-slate-300">สถานะที่ต้องการเปลี่ยน</label>
