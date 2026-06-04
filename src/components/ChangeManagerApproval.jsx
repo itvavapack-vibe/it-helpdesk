@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import SignatureCanvas from 'react-signature-canvas';
 import Swal from 'sweetalert2';
-import { CheckCircle, Code, Loader2, XCircle } from 'lucide-react';
+import { CheckCircle, ClipboardPenLine, Loader2, XCircle } from 'lucide-react';
 import { mysql } from '../mysqlClient';
 import { getChangeRequestTypeLabel } from '../config/changeRequestTypes';
 
@@ -139,7 +139,7 @@ const ChangeManagerApproval = ({ requestId }) => {
             <div className="rounded-3xl border border-slate-100 bg-white p-6 shadow-xl shadow-slate-200/50 dark:border-slate-700 dark:bg-slate-800 dark:shadow-slate-900/50 sm:p-8">
                 <div className="mb-8 flex items-start gap-4">
                     <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-300">
-                        <Code className="h-7 w-7" />
+                        <ClipboardPenLine className="h-7 w-7" />
                     </div>
                     <div>
                         <h2 className="text-2xl font-bold text-slate-800 dark:text-white">พิจารณาอนุมัติคำร้องพัฒนาโปรแกรม</h2>

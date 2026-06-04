@@ -293,7 +293,7 @@ const UserManagement = ({ currentAdmin, onAuthExpired, onCurrentAdminUpdated }) 
         <div className="space-y-6 animate-fade-in relative z-10 w-full">
             <div className="glass-card p-6 rounded-3xl flex flex-col sm:flex-row justify-between items-center gap-4 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.2)]">
                 <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center text-white shadow-lg shadow-indigo-200 dark:shadow-indigo-900/40">
+                    <div className="w-12 h-12 rounded-2xl bg-fuchsia-100 dark:bg-fuchsia-900/50 flex items-center justify-center text-fuchsia-600 dark:text-fuchsia-300 shadow-lg shadow-fuchsia-100 dark:shadow-fuchsia-950/30">
                         <Users className="w-6 h-6" />
                     </div>
                     <div>

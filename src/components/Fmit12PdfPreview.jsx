@@ -12,6 +12,7 @@ const Fmit12PdfPreview = ({ isOpen, onClose, formData }) => {
         if (!previewRef.current) return;
 
         try {
+            await document.fonts?.ready;
             const canvas = await html2canvas(previewRef.current, {
                 scale: 2.5,
                 useCORS: true,
@@ -56,7 +57,9 @@ const Fmit12PdfPreview = ({ isOpen, onClose, formData }) => {
             width: '210mm',
             height: '297mm',
             color: '#000',
-            fontFamily: '"Angsana New", "TH Sarabun New", Sarabun, "Segoe UI", Tahoma, sans-serif',
+            fontFamily: 'Sarabun, Tahoma, "Segoe UI", sans-serif',
+            WebkitTextSizeAdjust: '100%',
+            textSizeAdjust: '100%',
             position: 'relative',
             boxShadow: '0 8px 40px rgba(0,0,0,0.18)',
             padding: '18mm 17mm 17mm',
@@ -181,13 +184,18 @@ const Fmit12PdfPreview = ({ isOpen, onClose, formData }) => {
                                         <td style={{ ...styles.cell, width: '16%' }}>ชื่อผู้แจ้ง :</td>
                                         <td style={{ ...styles.cell, width: '32%' }}>{formData.nameTh || ''}</td>
                                         <td style={{ ...styles.cell, width: '17%', background: '#e5e5e5' }}>เลขที่ใบแจ้ง:</td>
-                                        <td style={{ ...styles.cell, width: '35%', background: '#e5e5e5', fontWeight: 600 }}>{formData.ticketNumber || 'ITU .............../................'}</td>
+                                        <td style={{ ...styles.cell, width: '35%', background: '#e5e5e5', fontWeight: 600 }}>{formData.ticketNumber || 'ITU YYMM-XXX'}</td>
                                     </tr>
                                     <tr>
                                         <td style={styles.cell}>วันที่แจ้ง :</td>
                                         <td style={{ ...styles.cell, textAlign: 'center' }}>{requestDate || '............/............/............'}</td>
                                         <td style={{ ...styles.cell, background: '#e5e5e5' }}>ผู้รับแจ้ง:</td>
-                                        <td style={{ ...styles.cell, background: '#e5e5e5', textAlign: 'right' }}>......../......../..........</td>
+                                        <td style={{ ...styles.cell, background: '#e5e5e5' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
+                                                <span>{formData.itStaffName || ''}</span>
+                                                <span>{formatDate(formData.itStaffDate) || '......../......../..........'}</span>
+                                            </div>
+                                        </td>
                                     </tr>
                                 </tbody>
                             </table>

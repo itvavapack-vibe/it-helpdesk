@@ -1,12 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { CheckCircle, Clock, Edit, CheckCircle2, Monitor, ChevronDown, X, ImagePlus, Paperclip } from 'lucide-react';
+import { CheckCircle, ClipboardList, Monitor, X, ImagePlus } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Combobox } from './ui/combobox';
 import Swal from 'sweetalert2';
 import { mysql, API_URL } from '../mysqlClient';
 import { DEFAULT_ISSUE_CATEGORY, ISSUE_CATEGORIES } from '../config/issueOptions';
-const STATUS_ORDER = ['Pending', 'In Progress', 'Resolved'];
-
 const DEPARTMENTS = [
     'แอดมิน', 'บุคคลและธุรการ', 'วิศวกรรม', 'การตลาดและขาย (ในประเทศ)',
     'การตลาดและขาย (ต่างประเทศ)', 'แอดมินการตลาด', 'บัญชี', 'การเงิน',
@@ -16,20 +14,7 @@ const DEPARTMENTS = [
     'สำนักกรรมการ', 'อื่นๆ'
 ];
 
-const getStatusBadge = (status) => {
-    switch (status) {
-        case 'Pending':
-            return <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700 border border-amber-200"><Clock className="w-3 h-3" /> รอดำเนินการ</span>;
-        case 'In Progress':
-            return <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-700 border border-indigo-200"><Edit className="w-3 h-3" /> กำลังแก้ไข</span>;
-        case 'Resolved':
-            return <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200"><CheckCircle2 className="w-3 h-3" /> เสร็จสิ้น</span>;
-        default:
-            return <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">{status}</span>;
-    }
-};
-
-const IssueForm = ({ addIssue, issues = [], isLoading = false, qrParams = null }) => {
+const IssueForm = ({ addIssue, qrParams = null }) => {
     const [formData, setFormData] = useState({
         name: '',
         department: '',
@@ -38,6 +23,8 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false, qrParams = null }
         severity: 'Normal',
         assetId: '',
         assetName: '',
+        assetType: '',
+        assetLocation: '',
     });
     const [selectedFiles, setSelectedFiles] = useState([]);
     const [isUploading, setIsUploading] = useState(false);
@@ -50,7 +37,6 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false, qrParams = null }
     // Autocomplete dropdown states
     const [assetSearchTerm, setAssetSearchTerm] = useState('');
     const [isAssetDropdownOpen, setIsAssetDropdownOpen] = useState(false);
-    const [recentSearchTerm, setRecentSearchTerm] = useState('');
 
     // Initial load effects
     useEffect(() => {
@@ -59,7 +45,7 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false, qrParams = null }
             try {
                 const { data, error } = await mysql
                     .from('assets')
-                    .select('glpi_id, name, serial, otherserial, users_id')
+                    .select('glpi_id, name, serial, otherserial, users_id, computermodels_id, computertypes_id, locations_id')
                     .order('name');
                 if (error) throw error;
                 // แปลง glpi_id → id เพื่อให้ใช้ร่วมกับโครงสร้างเดิมได้
@@ -123,7 +109,14 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false, qrParams = null }
                 ownerName = userObj ? (userObj.formattedName || userObj.name) : matchedComputer.users_id;
             }
 
-            setFormData(prev => ({ ...prev, assetId, assetName, name: ownerName }));
+            setFormData(prev => ({
+                ...prev,
+                assetId,
+                assetName,
+                assetType: matchedComputer?.computertypes_id || matchedComputer?.computermodels_id || '',
+                assetLocation: matchedComputer?.locations_id || '',
+                name: ownerName
+            }));
             setAssetSearchTerm(assetName);
         }
     }, [computers, glpiUsersRaw, qrParams]);
@@ -246,6 +239,8 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false, qrParams = null }
                 ...prev, 
                 assetId: value, 
                 assetName: selected ? selected.name : '',
+                assetType: selected?.computertypes_id || selected?.computermodels_id || '',
+                assetLocation: selected?.locations_id || '',
                 // Auto-fill ชื่อถ้ายังไม่ได้กรอก และเครื่องมีเจ้าของ
                 name: prev.name || ownerName
             }));
@@ -258,7 +253,9 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false, qrParams = null }
                     ...prev, 
                     name: '',
                     assetId: '',
-                    assetName: ''
+                    assetName: '',
+                    assetType: '',
+                    assetLocation: ''
                 }));
                 setAssetSearchTerm('');
                 return;
@@ -293,6 +290,8 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false, qrParams = null }
                     if (prev.assetId !== String(pc.id)) {
                         newState.assetId = String(pc.id);
                         newState.assetName = pc.name;
+                        newState.assetType = pc.computertypes_id || pc.computermodels_id || '';
+                        newState.assetLocation = pc.locations_id || '';
                         setAssetSearchTerm(pc.name);
                     }
                 } else if (userComputers.length > 1) {
@@ -301,6 +300,8 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false, qrParams = null }
                     if (!prev.assetId || !userComputers.find(c => String(c.id) === prev.assetId)) {
                         newState.assetId = ''; 
                         newState.assetName = '';
+                        newState.assetType = '';
+                        newState.assetLocation = '';
                         setAssetSearchTerm(adUsername); // Search by owner
                         setIsAssetDropdownOpen(true);   // Auto-open dropdown
                     }
@@ -313,6 +314,8 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false, qrParams = null }
                         if(normalize(currentAsset.users_id) !== normalizedInput) {
                             newState.assetId = '';
                             newState.assetName = '';
+                            newState.assetType = '';
+                            newState.assetLocation = '';
                             setAssetSearchTerm('');
                         }
                     }
@@ -371,7 +374,7 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false, qrParams = null }
                     createdAt: new Date().toISOString(),
                 };
 
-                addIssue(newIssue);
+                await addIssue(newIssue);
                 setFormData({
                     name: '',
                     department: '',
@@ -380,6 +383,8 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false, qrParams = null }
                     severity: 'Normal',
                     assetId: '',
                     assetName: '',
+                    assetType: '',
+                    assetLocation: '',
                 });
                 setSelectedFiles([]);
 
@@ -391,38 +396,18 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false, qrParams = null }
                     showConfirmButton: false
                 });
             } catch (error) {
-                Swal.fire('Error', 'ไม่สามารถอัปโหลดไฟล์ได้: ' + error.message, 'error');
+                Swal.fire('Error', 'ไม่สามารถส่งข้อมูลได้: ' + error.message, 'error');
             }
         }
     };
-
-    const formatDate = (dateString) => {
-        if (!dateString) return '-';
-        return new Date(dateString).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
-    };
-
-    const filteredRecentIssues = issues
-        .filter((issue) => {
-            const term = recentSearchTerm.trim().toLowerCase();
-            if (!term) return true;
-            return [
-                issue.id,
-                issue.name,
-                issue.department,
-                issue.category,
-                issue.description,
-                issue.status,
-                issue.assignedAdmin,
-            ]
-                .filter(Boolean)
-                .some((value) => String(value).toLowerCase().includes(term));
-        })
-        .slice(0, 10);
 
     return (
         <div className="space-y-8">
             {/* Issue Report Form */}
             <div className="max-w-2xl mx-auto glass-card p-4 sm:p-7 xl:p-10 rounded-3xl relative">
+                <div className="mx-auto mb-4 flex w-fit items-center justify-center rounded-2xl bg-rose-100 p-3 text-rose-600 shadow-lg shadow-rose-100 dark:bg-rose-900/50 dark:text-rose-300 dark:shadow-rose-950/30">
+                    <ClipboardList className="h-8 w-8" />
+                </div>
                 <h2 className="text-2xl xl:text-3xl font-bold mb-8 text-indigo-950 dark:text-indigo-100 tracking-tight text-center fit-text">แจ้งปัญหาการใช้งาน<br /><span className="text-base xl:text-lg font-medium text-slate-500 dark:text-slate-400 mt-1 block">Report Support Issue</span></h2>
 
                 <form onSubmit={handleSubmit} className="space-y-6">
@@ -565,7 +550,7 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false, qrParams = null }
                         <button
                             type="submit"
                             disabled={isUploading}
-                            className="w-full sm:w-auto bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-semibold py-3 px-8 rounded-xl shadow-lg shadow-indigo-200/50 dark:shadow-indigo-900/30 transform hover:-translate-y-0.5 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                            className="app-primary-button w-full sm:w-auto text-white font-semibold py-3 px-8 rounded-xl shadow-lg shadow-indigo-200/50 dark:shadow-indigo-900/30 transform hover:-translate-y-0.5 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
                         >
                             {isUploading ? (
                                 <>
@@ -580,72 +565,6 @@ const IssueForm = ({ addIssue, issues = [], isLoading = false, qrParams = null }
                         </button>
                     </div>
                 </form>
-            </div>
-
-            {/* Recent Issues List */}
-            <div className="max-w-4xl mx-auto">
-                <h3 className="text-lg font-bold text-slate-700 dark:text-slate-200 mb-4 flex items-center gap-2">
-                    <Clock className="w-5 h-5 text-indigo-500" />
-                    รายการแจ้งซ่อมล่าสุด
-                </h3>
-
-                <div className="mb-4">
-                    <input
-                        type="text"
-                        value={recentSearchTerm}
-                        onChange={(e) => setRecentSearchTerm(e.target.value)}
-                        className="w-full input-modern"
-                        placeholder="ค้นหาจากชื่อ, รหัสแจ้งซ่อม, รายละเอียด, แผนก, หมวดหมู่ หรือสถานะ"
-                    />
-                </div>
-
-                {isLoading ? (
-                    <div className="glass-card rounded-2xl p-10 flex justify-center items-center">
-                        <div className="flex flex-col items-center gap-3">
-                            <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
-                            <p className="text-sm text-slate-500 dark:text-slate-400 animate-pulse">กำลังโหลดข้อมูล...</p>
-                        </div>
-                    </div>
-                ) : filteredRecentIssues.length === 0 ? (
-                    <div className="glass-card rounded-2xl p-10 text-center text-slate-400 dark:text-slate-500">
-                        ยังไม่มีรายการแจ้งซ่อม
-                    </div>
-                ) : (
-                    <div className="space-y-3">
-                        {filteredRecentIssues.map((issue) => (
-                            <div key={issue.id} className="glass-card rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center gap-4 hover:shadow-lg transition-shadow">
-                                {/* Left: ID + Date */}
-                                <div className="shrink-0">
-                                    <div className="text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/40 px-2.5 py-1 rounded-lg border border-indigo-100 dark:border-indigo-800 inline-block">
-                                        {issue.id}
-                                    </div>
-                                    <div className="text-xs text-slate-400 dark:text-slate-500 mt-1">{formatDate(issue.createdAt)}</div>
-                                </div>
-
-                                {/* Middle: Info */}
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">{issue.description}</p>
-                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                                        {issue.name} · {issue.department} · {issue.category}
-                                    </p>
-                                    {issue.assignedAdmin && (
-                                        <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1 font-semibold">
-                                            👤 ผู้รับงาน: {issue.assignedAdmin}
-                                        </p>
-                                    )}
-                                </div>
-
-                                {/* Right: Status */}
-                                <div className="shrink-0 flex flex-col items-end gap-2">
-                                    {getStatusBadge(issue.status)}
-                                    {issue.status === 'Resolved' && issue.userCloseSign && (
-                                        <span className="text-xs text-emerald-600 font-medium">✓ เซ็นปิดงานแล้ว</span>
-                                    )}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
             </div>
         </div>
     );

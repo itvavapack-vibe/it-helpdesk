@@ -1,20 +1,21 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { CheckCircle, Clock, Filter, Key, Search, Trash2, XCircle } from 'lucide-react';
+import { CheckCircle, Clock, Edit, Filter, Key, Link, Printer, Search, Trash2, XCircle } from 'lucide-react';
 import SignatureCanvas from 'react-signature-canvas';
 import Swal from 'sweetalert2';
 import { mysql } from '../mysqlClient';
 import Fmit12PdfPreview from './Fmit12PdfPreview';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { copyText } from '../utils/closeIssueLink';
-import { ACCESS_QUEUE_STATUS_BY_ROLE, ROLES, normalizeRoleValue, visibleQueueStatuses } from '../config/roles';
+import { ACCESS_QUEUE_STATUS_BY_ROLE, canDeleteRecords, normalizeRoleValue, visibleQueueStatuses } from '../config/roles';
 import { toMysqlDateTime } from '../utils/dateTime';
+import { showAcknowledgeAccessRequestLinkDialog } from '../utils/closeIssueLink';
 
 const STATUS_LABELS = {
-    Pending: 'รอหัวหน้างาน',
-    Pending_Manager: 'รอหัวหน้างาน',
-    Pending_IT: 'รอดำเนินการ (IT Support)',
-    Pending_IT_Supervisor: 'รอตรวจสอบ (IT Supervisor)',
-    Pending_IT_Manager: 'รออนุมัติ (IT Manager)',
+    Pending: 'ร้องขอ',
+    Pending_Manager: 'ผู้จัดการของผู้แจ้ง',
+    Pending_IT: 'รับแจ้ง',
+    Pending_IT_Supervisor: 'หัวหน้าแผนก',
+    Pending_IT_Manager: 'ผู้จัดการ',
+    Pending_User_Acknowledgement: 'ผู้แจ้งรับทราบ',
     Approved: 'อนุมัติแล้ว',
     Completed: 'เสร็จสิ้น',
     Rejected: 'ไม่อนุมัติ',
@@ -62,22 +63,18 @@ const AdminAccessRequests = ({ currentAdmin }) => {
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
     const [isSignModalOpen, setIsSignModalOpen] = useState(false);
     const [signingRequestId, setSigningRequestId] = useState(null);
+    const [selectedActionStatus, setSelectedActionStatus] = useState('');
     const [itStaffName, setItStaffName] = useState('');
     const [actionResult, setActionResult] = useState('');
-    const [approvalSignRequest, setApprovalSignRequest] = useState(null);
     const adminSignatureRef = useRef(null);
 
     const currentRole = normalizeRoleValue(currentAdmin?.role);
+    const canDeleteRecord = canDeleteRecords(currentAdmin?.role);
     const visibleStatuses = visibleQueueStatuses(currentRole, ACCESS_QUEUE_STATUS_BY_ROLE);
     const canActOnStatus = (status) => {
         const normalizedStatus = status === 'Pending' || !status ? 'Pending_Manager' : status;
-        if (currentRole === ROLES.SUPERADMIN) {
-            return ['Pending_IT', 'Pending_IT_Supervisor', 'Pending_IT_Manager'].includes(normalizedStatus);
-        }
         return (visibleStatuses || []).includes(normalizedStatus);
     };
-
-    const buildItApprovalLink = (id) => `${window.location.origin}${window.location.pathname}?itApproveRequest=${id}`;
 
     const fetchRequests = async ({ silent = false } = {}) => {
         if (!silent) setIsLoading(true);
@@ -107,26 +104,34 @@ const AdminAccessRequests = ({ currentAdmin }) => {
         return () => clearInterval(intervalId);
     }, []);
 
-    const handleStatusChange = async (id, currentStatus) => {
-        const effectiveStatus = currentStatus === 'Pending' || !currentStatus ? 'Pending_Manager' : currentStatus;
-        if (!canActOnStatus(effectiveStatus)) return;
-
+    const getActionStatusOptions = (status) => {
+        const effectiveStatus = status === 'Pending' || !status ? 'Pending_Manager' : status;
         if (effectiveStatus === 'Pending_IT') {
-            setSigningRequestId(id);
-            setItStaffName('');
-            setActionResult('');
-            setIsSignModalOpen(true);
-            setTimeout(() => adminSignatureRef.current?.clear(), 50);
-            return;
+            return [{ value: 'Pending_IT_Supervisor', label: 'ส่งต่อ IT Supervisor' }];
         }
+        return [];
+    };
 
-        if (effectiveStatus === 'Pending_IT_Supervisor' || effectiveStatus === 'Pending_IT_Manager') {
-            setApprovalSignRequest({ id, status: effectiveStatus });
-            setTimeout(() => adminSignatureRef.current?.clear(), 50);
-        }
+    const openStatusActionModal = (req) => {
+        const effectiveStatus = req.status === 'Pending' || !req.status ? 'Pending_Manager' : req.status;
+        if (!canActOnStatus(effectiveStatus)) return;
+        const options = getActionStatusOptions(effectiveStatus);
+        if (!options.length) return;
+
+        setSigningRequestId(req.id);
+        setSelectedActionStatus('');
+        setItStaffName('');
+        setActionResult('');
+        setIsSignModalOpen(true);
+        setTimeout(() => adminSignatureRef.current?.clear(), 50);
     };
 
     const handleSignAndForward = async () => {
+        if (selectedActionStatus !== 'Pending_IT_Supervisor') {
+            Swal.fire('ข้อมูลไม่ครบถ้วน', 'กรุณาเลือกสถานะที่ต้องการเปลี่ยน', 'warning');
+            return;
+        }
+
         if (!itStaffName.trim() || !actionResult.trim() || !adminSignatureRef.current || adminSignatureRef.current.isEmpty()) {
             Swal.fire('ข้อมูลไม่ครบถ้วน', 'กรุณาระบุชื่อผู้รับแจ้ง ผลการดำเนินการ และลงลายเซ็นผู้ปฏิบัติงาน', 'warning');
             return;
@@ -147,46 +152,12 @@ const AdminAccessRequests = ({ currentAdmin }) => {
             setRequests((prev) => prev.map((req) => (req.id === signingRequestId ? { ...req, ...updatePayload } : req)));
             setIsSignModalOpen(false);
             setSigningRequestId(null);
+            setSelectedActionStatus('');
             window.dispatchEvent(new Event('approval-queues:refresh'));
             Swal.fire('ส่งต่อแล้ว', 'ส่งคำร้องไปยัง IT Supervisor แล้ว', 'success');
         } catch (error) {
             console.error('Error signing:', error);
             Swal.fire('Error', 'ไม่สามารถบันทึกข้อมูลได้', 'error');
-        }
-    };
-
-    const handleApprovalSign = async () => {
-        if (!approvalSignRequest || !adminSignatureRef.current || adminSignatureRef.current.isEmpty()) {
-            Swal.fire('ข้อมูลไม่ครบ', 'กรุณาลงลายเซ็นก่อนยืนยัน', 'warning');
-            return;
-        }
-
-        const signData = adminSignatureRef.current.getCanvas().toDataURL('image/png');
-        const isSupervisorStep = approvalSignRequest.status === 'Pending_IT_Supervisor';
-        const updatePayload = isSupervisorStep
-            ? {
-                status: 'Pending_IT_Manager',
-                it_supervisor_name: currentAdmin?.name || '',
-                it_supervisor_sign: signData,
-                it_supervisor_date: toMysqlDateTime(),
-            }
-            : {
-                status: 'Completed',
-                it_manager_name: currentAdmin?.name || '',
-                it_manager_sign: signData,
-                it_manager_date: toMysqlDateTime(),
-            };
-
-        try {
-            const { error } = await mysql.from('access_requests').update(updatePayload).eq('id', approvalSignRequest.id);
-            if (error) throw error;
-            setRequests((prev) => prev.map((req) => (req.id === approvalSignRequest.id ? { ...req, ...updatePayload } : req)));
-            setApprovalSignRequest(null);
-            window.dispatchEvent(new Event('approval-queues:refresh'));
-            Swal.fire('อัปเดตแล้ว', isSupervisorStep ? 'เซ็นและส่งต่อ IT Manager แล้ว' : 'เซ็นและปิดงานเรียบร้อยแล้ว', 'success');
-        } catch (error) {
-            console.error('Error signing approval:', error);
-            Swal.fire('Error', 'ไม่สามารถบันทึกลายเซ็นได้', 'error');
         }
     };
 
@@ -212,6 +183,41 @@ const AdminAccessRequests = ({ currentAdmin }) => {
         } catch (error) {
             console.error('Error deleting request:', error);
             Swal.fire('Error', 'ไม่สามารถลบข้อมูลได้', 'error');
+        }
+    };
+
+    const handleCancelRequest = async (req) => {
+        if (!req || req.status === 'Cancelled') return;
+        const result = await Swal.fire({
+            title: 'ยืนยันการยกเลิกคำร้อง?',
+            text: 'ระบบจะเปลี่ยนสถานะเป็นยกเลิก โดยไม่ลบข้อมูลออกจากระบบ',
+            input: 'textarea',
+            inputPlaceholder: 'เหตุผลการยกเลิก (ถ้ามี)',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#e11d48',
+            cancelButtonColor: '#64748b',
+            confirmButtonText: 'ยืนยันยกเลิก',
+            cancelButtonText: 'ปิด',
+        });
+        if (!result.isConfirmed) return;
+
+        const updatePayload = {
+            status: 'Cancelled',
+            cancelled_at: toMysqlDateTime(),
+            cancel_reason: result.value || '',
+            cancel_it_name: currentAdmin?.name || currentAdmin?.username || '',
+        };
+
+        try {
+            const { error } = await mysql.from('access_requests').update(updatePayload).eq('id', req.id);
+            if (error) throw error;
+            setRequests((prev) => prev.map((item) => (item.id === req.id ? { ...item, ...updatePayload } : item)));
+            window.dispatchEvent(new Event('approval-queues:refresh'));
+            Swal.fire('ยกเลิกแล้ว', 'เปลี่ยนสถานะคำร้องเป็นยกเลิกเรียบร้อยแล้ว', 'success');
+        } catch (error) {
+            console.error('Error cancelling access request:', error);
+            Swal.fire('Error', 'ไม่สามารถยกเลิกคำร้องได้', 'error');
         }
     };
 
@@ -254,6 +260,7 @@ const AdminAccessRequests = ({ currentAdmin }) => {
             Pending_IT: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
             Pending_IT_Supervisor: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400',
             Pending_IT_Manager: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+            Pending_User_Acknowledgement: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400',
             Completed: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
             Rejected: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
             Cancelled: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400',
@@ -272,19 +279,18 @@ const AdminAccessRequests = ({ currentAdmin }) => {
             req.ticket_number?.toLowerCase().includes(keyword) ||
             req.request_details?.toLowerCase().includes(keyword) ||
             req.other_system_details?.toLowerCase().includes(keyword);
-        const matchesRoleQueue = visibleStatuses === null || (visibleStatuses || []).includes(effectiveStatus);
         const matchesStatus = statusFilter === 'All' || effectiveStatus === statusFilter;
         const reqDate = new Date(req.created_at);
         const matchesStart = !dateRangeStart || reqDate >= new Date(dateRangeStart);
         const matchesEnd = !dateRangeEnd || reqDate <= new Date(`${dateRangeEnd}T23:59:59`);
-        return matchesSearch && matchesRoleQueue && matchesStatus && matchesStart && matchesEnd;
+        return matchesSearch && matchesStatus && matchesStart && matchesEnd;
     });
 
     return (
         <div className="space-y-6 animate-fade-in pb-10">
             <div className="flex flex-col items-start gap-4 bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
                 <div className="flex items-center gap-3">
-                    <div className="p-2.5 bg-indigo-100 dark:bg-indigo-900/50 rounded-xl text-indigo-600 dark:text-indigo-400">
+                    <div className="p-2.5 bg-amber-100 dark:bg-amber-900/50 rounded-xl text-amber-600 dark:text-amber-300">
                         <Key className="w-6 h-6" />
                     </div>
                     <div>
@@ -312,10 +318,11 @@ const AdminAccessRequests = ({ currentAdmin }) => {
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="All">สถานะทั้งหมด</SelectItem>
-                                <SelectItem value="Pending_Manager">รอหัวหน้างาน</SelectItem>
-                                <SelectItem value="Pending_IT">Pending IT Support</SelectItem>
-                                <SelectItem value="Pending_IT_Supervisor">Pending IT Supervisor</SelectItem>
-                                <SelectItem value="Pending_IT_Manager">Pending IT Manager</SelectItem>
+                                <SelectItem value="Pending_Manager">ผู้จัดการของผู้แจ้ง</SelectItem>
+                                <SelectItem value="Pending_IT">รับแจ้ง</SelectItem>
+                                <SelectItem value="Pending_IT_Supervisor">หัวหน้าแผนก</SelectItem>
+                                <SelectItem value="Pending_IT_Manager">ผู้จัดการ</SelectItem>
+                                <SelectItem value="Pending_User_Acknowledgement">ผู้แจ้งรับทราบ</SelectItem>
                                 <SelectItem value="Completed">Completed</SelectItem>
                                 <SelectItem value="Rejected">Rejected</SelectItem>
                                 <SelectItem value="Cancelled">Cancelled</SelectItem>
@@ -337,7 +344,7 @@ const AdminAccessRequests = ({ currentAdmin }) => {
                         <Key className="w-8 h-8 text-slate-400" />
                     </div>
                     <h3 className="text-lg font-bold text-slate-700 dark:text-slate-300 mb-2">ไม่พบคำร้องขอสิทธิ์</h3>
-                    <p className="text-slate-500 dark:text-slate-400">ยังไม่มีรายการในคิวของคุณ หรือไม่พบตามเงื่อนไขการค้นหา</p>
+                    <p className="text-slate-500 dark:text-slate-400">ยังไม่มีคำร้องขอสิทธิ์ หรือไม่พบรายการตามเงื่อนไขการค้นหา</p>
                 </div>
             ) : (
                 <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
@@ -368,33 +375,33 @@ const AdminAccessRequests = ({ currentAdmin }) => {
                                             {req.request_details && <div className="text-xs text-slate-500 mt-1.5 line-clamp-2" title={req.request_details}><span className="font-medium">รายละเอียด:</span> {req.request_details}</div>}
                                         </td>
                                         <td className="p-4 align-top whitespace-nowrap">
-                                            <button
-                                                onClick={() => handleStatusChange(req.id, req.status || 'Pending')}
-                                                disabled={!canActOnStatus(req.status || 'Pending')}
-                                                className={`transition-opacity ${canActOnStatus(req.status || 'Pending') ? 'cursor-pointer hover:opacity-80' : 'cursor-default'}`}
-                                            >
-                                                {getStatusBadge(req.status || 'Pending')}
-                                            </button>
+                                            {getStatusBadge(req.status || 'Pending')}
                                         </td>
                                         <td className="p-4 align-top">
                                             <div className="flex gap-2 justify-end">
-                                                {req.status === 'Pending_IT_Manager' && (
-                                                    <button
-                                                        onClick={async () => {
-                                                            await copyText(buildItApprovalLink(req.id));
-                                                            Swal.fire('คัดลอกลิงก์สำเร็จ', 'ส่งลิงก์นี้ให้ IT Manager อนุมัติได้เลยครับ', 'success');
-                                                        }}
-                                                        className="py-1.5 px-3 bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 font-semibold text-xs rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/50 transition-colors whitespace-nowrap shadow-sm"
-                                                    >
-                                                        คัดลอกลิงก์
+                                                {canActOnStatus(req.status || 'Pending') && getActionStatusOptions(req.status || 'Pending').length > 0 && (
+                                                    <button onClick={() => openStatusActionModal(req)} className="p-1.5 text-amber-600 hover:text-white hover:bg-amber-600 rounded-lg transition-colors" title="เปลี่ยนสถานะ">
+                                                        <Edit className="w-4 h-4" />
                                                     </button>
                                                 )}
-                                                <button onClick={() => openPreview(req)} className="py-1.5 px-3 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 font-semibold text-xs rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors whitespace-nowrap shadow-sm">
-                                                    ดูแบบฟอร์ม
+                                                {req.status === 'Pending_User_Acknowledgement' && (
+                                                    <button onClick={() => showAcknowledgeAccessRequestLinkDialog(req)} className="p-1.5 text-teal-600 hover:text-white hover:bg-teal-600 rounded-lg transition-colors" title="ส่งลิงก์ให้ผู้แจ้งรับทราบ">
+                                                        <Link className="w-4 h-4" />
+                                                    </button>
+                                                )}
+                                                <button onClick={() => openPreview(req)} className="p-1.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors shadow-sm" title="ดูเอกสาร" aria-label="ดูเอกสาร">
+                                                    <Printer className="w-4 h-4" />
                                                 </button>
-                                                <button onClick={() => handleDelete(req.id)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors">
-                                                    <Trash2 className="w-4 h-4" />
-                                                </button>
+                                                {canDeleteRecord && (
+                                                    <button onClick={() => handleDelete(req.id)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors">
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                )}
+                                                {!canDeleteRecord && !['Cancelled', 'Completed', 'Rejected'].includes(req.status) && (
+                                                    <button onClick={() => handleCancelRequest(req)} className="p-1.5 text-rose-500 hover:text-white hover:bg-rose-600 rounded-lg transition-colors" title="ตั้งสถานะยกเลิก">
+                                                        <XCircle className="w-4 h-4" />
+                                                    </button>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>
@@ -412,11 +419,27 @@ const AdminAccessRequests = ({ currentAdmin }) => {
                             <h3 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
                                 <CheckCircle className="w-5 h-5 text-indigo-500" /> ลงนามดำเนินการ (IT Support)
                             </h3>
-                            <button onClick={() => setIsSignModalOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                            <button onClick={() => { setIsSignModalOpen(false); setSelectedActionStatus(''); }} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
                                 <XCircle className="w-6 h-6" />
                             </button>
                         </div>
                         <div className="mb-4 space-y-4">
+                            <div>
+                                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">สถานะที่ต้องการเปลี่ยน</label>
+                                <Select value={selectedActionStatus} onValueChange={setSelectedActionStatus}>
+                                    <SelectTrigger className="input-modern w-full">
+                                        <SelectValue placeholder="เลือกสถานะ" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {getActionStatusOptions('Pending_IT').map((option) => (
+                                            <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            {selectedActionStatus === 'Pending_IT_Supervisor' && (
+                                <>
                             <div>
                                 <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">1. ชื่อผู้รับแจ้ง</label>
                                 <input type="text" className="input-modern w-full" placeholder="ระบุชื่อเจ้าหน้าที่ IT" value={itStaffName} onChange={(event) => setItStaffName(event.target.value)} />
@@ -435,45 +458,12 @@ const AdminAccessRequests = ({ currentAdmin }) => {
                                     <div className="absolute bottom-2 right-3 text-slate-400 text-xs pointer-events-none opacity-50">เซ็นชื่อผู้ปฏิบัติงานที่นี่</div>
                                 </div>
                             </div>
+                                </>
+                            )}
                         </div>
                         <div className="flex gap-3">
-                            <button onClick={() => setIsSignModalOpen(false)} className="flex-1 px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold hover:bg-slate-200 dark:hover:bg-slate-600">ยกเลิก</button>
+                            <button onClick={() => { setIsSignModalOpen(false); setSelectedActionStatus(''); }} className="flex-1 px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold hover:bg-slate-200 dark:hover:bg-slate-600">ยกเลิก</button>
                             <button onClick={handleSignAndForward} className="flex-1 px-4 py-2.5 rounded-xl bg-indigo-600 text-white font-semibold hover:bg-indigo-700 shadow-md">ส่งต่อ Supervisor</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {approvalSignRequest && (
-                <div className="fixed inset-0 z-[120] flex items-start sm:items-center justify-center overflow-y-auto p-3 sm:p-4 bg-slate-900/50 backdrop-blur-sm">
-                    <div className="bg-white dark:bg-slate-800 rounded-3xl p-5 sm:p-6 w-full max-w-md max-h-[calc(100dvh-1.5rem)] overflow-y-auto shadow-2xl animate-slide-up border border-slate-100 dark:border-slate-700">
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                                <CheckCircle className="w-5 h-5 text-indigo-500" />
-                                {approvalSignRequest.status === 'Pending_IT_Supervisor' ? 'IT Supervisor ลงนาม' : 'IT Manager ลงนาม'}
-                            </h3>
-                            <button onClick={() => setApprovalSignRequest(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
-                                <XCircle className="w-6 h-6" />
-                            </button>
-                        </div>
-                        <div className="space-y-3 mb-4">
-                            <div className="rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-700 p-3 text-sm text-slate-600 dark:text-slate-300">
-                                ผู้ลงนาม: <span className="font-semibold text-slate-800 dark:text-slate-100">{currentAdmin?.name || '-'}</span>
-                            </div>
-                            <div>
-                                <div className="flex justify-between items-center mb-2">
-                                    <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">ลายเซ็น</span>
-                                    <button onClick={() => adminSignatureRef.current?.clear()} className="text-xs text-red-500 font-bold hover:underline">ล้างลายเซ็น</button>
-                                </div>
-                                <div className="border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-900/50 relative overflow-hidden" style={{ height: '150px' }}>
-                                    <SignatureCanvas ref={adminSignatureRef} penColor="black" canvasProps={{ className: 'w-full h-full xl-signature' }} />
-                                    <div className="absolute bottom-2 right-3 text-slate-400 text-xs pointer-events-none opacity-50">เซ็นชื่อที่นี่</div>
-                                </div>
-                            </div>
-                        </div>
-                        <div className="flex gap-3">
-                            <button onClick={() => setApprovalSignRequest(null)} className="flex-1 px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold hover:bg-slate-200 dark:hover:bg-slate-600">ยกเลิก</button>
-                            <button onClick={handleApprovalSign} className="flex-1 px-4 py-2.5 rounded-xl bg-indigo-600 text-white font-semibold hover:bg-indigo-700 shadow-md">ยืนยัน</button>
                         </div>
                     </div>
                 </div>

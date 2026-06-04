@@ -31,3 +31,7 @@ uploads/
 test_*.js
 tmp_*.py
 tmp_*.js
+
+# Local deploy helper settings
+scripts/.deploy-prod.local.json
+scripts/.deploy-prod-web.local.json

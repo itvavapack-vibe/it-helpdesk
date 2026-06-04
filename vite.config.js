@@ -5,7 +5,8 @@ import path from 'node:path'
 
 // https://vite.dev/config/
 export default ({ mode }) => {
-  const env = loadEnv(mode, process.cwd())
+  const env = loadEnv(mode, process.cwd(), '')
+  const webPort = Number(env.VITE_WEB_PORT || '5173')
   const apiTarget = (env.VITE_API_URL || `http://localhost:${env.API_PORT || '4000'}`).replace(/\/+$/, '')
 
   return defineConfig({
@@ -62,7 +63,7 @@ export default ({ mode }) => {
     },
     server: {
       host: '0.0.0.0',
-      port: 5173,
+      port: webPort,
       strictPort: true,
       allowedHosts: true,
       proxy: {
@@ -82,9 +83,8 @@ export default ({ mode }) => {
     },
     preview: {
       host: '0.0.0.0',
-      port: 5173,
+      port: webPort,
       strictPort: true,
     },
   })
 }
-

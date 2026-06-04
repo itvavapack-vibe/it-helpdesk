@@ -18,6 +18,8 @@ export const LEGACY_ROLE_MAP = {
     manager: ROLES.IT_MANAGER,
     software: ROLES.IT_SOFTWARE,
     media: ROLES.IT_MEDIA,
+    itsoftware: ROLES.IT_SOFTWARE,
+    itmedia: ROLES.IT_MEDIA,
 };
 
 export const VALID_ROLE_VALUES = new Set(Object.values(ROLES));
@@ -51,7 +53,7 @@ export const ROLE_LABELS = {
 export const ROLE_OPTIONS = [
     { value: ROLES.SUPERADMIN, label: 'Super Admin', description: 'เห็นทุกอย่างและจัดการผู้ใช้งานได้ทั้งหมด' },
     { value: ROLES.IT_SUPPORT, label: 'IT Support', description: 'ดูแลงานแจ้งซ่อมและคำร้องขอสิทธิ์ขั้นแรก' },
-    { value: ROLES.IT_SUPERVISOR, label: 'IT Supervisor', description: 'ตรวจสอบคำร้องขอสิทธิ์และคำร้องขอพัฒนาโปรแกรมก่อนส่ง IT Manager' },
+    { value: ROLES.IT_SUPERVISOR, label: 'IT Supervisor', description: 'ตรวจสอบคำร้องขอสิทธิ์ก่อนส่ง IT Manager' },
     { value: ROLES.IT_MANAGER, label: 'IT Manager', description: 'อนุมัติขั้นสุดท้ายของคำร้อง IT' },
     { value: ROLES.IT_SOFTWARE, label: 'IT Software', description: 'ดูแลคำร้องขอพัฒนาโปรแกรมขั้นแรก' },
     { value: ROLES.IT_MEDIA, label: 'IT Media', description: 'ดูแลคำร้องขอพัฒนาสื่อขั้นแรก' },
@@ -68,27 +70,41 @@ export const isItRole = (role) => [
 
 export const canManageAdminUsers = (role) => normalizeRoleValue(role) === ROLES.SUPERADMIN;
 
+export const canDeleteRecords = (role) => {
+    const rawRole = String(role || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+    return rawRole === 'admin' || normalizeRoleValue(role) === ROLES.SUPERADMIN;
+};
+
 export const ACCESS_QUEUE_STATUS_BY_ROLE = {
+    [ROLES.SUPERADMIN]: ['Pending_IT'],
     [ROLES.IT_SUPPORT]: ['Pending_IT'],
-    [ROLES.IT_SUPERVISOR]: ['Pending_IT_Supervisor'],
-    [ROLES.IT_MANAGER]: ['Pending_IT_Manager'],
 };
 
 export const CHANGE_QUEUE_STATUS_BY_ROLE = {
-    [ROLES.IT_SOFTWARE]: ['Pending_IT', 'In_Progress'],
-    [ROLES.IT_MEDIA]: ['Pending_IT', 'In_Progress'],
+    [ROLES.SUPERADMIN]: ['Pending_IT', 'In_Progress', 'In_Development'],
+    [ROLES.IT_SOFTWARE]: ['Pending_IT', 'In_Progress', 'In_Development'],
+    [ROLES.IT_MEDIA]: ['Pending_IT', 'In_Progress', 'In_Development'],
+};
+
+export const APPROVAL_QUEUE_STATUS_BY_ROLE = {
     [ROLES.IT_SUPERVISOR]: ['Pending_IT_Supervisor'],
     [ROLES.IT_MANAGER]: ['Pending_IT_Manager'],
 };
 
 export const visibleQueueStatuses = (role, queueMap) => {
     const normalized = normalizeRoleValue(role);
-    if (normalized === ROLES.SUPERADMIN) return null;
     return queueMap[normalized] || [];
 };
 
-export const countVisibleQueue = (items, role, queueMap) => {
+export const canHandleChangeRequestCategory = (role, item) => {
+    const normalized = normalizeRoleValue(role);
+    const category = item?.request_category;
+    if (normalized === ROLES.IT_SOFTWARE) return category === 'พัฒนาโปรแกรม';
+    if (normalized === ROLES.IT_MEDIA) return category === 'พัฒนาสื่อ';
+    return true;
+};
+
+export const countVisibleQueue = (items, role, queueMap, itemFilter = () => true) => {
     const statuses = visibleQueueStatuses(role, queueMap);
-    if (statuses === null) return items.filter((item) => !['Completed', 'Rejected', 'Cancelled'].includes(item.status)).length;
-    return items.filter((item) => statuses.includes(item.status)).length;
+    return items.filter((item) => statuses.includes(item.status) && itemFilter(role, item)).length;
 };

@@ -100,6 +100,7 @@ const AssetInventory = ({ issues = [] }) => {
                 users_id: c.users_id || null,
                 locations_id: c.locations_id || null,
                 computermodels_id: c.computermodels_id || null,
+                computertypes_id: c.computertypes_id || null,
                 states_id: c.states_id || null,
                 autoupdatesystems_id: c.autoupdatesystems_id || null,
             }));
@@ -334,7 +335,7 @@ const AssetInventory = ({ issues = [] }) => {
     };
 
     const getQrUrl = (computer) => {
-        const base = window.location.origin + window.location.pathname;
+        const base = `${window.location.origin}/report-issue`;
         return `${base}?assetId=${computer.id}&assetName=${encodeURIComponent(computer.name || '')}`;
     };
 
@@ -365,8 +366,8 @@ const AssetInventory = ({ issues = [] }) => {
             <div className="flex flex-col gap-3">
                 <div className="glass-card rounded-3xl p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div className="flex items-center gap-3">
-                        <div className="w-11 h-11 rounded-xl bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center">
-                            <Monitor className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
+                        <div className="w-11 h-11 rounded-xl bg-sky-100 dark:bg-sky-900/40 flex items-center justify-center">
+                            <Monitor className="w-6 h-6 text-sky-600 dark:text-sky-300" />
                         </div>
                         <div>
                             <h2 className="text-xl font-bold text-slate-800 dark:text-white">ทรัพย์สิน IT</h2>

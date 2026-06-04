@@ -5,8 +5,8 @@ import Swal from 'sweetalert2';
 import Fmit12PdfPreview from './Fmit12PdfPreview';
 import { mysql } from '../mysqlClient';
 import { Combobox } from './ui/combobox';
-import { copyText } from '../utils/closeIssueLink';
-import { insertWithDailyTicket } from '../utils/ticketNumber';
+import { buildManagerApprovalLink, copyText } from '../utils/closeIssueLink';
+import { insertWithMonthlyDocumentNumber } from '../utils/ticketNumber';
 
 const DEPARTMENTS = [
     'แอดมิน',
@@ -136,10 +136,10 @@ const UserAccessRequestForm = ({ onCancel }) => {
         setIsSubmitting(true);
 
         try {
-            const { data: insertedData, generatedTicket } = await insertWithDailyTicket({
+            const { data: insertedData, generatedTicket } = await insertWithMonthlyDocumentNumber({
                 mysql,
                 table: 'access_requests',
-                prefix: 'ITU',
+                prefix: 'ITU ',
                 buildRow: (ticketNumber) => ({
                     ticket_number: ticketNumber,
                     name_th: formData.nameTh,
@@ -183,7 +183,7 @@ const UserAccessRequestForm = ({ onCancel }) => {
             }
 
             const reqId = insertedData[0].id;
-            const approvalLink = `${window.location.origin}/?approveRequest=${reqId}`;
+            const approvalLink = buildManagerApprovalLink(reqId);
 
             await Swal.fire({
                 icon: 'success',
@@ -230,7 +230,7 @@ const UserAccessRequestForm = ({ onCancel }) => {
     return (
         <div className="w-full max-w-4xl mx-auto pb-10">
             <div className="text-center mb-8 animate-fade-in relative z-10 pt-4">
-                <div className="inline-flex items-center justify-center p-3 sm:p-4 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl shadow-xl shadow-indigo-200/50 dark:shadow-indigo-900/30 mb-4">
+                <div className="inline-flex items-center justify-center p-3 sm:p-4 bg-gradient-to-br from-amber-500 to-orange-500 rounded-2xl shadow-xl shadow-amber-200/50 dark:shadow-amber-900/30 mb-4">
                     <UserPlus className="w-8 h-8 sm:w-10 sm:h-10 text-white" />
                 </div>
                 <h2 className="text-2xl xl:text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-slate-800 to-indigo-900 dark:from-white dark:to-indigo-300 mb-2 fit-text">
@@ -239,7 +239,7 @@ const UserAccessRequestForm = ({ onCancel }) => {
                 <p className="text-slate-500 dark:text-slate-400 font-medium text-sm xl:text-base max-w-lg mx-auto fit-text">
                     ใบขอเพิ่มบัญชีผู้ใช้งานระบบเทคโนโลยีสารสนเทศ (FMIT 12)
                 </p>
-                <div className="w-24 h-1.5 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full mx-auto mt-6 opacity-80" />
+                <div className="w-24 h-1.5 bg-gradient-to-r from-amber-500 to-orange-500 rounded-full mx-auto mt-6 opacity-80" />
             </div>
 
             <form onSubmit={handleSubmit} className="glass-card rounded-3xl p-4 sm:p-6 xl:p-8 animate-slide-up relative bg-white dark:bg-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-700">
@@ -377,12 +377,12 @@ const UserAccessRequestForm = ({ onCancel }) => {
                     />
                 </div>
 
-                <div className="mb-8 p-6 rounded-2xl bg-white dark:bg-slate-800 shadow-sm border border-slate-100 dark:border-slate-700">
-                    <div className="flex items-center justify-between mb-4">
+                <div className="mb-8 p-4 sm:p-6 rounded-2xl bg-white dark:bg-slate-800 shadow-sm border border-slate-100 dark:border-slate-700">
+                    <div className="flex flex-col gap-2 min-[360px]:flex-row min-[360px]:items-center min-[360px]:justify-between mb-4">
                         <h3 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
                             <span className="text-red-500">*</span> ลายมือชื่อผู้ขอใช้งาน
                         </h3>
-                        <button type="button" onClick={() => signatureRef.current?.clear()} className="text-xs text-red-500 hover:text-red-600 font-semibold">
+                        <button type="button" onClick={() => signatureRef.current?.clear()} className="self-end shrink-0 whitespace-nowrap text-xs text-red-500 hover:text-red-600 font-semibold">
                             ล้างลายเซ็น
                         </button>
                     </div>

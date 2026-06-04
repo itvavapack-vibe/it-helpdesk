@@ -11,7 +11,7 @@ const IssueCloseSignature = ({ issueId, onCloseIssue }) => {
     const [issue, setIssue] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [formData, setFormData] = useState({ name: '', note: '' });
+    const [formData, setFormData] = useState({ name: '', position: '', note: '' });
 
     useEffect(() => {
         const fetchIssue = async () => {
@@ -33,7 +33,8 @@ const IssueCloseSignature = ({ issueId, onCloseIssue }) => {
                 setIssue(data);
                 setFormData(prev => ({
                     ...prev,
-                    name: data?.user_close_name || data?.name || ''
+                    name: data?.user_close_name || data?.name || '',
+                    position: data?.user_close_position || ''
                 }));
             }
             setIsLoading(false);
@@ -45,12 +46,20 @@ const IssueCloseSignature = ({ issueId, onCloseIssue }) => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!issue) return;
+        if (issue.status === 'Closed' || issue.user_closed_at) {
+            Swal.fire('ปิดจบงานแล้ว', 'รายการนี้ถูกปิดจบงานเรียบร้อยแล้ว', 'info');
+            return;
+        }
         if (issue.status !== 'Resolved') {
             Swal.fire('ยังปิดงานไม่ได้', 'รายการนี้ยังไม่ได้อยู่ในสถานะเสร็จสิ้น', 'warning');
             return;
         }
         if (!formData.name.trim()) {
             Swal.fire('ข้อมูลไม่ครบ', 'กรุณาระบุชื่อผู้เซ็นปิดงาน', 'warning');
+            return;
+        }
+        if (!formData.position.trim()) {
+            Swal.fire('ข้อมูลไม่ครบ', 'กรุณาระบุตำแหน่งผู้เซ็นปิดงาน', 'warning');
             return;
         }
         if (!signatureRef.current || signatureRef.current.isEmpty()) {
@@ -62,6 +71,7 @@ const IssueCloseSignature = ({ issueId, onCloseIssue }) => {
         const signature = signatureRef.current.getCanvas().toDataURL('image/png');
         const ok = await onCloseIssue(issue.id, {
             name: formData.name.trim(),
+            position: formData.position.trim(),
             note: formData.note.trim(),
             signature
         });
@@ -71,6 +81,7 @@ const IssueCloseSignature = ({ issueId, onCloseIssue }) => {
             setIssue(prev => ({
                 ...prev,
                 user_close_name: formData.name.trim(),
+                user_close_position: formData.position.trim(),
                 user_close_note: formData.note.trim(),
                 user_close_sign: signature,
                 user_closed_at: toMysqlDateTime()
@@ -81,7 +92,7 @@ const IssueCloseSignature = ({ issueId, onCloseIssue }) => {
 
     if (isLoading) {
         return (
-            <Card className="max-w-2xl mx-auto rounded-3xl">
+            <Card className="min-h-screen w-full rounded-none border-0">
                 <CardContent className="p-10 flex items-center justify-center gap-3 text-slate-500">
                     <Loader2 className="w-5 h-5 animate-spin" />
                     กำลังโหลดข้อมูล...
@@ -92,7 +103,7 @@ const IssueCloseSignature = ({ issueId, onCloseIssue }) => {
 
     if (!issue) {
         return (
-            <Card className="max-w-2xl mx-auto rounded-3xl">
+            <Card className="min-h-screen w-full rounded-none border-0">
                 <CardContent className="p-10 text-center">
                     <XCircle className="w-14 h-14 text-rose-500 mx-auto mb-4" />
                     <CardTitle className="text-xl">ไม่พบรายการแจ้งซ่อม</CardTitle>
@@ -102,11 +113,11 @@ const IssueCloseSignature = ({ issueId, onCloseIssue }) => {
         );
     }
 
-    const alreadyClosed = Boolean(issue.user_close_sign);
+    const alreadyClosed = issue.status === 'Closed' || Boolean(issue.user_close_sign || issue.user_closed_at);
 
     return (
-        <div className="max-w-3xl mx-auto animate-fade-in">
-            <Card className="rounded-3xl">
+        <div className="min-h-screen w-full animate-fade-in">
+            <Card className="min-h-screen w-full rounded-none border-0">
                 <CardHeader className="flex-row items-start gap-4 space-y-0">
                     <div className="p-3 rounded-2xl bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-300">
                         <ClipboardCheck className="w-7 h-7" />
@@ -135,6 +146,7 @@ const IssueCloseSignature = ({ issueId, onCloseIssue }) => {
                                 รายการนี้เซ็นปิดงานแล้ว
                             </div>
                             <p className="text-sm mt-2">ผู้เซ็น: {issue.user_close_name || '-'}</p>
+                            <p className="text-sm mt-1">ตำแหน่ง: {issue.user_close_position || '-'}</p>
                         </div>
                     ) : (
                         <form onSubmit={handleSubmit} className="space-y-5">
@@ -145,6 +157,15 @@ const IssueCloseSignature = ({ issueId, onCloseIssue }) => {
                                     value={formData.name}
                                     onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
                                     placeholder="ชื่อ-นามสกุล"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="close-position">ตำแหน่งผู้เซ็นปิดงาน</Label>
+                                <Input
+                                    id="close-position"
+                                    value={formData.position}
+                                    onChange={(e) => setFormData(prev => ({ ...prev, position: e.target.value }))}
+                                    placeholder="ตำแหน่ง"
                                 />
                             </div>
                             <div className="space-y-2">
@@ -175,7 +196,7 @@ const IssueCloseSignature = ({ issueId, onCloseIssue }) => {
                                     </Button>
                                 </div>
                                 <div className="h-44 rounded-2xl border border-slate-200 bg-white dark:bg-slate-950 dark:border-slate-700 overflow-hidden">
-                                    <SignatureCanvas ref={signatureRef} canvasProps={{ className: 'w-full h-full' }} />
+                                    <SignatureCanvas ref={signatureRef} canvasProps={{ className: 'w-full h-full', 'aria-label': 'ลายเซ็นผู้แจ้งปิดจบงาน' }} />
                                 </div>
                             </div>
                             <Button type="submit" disabled={isSubmitting} className="w-full bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200/50">

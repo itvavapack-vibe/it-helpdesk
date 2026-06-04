@@ -1,12 +1,32 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { mysql } from '../mysqlClient';
-import { Search, Filter, Code, CheckCircle, XCircle, Clock, Trash2, Edit } from 'lucide-react';
+import { Search, Filter, ClipboardPenLine, CheckCircle, XCircle, Clock, Trash2, Edit, Link, Printer, Paperclip, X } from 'lucide-react';
 import Swal from 'sweetalert2';
 import SignatureCanvas from 'react-signature-canvas';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { toLocalDateInputValue, toMysqlDateTime } from '../utils/dateTime';
-import { CHANGE_QUEUE_STATUS_BY_ROLE, ROLES, normalizeRoleValue, visibleQueueStatuses } from '../config/roles';
+import { CHANGE_QUEUE_STATUS_BY_ROLE, canDeleteRecords, canHandleChangeRequestCategory, normalizeRoleValue, visibleQueueStatuses } from '../config/roles';
 import { getChangeRequestTypeLabel } from '../config/changeRequestTypes';
+import { showAcceptChangeRequestLinkDialog } from '../utils/closeIssueLink';
+import Fmit15PdfPreview from './Fmit15PdfPreview';
+
+const parseAttachments = (value) => {
+    if (!value) return [];
+    if (Array.isArray(value)) return value;
+    try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? parsed : [];
+    } catch {
+        return [];
+    }
+};
+
+const formatFileSize = (size) => {
+    const numericSize = Number(size || 0);
+    if (!numericSize) return '';
+    if (numericSize < 1024 * 1024) return `${(numericSize / 1024).toFixed(1)} KB`;
+    return `${(numericSize / 1024 / 1024).toFixed(1)} MB`;
+};
 
 const AdminChangeRequests = ({ currentAdmin }) => {
     const [requests, setRequests] = useState([]);
@@ -19,7 +39,8 @@ const AdminChangeRequests = ({ currentAdmin }) => {
     // For Preview / Form Actions
     const [selectedRequest, setSelectedRequest] = useState(null);
     const [isActionModalOpen, setIsActionModalOpen] = useState(false);
-    const [approvalSignRequest, setApprovalSignRequest] = useState(null);
+    const [previewRequest, setPreviewRequest] = useState(null);
+    const [selectedActionStatus, setSelectedActionStatus] = useState('');
     
     // For IT Action Form 
     const [actionType, setActionType] = useState('it_intake'); // 'it_intake', 'it_manager' or 'it_staff'
@@ -35,18 +56,33 @@ const AdminChangeRequests = ({ currentAdmin }) => {
         managerName: '',
         managerPosition: ''
     });
+    const [actionFiles, setActionFiles] = useState([]);
     const staffSignatureRef = useRef(null);
     const itManagerSignatureRef = useRef(null);
     const currentRole = normalizeRoleValue(currentAdmin?.role);
+    const canDeleteRecord = canDeleteRecords(currentAdmin?.role);
     const visibleStatuses = visibleQueueStatuses(currentRole, CHANGE_QUEUE_STATUS_BY_ROLE);
-    const canActOnStatus = (status) => {
-        if (currentRole === ROLES.SUPERADMIN) return ['Pending_IT', 'Pending_IT_Supervisor', 'Pending_IT_Manager', 'In_Progress'].includes(status);
-        return (visibleStatuses || []).includes(status);
-    };
+    const canActOnStatus = (status) => (canDeleteRecord && ['Pending_IT', 'In_Progress', 'In_Development'].includes(status)) || (visibleStatuses || []).includes(status);
+    const canActOnRequest = (request) => canActOnStatus(request.status) && canHandleChangeRequestCategory(currentRole, request);
     const getActionModalTitle = () => {
-        if (actionType === 'it_intake') return 'ส่วนที่ 2 (เจ้าหน้าที่ IT รับคำร้อง)';
+        if (!selectedActionStatus) return 'เปลี่ยนสถานะคำร้อง';
+        if (actionType === 'it_intake') return 'รับแจ้งคำร้องขอพัฒนาระบบ';
+        if (actionType === 'it_schedule') return 'บันทึกวันที่ดำเนินการ';
         if (actionType === 'it_manager') return 'ส่วนที่ 2 (IT Manager อนุญาต)';
-        return 'ส่วนที่ 2 (IT Staff ดำเนินการ)';
+        return 'บันทึกการดำเนินการ';
+    };
+
+    const getActionStatusOptions = (status) => {
+        if (status === 'Pending_IT') {
+            return [{ value: 'Pending_IT_Manager', label: 'ส่งต่อผู้จัดการ' }];
+        }
+        if (status === 'In_Progress') {
+            return [{ value: 'In_Development', label: 'บันทึกวันที่และเริ่มดำเนินการ' }];
+        }
+        if (status === 'In_Development') {
+            return [{ value: 'Pending_User_Acceptance', label: 'บันทึกเสร็จสิ้นและส่งให้ผู้แจ้งเซ็นปิดจบ' }];
+        }
+        return [];
     };
 
     useEffect(() => {
@@ -108,87 +144,138 @@ const AdminChangeRequests = ({ currentAdmin }) => {
         }
     };
 
-    const handleStatusChange = async (id, currentStatus) => {
-        if (currentStatus === 'Cancelled') return;
-
-        // Simple flow: Pending_Manager -> Pending_IT -> In_Progress -> Pending_User_Acceptance -> Completed
-        const req = requests.find(r => r.id === id);
-        if (!req) return;
-        if (!canActOnStatus(currentStatus)) return;
-
-        if (currentStatus === 'Pending_IT') {
+    const prepareActionForm = (req, targetStatus) => {
+        setSelectedActionStatus(targetStatus);
+        setActionFiles([]);
+        if (targetStatus === 'Pending_IT_Manager') {
             setActionType('it_intake');
             setSelectedRequest(req);
             setItForm((form) => ({
                 ...form,
                 receivedDate: req.it_received_date ? toLocalDateInputValue(req.it_received_date) : toLocalDateInputValue(),
-                operationDate: req.it_operation_date ? toLocalDateInputValue(req.it_operation_date) : toLocalDateInputValue(),
-                targetDate: req.it_target_date ? toLocalDateInputValue(req.it_target_date) : '',
             }));
-            setIsActionModalOpen(true);
             return;
         }
 
-        if (currentStatus === 'Pending_IT_Supervisor') {
-            setApprovalSignRequest({ id, status: currentStatus });
-            setTimeout(() => itManagerSignatureRef.current?.clear(), 100);
+        if (targetStatus === 'In_Development') {
+            setActionType('it_schedule');
+            setSelectedRequest(req);
+            setItForm(f => ({
+                ...f,
+                operationDate: req.it_operation_date ? toLocalDateInputValue(req.it_operation_date) : toLocalDateInputValue(),
+                targetDate: req.it_target_date ? toLocalDateInputValue(req.it_target_date) : f.targetDate,
+            }));
             return;
         }
 
-        if (currentStatus === 'Pending_IT_Manager') {
-            setApprovalSignRequest({ id, status: currentStatus });
-            setTimeout(() => itManagerSignatureRef.current?.clear(), 100);
-            return;
-        }
-
-        if (currentStatus === 'In_Progress') {
-            // Setup IT Staff Operation
+        if (targetStatus === 'Pending_User_Acceptance') {
             setActionType('it_staff');
             setSelectedRequest(req);
             setItForm(f => ({
                 ...f,
                 receivedDate: req.it_received_date ? toLocalDateInputValue(req.it_received_date) : f.receivedDate,
-                operationDate: req.it_operation_date ? toLocalDateInputValue(req.it_operation_date) : toLocalDateInputValue(),
+                operationDate: req.it_operation_date ? toLocalDateInputValue(req.it_operation_date) : f.operationDate,
                 targetDate: req.it_target_date ? toLocalDateInputValue(req.it_target_date) : f.targetDate,
             }));
-            setIsActionModalOpen(true);
             setTimeout(() => staffSignatureRef.current?.clear(), 100);
             return;
         }
+    };
 
-        const statuses = ['Pending_Manager', 'Pending_IT', 'Pending_IT_Supervisor', 'Pending_IT_Manager', 'In_Progress', 'Pending_User_Acceptance', 'Completed', 'Rejected'];
-        let currentIndex = statuses.indexOf(currentStatus);
-        if (currentIndex === -1) currentIndex = 0;
-        const nextStatus = statuses[(currentIndex + 1) % statuses.length];
+    const openStatusActionModal = (req) => {
+        if (!req || req.status === 'Cancelled') return;
+        if (!canActOnRequest(req)) return;
+        const options = getActionStatusOptions(req.status);
+        if (!options.length) return;
 
-        try {
-            const { error } = await mysql
-                .from('change_requests')
-                .update({ status: nextStatus })
-                .eq('id', id);
+        setSelectedRequest(req);
+        setSelectedActionStatus('');
+        setIsActionModalOpen(true);
+    };
 
-            if (error) throw error;
-            fetchRequests();
-        } catch (error) {
-            console.error('Error updating status:', error);
-            Swal.fire('Error', 'ไม่สามารถอัปเดตสถานะได้', 'error');
+    const handleActionFileChange = (event) => {
+        const files = Array.from(event.target.files || []);
+        if (actionFiles.length + files.length > 5) {
+            Swal.fire('เกินกำหนด', 'สามารถแนบไฟล์เพิ่มเติมได้สูงสุด 5 ไฟล์ต่อครั้ง', 'warning');
+            event.target.value = '';
+            return;
         }
+
+        setActionFiles((prev) => [
+            ...prev,
+            ...files.map((file) => ({
+                id: `${Date.now()}-${file.name}-${Math.random()}`,
+                file,
+                name: file.name,
+                size: file.size,
+                type: file.type,
+            })),
+        ]);
+        event.target.value = '';
+    };
+
+    const removeActionFile = (fileId) => {
+        setActionFiles((prev) => prev.filter((file) => file.id !== fileId));
+    };
+
+    const fileToDataUrl = (file) => new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+
+    const buildActionAttachments = async () => Promise.all(
+        actionFiles.map(async ({ file, name, size, type }) => ({
+            name,
+            size,
+            type,
+            url: await fileToDataUrl(file),
+            uploadedAt: new Date().toISOString(),
+            uploadedBy: currentAdmin?.name || currentAdmin?.username || '',
+        }))
+    );
+
+    const showAttachmentsDialog = (req) => {
+        const attachments = parseAttachments(req.attachments_json);
+        if (!attachments.length) return;
+
+        const html = `
+            <div style="display:flex;flex-direction:column;gap:8px;text-align:left;">
+                ${attachments.map((file, index) => `
+                    <a href="${file.url}" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;gap:10px;padding:10px;border:1px solid #e2e8f0;border-radius:10px;text-decoration:none;color:#334155;">
+                        <span style="font-weight:700;color:#10b981;">${index + 1}</span>
+                        <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${file.name || 'ไฟล์แนบ'}</span>
+                        <span style="font-size:12px;color:#94a3b8;">${formatFileSize(file.size)}</span>
+                    </a>
+                `).join('')}
+            </div>
+        `;
+
+        Swal.fire({
+            title: 'ไฟล์แนบเพิ่มเติม',
+            html,
+            confirmButtonColor: '#10b981',
+            confirmButtonText: 'ปิด',
+            width: 560,
+        });
     };
 
     const handleItAction = async () => {
         const reqId = selectedRequest.id;
+        if (!selectedActionStatus) {
+            return Swal.fire('ข้อมูลไม่ครบ', 'กรุณาเลือกสถานะที่ต้องการเปลี่ยน', 'warning');
+        }
         
         try {
             if (actionType === 'it_intake') {
-                if (!itForm.receivedDate || !itForm.operationDate || !itForm.targetDate) {
-                    return Swal.fire('ข้อมูลไม่ครบ', 'กรุณาระบุวันที่รับ วันที่ดำเนินการ และวันที่นัดหมายแล้วเสร็จให้ครบ', 'warning');
+                if (!itForm.receivedDate) {
+                    return Swal.fire('ข้อมูลไม่ครบ', 'กรุณาระบุวันที่รับคำร้องขอ', 'warning');
                 }
 
                 const updateData = {
                     it_received_date: itForm.receivedDate,
-                    it_operation_date: itForm.operationDate,
-                    it_target_date: itForm.targetDate,
-                    status: 'Pending_IT_Supervisor',
+                    status: 'Pending_IT_Manager',
                 };
 
                 const { error } = await mysql.from('change_requests').update(updateData).eq('id', reqId);
@@ -213,14 +300,29 @@ const AdminChangeRequests = ({ currentAdmin }) => {
                 const { error } = await mysql.from('change_requests').update(updateData).eq('id', reqId);
                 if (error) throw error;
 
+            } else if (actionType === 'it_schedule') {
+                if (!itForm.operationDate || !itForm.targetDate) {
+                    return Swal.fire('ข้อมูลไม่ครบ', 'ระบุวันที่ดำเนินการและวันที่นัดหมายแล้วเสร็จให้ครบ', 'warning');
+                }
+                const existingAttachments = parseAttachments(selectedRequest.attachments_json);
+                const newAttachments = await buildActionAttachments();
+                const updateData = {
+                    it_operation_date: itForm.operationDate,
+                    it_target_date: itForm.targetDate,
+                    attachments_json: JSON.stringify([...existingAttachments, ...newAttachments]),
+                    status: 'In_Development'
+                };
+
+                const { error } = await mysql.from('change_requests').update(updateData).eq('id', reqId);
+                if (error) throw error;
+
             } else if (actionType === 'it_staff') {
-                if (!itForm.staffName || !itForm.staffPosition || staffSignatureRef.current.isEmpty()) {
-                    return Swal.fire('ข้อมูลไม่ครบ', 'ระบุผลการดำเนินงาน ผู้ดำเนินการ และลายเซ็นให้ครบ', 'warning');
+                if (!itForm.solution || !itForm.staffName || !itForm.staffPosition || staffSignatureRef.current.isEmpty()) {
+                    return Swal.fire('ข้อมูลไม่ครบ', 'ระบุวิธีแก้ไข ผู้ดำเนินการ ตำแหน่ง และลายเซ็นให้ครบ', 'warning');
                 }
                 const signData = staffSignatureRef.current.getCanvas().toDataURL('image/png');
                 const updateData = {
                     it_solution: itForm.solution,
-                    it_operation_date: itForm.operationDate || null,
                     it_staff_name: itForm.staffName,
                     it_staff_position: itForm.staffPosition,
                     it_staff_sign: signData,
@@ -233,49 +335,18 @@ const AdminChangeRequests = ({ currentAdmin }) => {
             }
 
             setIsActionModalOpen(false);
+            setSelectedActionStatus('');
+            setActionFiles([]);
             window.dispatchEvent(new Event('approval-queues:refresh'));
             Swal.fire('สำเร็จ!', 'บันทึกการดำเนินการของ IT เรียบร้อย', 'success');
+            if (actionType === 'it_staff') {
+                await showAcceptChangeRequestLinkDialog(selectedRequest);
+            }
             fetchRequests();
             
         } catch (error) {
             console.error('Error IT action:', error);
             Swal.fire('Error', 'เกิดข้อผิดพลาดในการบันทึกข้อมูล', 'error');
-        }
-    };
-
-    const handleApprovalSign = async () => {
-        if (!approvalSignRequest || !itManagerSignatureRef.current || itManagerSignatureRef.current.isEmpty()) {
-            Swal.fire('ข้อมูลไม่ครบ', 'กรุณาลงลายเซ็นก่อนยืนยัน', 'warning');
-            return;
-        }
-
-        const signData = itManagerSignatureRef.current.getCanvas().toDataURL('image/png');
-        const isSupervisorStep = approvalSignRequest.status === 'Pending_IT_Supervisor';
-        const updateData = isSupervisorStep
-            ? {
-                status: 'Pending_IT_Manager',
-                it_supervisor_name: currentAdmin?.name || '',
-                it_supervisor_sign: signData,
-                it_supervisor_date: toMysqlDateTime(),
-            }
-            : {
-                status: 'In_Progress',
-                it_approval_status: 'Approved',
-                it_manager_name: currentAdmin?.name || '',
-                it_manager_sign: signData,
-                it_manager_date: toMysqlDateTime(),
-            };
-
-        try {
-            const { error } = await mysql.from('change_requests').update(updateData).eq('id', approvalSignRequest.id);
-            if (error) throw error;
-            setApprovalSignRequest(null);
-            window.dispatchEvent(new Event('approval-queues:refresh'));
-            fetchRequests();
-            Swal.fire('อัปเดตแล้ว', isSupervisorStep ? 'เซ็นและส่งต่อ IT Manager แล้ว' : 'เซ็นอนุมัติและส่งต่อดำเนินการแล้ว', 'success');
-        } catch (error) {
-            console.error('Error signing approval:', error);
-            Swal.fire('Error', 'ไม่สามารถบันทึกลายเซ็นได้', 'error');
         }
     };
 
@@ -305,28 +376,73 @@ const AdminChangeRequests = ({ currentAdmin }) => {
 
     const getStatusBadge = (status) => {
         switch (status) {
-            case 'Pending_Manager': return <span className="px-2.5 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs font-semibold flex items-center gap-1"><Clock className="w-3 h-3"/> รอดำเนินการ (หัวหน้างาน)</span>;
-            case 'Pending_IT': return <span className="px-2.5 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-semibold flex items-center gap-1"><Clock className="w-3 h-3"/> รอดำเนินการ (IT Software/Media)</span>;
-            case 'Pending_IT_Supervisor': return <span className="px-2.5 py-1 bg-cyan-100 text-cyan-700 rounded-full text-xs font-semibold flex items-center gap-1"><Clock className="w-3 h-3"/> รอตรวจสอบ (IT Supervisor)</span>;
-            case 'Pending_IT_Manager': return <span className="px-2.5 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-semibold flex items-center gap-1"><Clock className="w-3 h-3"/> รออนุมัติ (IT Manager)</span>;
-            case 'In_Progress': return <span className="px-2.5 py-1 bg-indigo-100 text-indigo-700 rounded-full text-xs font-semibold flex items-center gap-1"><Edit className="w-3 h-3"/> กำลังพัฒนาโปรแกรม</span>;
-            case 'Pending_User_Acceptance': return <span className="px-2.5 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-semibold flex items-center gap-1"><Clock className="w-3 h-3"/> รอส่งมอบ (User ยอมรับ)</span>;
-            case 'Completed': return <span className="px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-semibold flex items-center gap-1"><CheckCircle className="w-3 h-3"/> เสร็จสิ้น</span>;
+            case 'Pending_Manager': return <span className="px-2.5 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs font-semibold flex items-center gap-1"><Clock className="w-3 h-3"/> ผู้จัดการของผู้แจ้ง</span>;
+            case 'Pending_IT': return <span className="px-2.5 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-semibold flex items-center gap-1"><Clock className="w-3 h-3"/> รับแจ้ง</span>;
+            case 'Pending_IT_Supervisor': return <span className="px-2.5 py-1 bg-cyan-100 text-cyan-700 rounded-full text-xs font-semibold flex items-center gap-1"><Clock className="w-3 h-3"/> หัวหน้าแผนก</span>;
+            case 'Pending_IT_Manager': return <span className="px-2.5 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-semibold flex items-center gap-1"><Clock className="w-3 h-3"/> ผู้จัดการ</span>;
+            case 'In_Progress': return <span className="px-2.5 py-1 bg-indigo-100 text-indigo-700 rounded-full text-xs font-semibold flex items-center gap-1"><Clock className="w-3 h-3"/> รอดำเนินการ</span>;
+            case 'In_Development': return <span className="px-2.5 py-1 bg-sky-100 text-sky-700 rounded-full text-xs font-semibold flex items-center gap-1"><Edit className="w-3 h-3"/> กำลังดำเนินการ</span>;
+            case 'Pending_User_Acceptance': return <span className="px-2.5 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-semibold flex items-center gap-1"><Clock className="w-3 h-3"/> เสร็จสิ้น</span>;
+            case 'Completed': return <span className="px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-semibold flex items-center gap-1"><CheckCircle className="w-3 h-3"/> ปิดจบ</span>;
             case 'Rejected': return <span className="px-2.5 py-1 bg-red-100 text-red-700 rounded-full text-xs font-semibold flex items-center gap-1"><XCircle className="w-3 h-3"/> ไม่อนุมัติ</span>;
             case 'Cancelled': return <span className="px-2.5 py-1 bg-rose-100 text-rose-700 rounded-full text-xs font-semibold flex items-center gap-1"><XCircle className="w-3 h-3"/> ยกเลิก</span>;
             default: return <span className="px-2.5 py-1 bg-slate-100 text-slate-700 rounded-full text-xs font-semibold">{status}</span>;
         }
     };
 
+    const handleCancelRequest = async (req) => {
+        if (!req || req.status === 'Cancelled') return;
+        const result = await Swal.fire({
+            title: 'ยืนยันการยกเลิกคำร้อง?',
+            text: 'ระบบจะเปลี่ยนสถานะเป็นยกเลิก โดยไม่ลบข้อมูลออกจากระบบ',
+            input: 'textarea',
+            inputPlaceholder: 'เหตุผลการยกเลิก (ถ้ามี)',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#e11d48',
+            cancelButtonColor: '#64748b',
+            confirmButtonText: 'ยืนยันยกเลิก',
+            cancelButtonText: 'ปิด',
+        });
+        if (!result.isConfirmed) return;
+
+        const updatePayload = {
+            status: 'Cancelled',
+            cancelled_at: toMysqlDateTime(),
+            cancel_reason: result.value || '',
+            cancel_it_name: currentAdmin?.name || currentAdmin?.username || '',
+        };
+
+        try {
+            const { error } = await mysql.from('change_requests').update(updatePayload).eq('id', req.id);
+            if (error) throw error;
+            window.dispatchEvent(new Event('approval-queues:refresh'));
+            fetchRequests();
+            Swal.fire('ยกเลิกแล้ว', 'เปลี่ยนสถานะคำร้องเป็นยกเลิกเรียบร้อยแล้ว', 'success');
+        } catch (error) {
+            console.error('Error cancelling change request:', error);
+            Swal.fire('Error', 'ไม่สามารถยกเลิกคำร้องได้', 'error');
+        }
+    };
+
+    const getRequestCategoryBadge = (category) => {
+        if (!category) return <span className="text-xs text-slate-400">-</span>;
+        const tone = category === 'พัฒนาสื่อ'
+            ? 'border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700'
+            : 'border-sky-200 bg-sky-50 text-sky-700';
+        return <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${tone}`}>{category}</span>;
+    };
+
     const filteredRequests = requests.filter(req => {
+        const matchesRoleCategory = canHandleChangeRequestCategory(currentRole, req);
         const matchesSearch = req.requester_name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
                               req.department?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                               req.ticket_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                              req.request_category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                               req.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                               req.request_details?.toLowerCase().includes(searchTerm.toLowerCase());
                               
         const matchesStatus = statusFilter === 'All' || req.status === statusFilter;
-        const matchesRoleQueue = visibleStatuses === null || (visibleStatuses || []).includes(req.status);
         
         const reqDate = new Date(req.created_at);
         let matchesDate = true;
@@ -340,7 +456,7 @@ const AdminChangeRequests = ({ currentAdmin }) => {
             matchesDate = matchesDate && reqDate <= endDate;
         }
         
-        return matchesSearch && matchesRoleQueue && matchesStatus && matchesDate;
+        return matchesRoleCategory && matchesSearch && matchesStatus && matchesDate;
     });
 
     return (
@@ -348,8 +464,8 @@ const AdminChangeRequests = ({ currentAdmin }) => {
             {/* Header */}
             <div className="flex flex-col items-start gap-4 bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
                 <div className="flex items-center gap-3">
-                    <div className="p-2.5 bg-emerald-100 dark:bg-emerald-900/50 rounded-xl text-emerald-600 dark:text-emerald-400">
-                        <Code className="w-6 h-6" />
+                    <div className="p-2.5 bg-emerald-100 dark:bg-emerald-900/50 rounded-xl text-emerald-600 dark:text-emerald-300">
+                        <ClipboardPenLine className="w-6 h-6" />
                     </div>
                     <div>
                         <h2 className="text-xl font-bold text-slate-800 dark:text-white">คำร้องขอพัฒนาระบบ (Change Request)</h2>
@@ -366,10 +482,11 @@ const AdminChangeRequests = ({ currentAdmin }) => {
                         <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
                         {false && <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="input-modern !pl-9 !py-2 !text-sm w-full sm:w-auto appearance-none bg-white dark:bg-slate-800">
                             <option value="All">ทุกสถานะ</option>
-                            <option value="Pending_IT">รออนุมัติ (IT Manager)</option>
-                            <option value="In_Progress">กำลังพัฒนาโปรแกรม</option>
-                            <option value="Pending_User_Acceptance">รอจัดการส่งมอบ (User)</option>
-                            <option value="Completed">ปิดงานสมบูรณ์</option>
+                            <option value="Pending_IT">รับแจ้ง</option>
+                            <option value="In_Progress">รอดำเนินการ</option>
+                            <option value="In_Development">กำลังดำเนินการ</option>
+                            <option value="Pending_User_Acceptance">เสร็จสิ้น</option>
+                            <option value="Completed">ปิดจบ</option>
                         </select>}
                         <Select value={statusFilter} onValueChange={setStatusFilter}>
                             <SelectTrigger className="input-modern !pl-9 !py-2 !text-sm w-full bg-white dark:bg-slate-800">
@@ -377,12 +494,12 @@ const AdminChangeRequests = ({ currentAdmin }) => {
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="All">All</SelectItem>
-                                <SelectItem value="Pending_IT">Pending IT Software/Media</SelectItem>
-                                <SelectItem value="Pending_IT_Supervisor">Pending IT Supervisor</SelectItem>
-                                <SelectItem value="Pending_IT_Manager">Pending IT Manager</SelectItem>
-                                <SelectItem value="In_Progress">In Progress</SelectItem>
-                                <SelectItem value="Pending_User_Acceptance">Pending User Acceptance</SelectItem>
-                                <SelectItem value="Completed">Completed</SelectItem>
+                                <SelectItem value="Pending_IT">รับแจ้ง</SelectItem>
+                                <SelectItem value="Pending_IT_Manager">ผู้จัดการ</SelectItem>
+                                <SelectItem value="In_Progress">รอดำเนินการ</SelectItem>
+                                <SelectItem value="In_Development">กำลังดำเนินการ</SelectItem>
+                                <SelectItem value="Pending_User_Acceptance">เสร็จสิ้น</SelectItem>
+                                <SelectItem value="Completed">ปิดจบ</SelectItem>
                                 <SelectItem value="Cancelled">Cancelled</SelectItem>
                             </SelectContent>
                         </Select>
@@ -416,7 +533,7 @@ const AdminChangeRequests = ({ currentAdmin }) => {
             ) : filteredRequests.length === 0 ? (
                 <div className="bg-white dark:bg-slate-800 p-10 rounded-2xl text-center border border-slate-100 dark:border-slate-700">
                     <div className="w-16 h-16 bg-slate-100 dark:bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <Code className="w-8 h-8 text-slate-400 m-auto" />
+                        <ClipboardPenLine className="w-8 h-8 text-slate-400 m-auto" />
                     </div>
                     <h3 className="text-lg font-bold text-slate-700 dark:text-slate-300 mb-2">ไม่พบคำร้องขอพัฒนาโปรแกรม</h3>
                     <p className="text-slate-500 dark:text-slate-400">ยังไม่มีผู้ใช้งานส่งคำร้องขอพัฒนาโปรแกรมเข้ามาในระบบ หรือไม่พบในเงื่อนไขการค้นหา</p>
@@ -428,9 +545,10 @@ const AdminChangeRequests = ({ currentAdmin }) => {
                             <thead>
                                 <tr className="bg-slate-50 border-b text-slate-500 text-xs uppercase">
                                     <th className="p-4 whitespace-nowrap">วันที่ / เลขเอกสาร</th>
+                                    <th className="p-4 whitespace-nowrap">ประเภทการร้องขอ</th>
                                     <th className="p-4 whitespace-nowrap">ผู้ร้องขอ / แผนก</th>
                                     <th className="p-4">รายละเอียดการขอ (Requirement)</th>
-                                    <th className="p-4 whitespace-nowrap">สถานะ (คลิกเพื่อเปลี่ยน)</th>
+                                    <th className="p-4 whitespace-nowrap">สถานะ</th>
                                     <th className="p-4 whitespace-nowrap text-right">จัดการ</th>
                                 </tr>
                             </thead>
@@ -441,6 +559,9 @@ const AdminChangeRequests = ({ currentAdmin }) => {
                                             <div className="text-sm font-semibold">{new Date(req.created_at).toLocaleDateString('th-TH')}</div>
                                             <div className="text-xs text-emerald-600 font-mono mt-1">{req.ticket_number}</div>
                                             <div className="text-xs text-slate-400 mt-1 font-bold">{getChangeRequestTypeLabel(req.req_type)}</div>
+                                        </td>
+                                        <td className="p-4 align-top">
+                                            {getRequestCategoryBadge(req.request_category)}
                                         </td>
                                         <td className="p-4 align-top">
                                             <div className="text-sm font-bold text-slate-800">{req.requester_name}</div>
@@ -457,18 +578,37 @@ const AdminChangeRequests = ({ currentAdmin }) => {
                                             <p className="text-xs text-amber-600 border border-amber-200 bg-amber-50 rounded p-1 mt-2 line-clamp-1 truncate" title={req.reason}>เหตุผล: {req.reason}</p>
                                         </td>
                                         <td className="p-4 align-top">
-                                            <button 
-                                                onClick={() => handleStatusChange(req.id, req.status)}
-                                                disabled={!canActOnStatus(req.status)}
-                                                className={`transition-all ${canActOnStatus(req.status) ? 'hover:scale-105 active:scale-95 cursor-pointer' : 'cursor-default'}`}
-                                            >
-                                                {getStatusBadge(req.status)}
-                                            </button>
+                                            {getStatusBadge(req.status)}
                                         </td>
                                         <td className="p-4 align-top text-right">
-                                            <button onClick={() => handleDelete(req.id)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg">
-                                                <Trash2 className="w-4 h-4" />
+                                            {canActOnRequest(req) && getActionStatusOptions(req.status).length > 0 && (
+                                                <button type="button" onClick={() => openStatusActionModal(req)} className="p-2 text-amber-600 hover:text-white hover:bg-amber-600 rounded-lg" title="เปลี่ยนสถานะ">
+                                                    <Edit className="w-4 h-4" />
+                                                </button>
+                                            )}
+                                            {req.status === 'Pending_User_Acceptance' && (
+                                                <button type="button" onClick={() => showAcceptChangeRequestLinkDialog(req)} className="p-2 text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg" title="สร้างลิงก์เซ็นรับมอบงาน">
+                                                    <Link className="w-4 h-4" />
+                                                </button>
+                                            )}
+                                            {parseAttachments(req.attachments_json).length > 0 && (
+                                                <button type="button" onClick={() => showAttachmentsDialog(req)} className="p-2 text-emerald-600 hover:text-white hover:bg-emerald-600 rounded-lg" title="ดูไฟล์แนบเพิ่มเติม" aria-label="ดูไฟล์แนบเพิ่มเติม">
+                                                    <Paperclip className="w-4 h-4" />
+                                                </button>
+                                            )}
+                                            <button type="button" onClick={() => setPreviewRequest(req)} className="p-2 rounded-lg bg-indigo-50 text-indigo-600 transition-colors hover:bg-indigo-100" title="ดูเอกสาร" aria-label="ดูเอกสาร">
+                                                <Printer className="w-4 h-4" />
                                             </button>
+                                            {canDeleteRecord && (
+                                                <button onClick={() => handleDelete(req.id)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg">
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                            )}
+                                            {!canDeleteRecord && !['Cancelled', 'Completed', 'Rejected'].includes(req.status) && (
+                                                <button onClick={() => handleCancelRequest(req)} className="p-2 text-rose-500 hover:text-white hover:bg-rose-600 rounded-lg" title="ตั้งสถานะยกเลิก">
+                                                    <XCircle className="w-4 h-4" />
+                                                </button>
+                                            )}
                                         </td>
                                     </tr>
                                 ))}
@@ -478,71 +618,52 @@ const AdminChangeRequests = ({ currentAdmin }) => {
                 </div>
             )}
 
-            {/* Action form Modal Config */}
-            {approvalSignRequest && (
-                <div className="fixed inset-0 z-[120] flex items-start sm:items-center justify-center overflow-y-auto p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm">
-                    <div className="bg-white rounded-3xl p-5 sm:p-6 w-full max-w-md max-h-[calc(100dvh-1.5rem)] overflow-y-auto shadow-2xl animate-fade-in border">
-                        <div className="flex justify-between items-center mb-6">
-                            <h3 className="text-xl font-bold flex items-center gap-2">
-                                <CheckCircle className="w-6 h-6 text-emerald-500" />
-                                {approvalSignRequest.status === 'Pending_IT_Supervisor' ? 'IT Supervisor ลงนาม' : 'IT Manager ลงนาม'}
-                            </h3>
-                            <button onClick={() => setApprovalSignRequest(null)} className="text-slate-400 hover:text-rose-500"><XCircle className="w-6 h-6" /></button>
-                        </div>
-                        <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 text-sm text-slate-600 mb-4">
-                            ผู้ลงนาม: <span className="font-semibold text-slate-800">{currentAdmin?.name || '-'}</span>
-                        </div>
-                        <div className="border shadow-inner bg-slate-50 h-36 relative rounded-xl overflow-hidden">
-                            <SignatureCanvas ref={itManagerSignatureRef} canvasProps={{ className: 'w-full h-full xl-signature' }} />
-                            <button className="absolute top-2 right-2 text-xs text-red-500 font-semibold" onClick={() => itManagerSignatureRef.current?.clear()}>ล้าง</button>
-                        </div>
-                        <div className="flex gap-3 mt-6">
-                            <button onClick={() => setApprovalSignRequest(null)} className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 font-bold rounded-xl text-slate-700">ยกเลิก</button>
-                            <button onClick={handleApprovalSign} className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-lg">ยืนยัน</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
             {isActionModalOpen && selectedRequest && (
                 <div className="fixed inset-0 z-[120] flex items-start sm:items-center justify-center overflow-y-auto p-3 sm:p-4 bg-slate-900/50 backdrop-blur-sm">
                     <div className="bg-white rounded-3xl p-5 sm:p-6 w-full max-w-lg shadow-2xl animate-fade-in border overflow-y-auto max-h-[calc(100dvh-1.5rem)]">
                         <div className="flex justify-between items-center mb-6">
                             <h3 className="text-xl font-bold flex items-center gap-2">
-                                <Code className="w-6 h-6 text-emerald-500"/> 
+                                <ClipboardPenLine className="w-6 h-6 text-emerald-500"/>
                                 {getActionModalTitle()}
                             </h3>
-                            <button onClick={() => setIsActionModalOpen(false)} className="text-slate-400 hover:text-rose-500"><XCircle className="w-6 h-6" /></button>
+                            <button onClick={() => { setIsActionModalOpen(false); setSelectedActionStatus(''); setActionFiles([]); }} className="text-slate-400 hover:text-rose-500"><XCircle className="w-6 h-6" /></button>
                         </div>
                         
                         <div className="bg-slate-50 p-3 rounded-lg text-sm mb-4 border border-slate-200">
                             <b>เอกสารอ้างอิง:</b> {selectedRequest.ticket_number}<br/>
+                            <b>ประเภทการร้องขอ:</b> {selectedRequest.request_category || '-'}<br/>
                             <b>รายละเอียดการขอ:</b> {selectedRequest.details}
                         </div>
 
-                        {actionType === 'it_intake' && (
+                        <div className="mb-4">
+                            <label className="text-xs font-semibold mb-1 block">สถานะที่ต้องการเปลี่ยน</label>
+                            <Select value={selectedActionStatus} onValueChange={(value) => prepareActionForm(selectedRequest, value)}>
+                                <SelectTrigger className="input-modern w-full">
+                                    <SelectValue placeholder="เลือกสถานะ" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {getActionStatusOptions(selectedRequest.status).map((option) => (
+                                        <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        {selectedActionStatus === 'Pending_IT_Manager' && actionType === 'it_intake' && (
                             <div className="space-y-4">
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                <div className="grid grid-cols-1 gap-3">
                                     <div>
-                                        <label className="text-xs font-semibold mb-1 block">วันที่รับคำร้อง</label>
+                                        <label className="text-xs font-semibold mb-1 block">วันที่รับคำร้องขอ</label>
                                         <input type="date" className="input-modern w-full text-sm" value={itForm.receivedDate} onChange={e => setItForm({...itForm, receivedDate: e.target.value})} />
-                                    </div>
-                                    <div>
-                                        <label className="text-xs font-semibold mb-1 block">วันที่ดำเนินการ</label>
-                                        <input type="date" className="input-modern w-full text-sm" value={itForm.operationDate} onChange={e => setItForm({...itForm, operationDate: e.target.value})} />
-                                    </div>
-                                    <div>
-                                        <label className="text-xs font-semibold mb-1 block">วันที่นัดหมายแล้วเสร็จ</label>
-                                        <input type="date" className="input-modern w-full text-sm" value={itForm.targetDate} onChange={e => setItForm({...itForm, targetDate: e.target.value})} />
                                     </div>
                                 </div>
                                 <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
-                                    บันทึกวันที่แล้วระบบจะส่งรายการต่อให้ IT Supervisor ลงนาม
+                                    บันทึกวันที่แล้วระบบจะส่งรายการต่อให้ IT Manager ลงนาม
                                 </div>
                             </div>
                         )}
 
-                        {actionType === 'it_manager' && (
+                        {selectedActionStatus === 'In_Progress' && actionType === 'it_manager' && (
                             <div className="space-y-4">
                                 <div className="grid grid-cols-2 gap-3">
                                     <div>
@@ -578,12 +699,49 @@ const AdminChangeRequests = ({ currentAdmin }) => {
                             </div>
                         )}
 
-                        {actionType === 'it_staff' && (
+                        {selectedActionStatus === 'In_Development' && actionType === 'it_schedule' && (
                             <div className="space-y-4">
-                                <div>
-                                    <label className="text-xs font-semibold mb-1 block">วันที่ดำเนินการ (เสร็จสิ้นการเขียนโปรแกรม)</label>
-                                    <input type="date" className="input-modern w-full text-sm" value={itForm.operationDate} onChange={e => setItForm({...itForm, operationDate: e.target.value})} />
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="text-xs font-semibold mb-1 block">วันที่ดำเนินการ</label>
+                                        <input type="date" className="input-modern w-full text-sm" value={itForm.operationDate} onChange={e => setItForm({...itForm, operationDate: e.target.value})} />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-semibold mb-1 block">วันที่นัดหมายแล้วเสร็จ</label>
+                                        <input type="date" className="input-modern w-full text-sm" value={itForm.targetDate} onChange={e => setItForm({...itForm, targetDate: e.target.value})} />
+                                    </div>
                                 </div>
+                                <div className="rounded-xl border border-sky-100 bg-sky-50 px-3 py-2 text-xs text-sky-700">
+                                    บันทึกวันที่แล้วระบบจะเปลี่ยนสถานะเป็นกำลังดำเนินการ
+                                </div>
+                                <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3">
+                                    <label className="mb-2 flex items-center gap-2 text-xs font-semibold text-slate-700">
+                                        <Paperclip className="h-4 w-4 text-emerald-500" />
+                                        ไฟล์แนบเพิ่มเติม
+                                    </label>
+                                    <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-500 hover:border-emerald-300 hover:text-emerald-600">
+                                        <Paperclip className="h-4 w-4" />
+                                        เลือกไฟล์
+                                        <input type="file" multiple className="hidden" onChange={handleActionFileChange} />
+                                    </label>
+                                    {actionFiles.length > 0 && (
+                                        <div className="mt-3 space-y-2">
+                                            {actionFiles.map((file) => (
+                                                <div key={file.id} className="flex items-center justify-between gap-2 rounded-lg bg-white px-3 py-2 text-xs">
+                                                    <span className="min-w-0 truncate font-semibold text-slate-700">{file.name}</span>
+                                                    <button type="button" onClick={() => removeActionFile(file.id)} className="shrink-0 rounded p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-500" title="ลบไฟล์แนบ" aria-label="ลบไฟล์แนบ">
+                                                        <X className="h-3.5 w-3.5" />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {selectedActionStatus === 'Pending_User_Acceptance' && actionType === 'it_staff' && (
+                            <div className="space-y-4">
                                 <div>
                                     <label className="text-xs font-semibold mb-1 block">วิธีแก้ไข/พัฒนา (Solution)</label>
                                     <textarea className="input-modern w-full text-sm p-3 min-h-[100px]" placeholder="เพิ่ม Database Table, สร้าง หน้าเว็บใหม่ ..." value={itForm.solution} onChange={e => setItForm({...itForm, solution: e.target.value})} />
@@ -593,6 +751,9 @@ const AdminChangeRequests = ({ currentAdmin }) => {
                                     <input type="text" className="input-modern" placeholder="ชื่อผู้ดำเนินการ" value={itForm.staffName} onChange={e => setItForm({...itForm, staffName: e.target.value})} />
                                     <input type="text" className="input-modern" placeholder="ตำแหน่ง" value={itForm.staffPosition} onChange={e => setItForm({...itForm, staffPosition: e.target.value})} />
                                 </div>
+                                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                                    ลงวันที่: {new Date().toLocaleDateString('th-TH')}
+                                </div>
                                 <div className="border shadow-inner bg-slate-50 h-32 relative rounded-xl overflow-hidden">
                                      <SignatureCanvas ref={staffSignatureRef} canvasProps={{ className: 'w-full h-full xl-signature' }} />
                                      <div className="absolute top-2 right-2 text-xs text-red-500 cursor-pointer" onClick={() => staffSignatureRef.current.clear()}>ล้าง</div>
@@ -601,11 +762,50 @@ const AdminChangeRequests = ({ currentAdmin }) => {
                         )}
 
                         <div className="flex gap-3 mt-6">
-                            <button onClick={() => setIsActionModalOpen(false)} className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 font-bold rounded-xl text-slate-700">ยกเลิก</button>
+                            <button onClick={() => { setIsActionModalOpen(false); setSelectedActionStatus(''); setActionFiles([]); }} className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 font-bold rounded-xl text-slate-700">ยกเลิก</button>
                             <button onClick={handleItAction} className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-lg">ยืนยันรายการ</button>
                         </div>
                     </div>
                 </div>
+            )}
+            {previewRequest && (
+                <Fmit15PdfPreview
+                    isOpen
+                    onClose={() => setPreviewRequest(null)}
+                    formData={{
+                        ticketNumber: previewRequest.ticket_number,
+                        createdAt: previewRequest.created_at || null,
+                        reqType: previewRequest.req_type,
+                        reqTypeOther: previewRequest.req_type_other || '',
+                        department: previewRequest.department,
+                        requestDetails: previewRequest.details,
+                        reason: previewRequest.reason,
+                        requesterName: previewRequest.requester_name,
+                        requesterPosition: previewRequest.requester_position,
+                        requesterSign: previewRequest.requester_sign || null,
+                        managerSign: previewRequest.manager_sign || null,
+                        managerPosition: previewRequest.manager_position || '',
+                        managerDate: previewRequest.manager_date || null,
+                        itReceivedDate: previewRequest.it_received_date || '',
+                        itOperationDate: previewRequest.it_operation_date || '',
+                        itTargetDate: previewRequest.it_target_date || '',
+                        itApprovalStatus: previewRequest.it_approval_status || '',
+                        itRejectReason: previewRequest.it_reject_reason || '',
+                        itManagerSign: previewRequest.it_manager_sign || null,
+                        itManagerPosition: previewRequest.it_manager_position || '',
+                        itManagerDate: previewRequest.it_manager_date || null,
+                        itSolution: previewRequest.it_solution || '',
+                        itStaffSign: previewRequest.it_staff_sign || null,
+                        itStaffDate: previewRequest.it_staff_date || null,
+                        itStaffPosition: previewRequest.it_staff_position || '',
+                        userAcceptance: previewRequest.user_acceptance || '',
+                        userRejectReason: previewRequest.user_reject_reason || '',
+                        userAcceptSign: previewRequest.user_accept_sign || null,
+                        userAcceptDate: previewRequest.user_accept_date || null,
+                        status: previewRequest.status || '',
+                        cancelledAt: previewRequest.cancelled_at || null,
+                    }}
+                />
             )}
         </div>
     );

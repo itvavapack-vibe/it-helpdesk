@@ -428,7 +428,7 @@ const EmployeeManagement = () => {
         <div className="space-y-6 animate-fade-in pb-10">
             <div className="flex flex-col items-start gap-4 bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
                 <div className="flex items-center gap-3">
-                    <div className="p-2.5 bg-blue-100 dark:bg-blue-900/50 rounded-xl text-blue-600 dark:text-blue-400">
+                    <div className="p-2.5 bg-blue-100 dark:bg-blue-900/50 rounded-xl text-blue-600 dark:text-blue-300">
                         <Users className="w-6 h-6" />
                     </div>
                     <div>

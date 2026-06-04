@@ -145,11 +145,7 @@ const Fmit15PdfPreview = ({ isOpen, onClose, formData }) => {
                                     <div style={{ fontSize: '12px', fontWeight: 500, marginLeft: '10px', paddingBottom: '2px', flex: 1, whiteSpace: 'nowrap', textAlign: 'right' }}>
                                         ITC No. 
                                         <span style={{ display: 'inline-block', minWidth: '80px', borderBottom: formData.ticketNumber ? 'none' : '1px dotted #000', textAlign: 'center', color: '#1e3a8a', margin: '0 5px' }}>
-                                            {formData.ticketNumber ? formData.ticketNumber.split('/')[0] : ''}
-                                        </span>
-                                        /
-                                        <span style={{ display: 'inline-block', minWidth: '80px', borderBottom: formData.ticketNumber ? 'none' : '1px dotted #000', textAlign: 'center', color: '#1e3a8a', marginLeft: '5px' }}>
-                                            {formData.ticketNumber ? formData.ticketNumber.split('/')[1] : ''}
+                                            {formData.ticketNumber || ''}
                                         </span>
                                     </div>
                                 </div>

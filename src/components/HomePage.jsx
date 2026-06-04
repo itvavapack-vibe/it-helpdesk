@@ -1,36 +1,18 @@
 import React from 'react';
-import {
-    MonitorCheck,
-    Wifi,
-    HardDrive,
-    LayoutDashboard,
-    ClipboardList,
-    ShieldCheck,
-    ArrowRight,
-} from 'lucide-react';
-import { Badge, Button, Card } from '@/components/ui';
+import { ClipboardList, ClipboardPenLine, Key } from 'lucide-react';
+import { Button, Card } from '@/components/ui';
 import { HOME_QUICK_ACTIONS, canSee } from '../config/navigation';
 
-const FeatureCard = ({ icon: Icon, title, desc, color }) => (
-    <Card className="p-6 rounded-2xl flex flex-col gap-3 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-default">
-        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-md ${color}`}>
-            <Icon className="w-6 h-6 text-white" />
-        </div>
-        <h3 className="font-bold text-slate-800 dark:text-slate-100 text-lg">{title}</h3>
-        <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">{desc}</p>
-    </Card>
-);
-
-const StepCard = ({ num, title, desc }) => (
-    <div className="flex items-start gap-4">
-        <div className="w-10 h-10 shrink-0 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white font-extrabold text-base shadow-lg shadow-indigo-200 dark:shadow-indigo-900/40">
-            {num}
-        </div>
-        <div className="pt-1">
-            <h4 className="font-bold text-slate-800 dark:text-slate-100 mb-1">{title}</h4>
+const FeatureCard = ({ icon: Icon, title, desc, color, onClick }) => (
+    <button type="button" onClick={onClick} className="w-full text-left">
+        <Card className="p-6 rounded-2xl flex flex-col gap-3 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-md ${color}`}>
+                <Icon className="w-6 h-6 text-white" />
+            </div>
+            <h3 className="font-bold text-slate-800 dark:text-slate-100 text-lg">{title}</h3>
             <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">{desc}</p>
-        </div>
-    </div>
+        </Card>
+    </button>
 );
 
 const HomePage = ({ onNavigateTo, currentRole = 'public' }) => {
@@ -42,7 +24,7 @@ const HomePage = ({ onNavigateTo, currentRole = 'public' }) => {
         if (id === 'admin') return 'rounded-2xl';
 
         const gradients = {
-            repair: 'from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 shadow-lg shadow-indigo-300/50 dark:shadow-indigo-900/50',
+            repair: 'shadow-lg shadow-indigo-300/50 dark:shadow-indigo-900/50',
             access: 'from-sky-600 to-cyan-600 hover:from-sky-500 hover:to-cyan-500 shadow-lg shadow-sky-300/50 dark:shadow-sky-900/50',
             change: 'from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 shadow-lg shadow-emerald-300/50 dark:shadow-emerald-900/50',
         };
@@ -55,7 +37,6 @@ const HomePage = ({ onNavigateTo, currentRole = 'public' }) => {
             <Card className="relative overflow-hidden rounded-3xl p-5 sm:p-8 xl:p-16">
                 <div className="relative z-10 grid grid-cols-1 xl:grid-cols-12 gap-8 xl:gap-12 items-center">
                     <div className="xl:col-span-7 text-center xl:text-left space-y-6 flex flex-col items-center xl:items-start justify-center">
-                        <Badge variant="secondary" className="rounded-full px-4 py-1.5">IT Helpdesk</Badge>
                         <h1 className="text-3xl xl:text-4xl font-extrabold tracking-tight text-slate-800 dark:text-white leading-tight fit-text">
                             ระบบแจ้งซ่อม<br />
                             <span className="bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">
@@ -101,85 +82,33 @@ const HomePage = ({ onNavigateTo, currentRole = 'public' }) => {
 
             <section>
                 <div className="text-center mb-8">
-                    <h2 className="text-2xl font-extrabold text-slate-800 dark:text-white mb-2">บริการของเรา</h2>
-                    <p className="text-slate-500 dark:text-slate-400 text-sm">ครอบคลุมปัญหา IT ที่พบได้ในการทำงานประจำวัน</p>
+                    <h2 className="text-2xl font-extrabold text-slate-800 dark:text-white mb-2">ติดตามสถานะงาน</h2>
+                    <p className="text-slate-500 dark:text-slate-400 text-sm">เลือกประเภทงานที่ต้องการ เพื่อตรวจสอบสถานะและความคืบหน้าล่าสุด</p>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
-                    <FeatureCard
-                        icon={MonitorCheck}
-                        title="ซ่อมคอมพิวเตอร์"
-                        desc="แก้ไขปัญหา Hardware และ Software สำหรับพีซีและแล็ปท็อป"
-                        color="bg-gradient-to-br from-indigo-500 to-indigo-600"
-                    />
-                    <FeatureCard
-                        icon={Wifi}
-                        title="ปัญหาเครือข่าย"
-                        desc="แก้ไขปัญหาเน็ตเวิร์ก อินเทอร์เน็ต VPN และ Wi-Fi ภายในอาคาร"
-                        color="bg-gradient-to-br from-sky-500 to-cyan-600"
-                    />
-                    <FeatureCard
-                        icon={HardDrive}
-                        title="อุปกรณ์ต่อพ่วง"
-                        desc="ดูแลปริ้นเตอร์ สแกนเนอร์ กล้อง และอุปกรณ์สำนักงานที่เกี่ยวข้อง"
-                        color="bg-gradient-to-br from-violet-500 to-purple-600"
-                    />
-                    <FeatureCard
-                        icon={ShieldCheck}
-                        title="ความปลอดภัย"
-                        desc="ช่วยตรวจสอบไวรัส มัลแวร์ และตั้งค่าความปลอดภัยของข้อมูล"
-                        color="bg-gradient-to-br from-emerald-500 to-teal-600"
-                    />
-                    <FeatureCard
-                        icon={LayoutDashboard}
-                        title="ซอฟต์แวร์และระบบ"
-                        desc="ติดตั้ง อัปเดต และแก้ไขปัญหาโปรแกรมหรือระบบปฏิบัติการ"
-                        color="bg-gradient-to-br from-amber-500 to-orange-600"
-                    />
+                <div className="mx-auto grid max-w-6xl grid-cols-1 gap-5 md:grid-cols-3">
                     <FeatureCard
                         icon={ClipboardList}
-                        title="ติดตามสถานะ"
+                        title="ติดตามสถานะแจ้งซ่อม"
                         desc="ติดตามความคืบหน้าการซ่อมและรับอัปเดตเมื่อสถานะเปลี่ยน"
                         color="bg-gradient-to-br from-rose-500 to-pink-600"
+                        onClick={() => onNavigateTo('tracking')}
+                    />
+                    <FeatureCard
+                        icon={Key}
+                        title="ติดตามสถานะขอสิทธิ์"
+                        desc="ตรวจสอบสถานะการร้องขอสิทธิ์ใช้งานระบบ"
+                        color="bg-gradient-to-br from-sky-500 to-cyan-600"
+                        onClick={() => onNavigateTo('request_tracking_access')}
+                    />
+                    <FeatureCard
+                        icon={ClipboardPenLine}
+                        title="ติดตามสถานะขอพัฒนา"
+                        desc="ตรวจสอบสถานะคำร้องขอพัฒนาระบบและสื่อ"
+                        color="bg-gradient-to-br from-emerald-500 to-teal-600"
+                        onClick={() => onNavigateTo('request_tracking_change')}
                     />
                 </div>
             </section>
-
-            <Card className="rounded-3xl p-8">
-                <div className="text-center mb-8">
-                    <h2 className="text-2xl font-extrabold text-slate-800 dark:text-white mb-2">วิธีแจ้งซ่อม</h2>
-                    <p className="text-slate-500 dark:text-slate-400 text-sm">ทำงานง่าย ๆ เพียง 3 ขั้นตอน</p>
-                </div>
-                <div className="max-w-lg mx-auto space-y-8">
-                    <StepCard
-                        num="1"
-                        title="กรอกฟอร์มแจ้งปัญหา"
-                        desc="ระบุชื่อ แผนก หมวดหมู่ปัญหา และรายละเอียดอาการที่พบ"
-                    />
-                    <div className="w-px h-6 bg-gradient-to-b from-indigo-300 to-violet-300 ml-4.5 dark:from-indigo-700 dark:to-violet-700" />
-                    <StepCard
-                        num="2"
-                        title="รอทีม IT รับงาน"
-                        desc="ระบบจะส่งงานให้ทีม IT Support ตรวจสอบและรับงานซ่อมของคุณ"
-                    />
-                    <div className="w-px h-6 bg-gradient-to-b from-violet-300 to-emerald-300 ml-4.5 dark:from-violet-700 dark:to-emerald-700" />
-                    <StepCard
-                        num="3"
-                        title="ติดตามและรับการแก้ไข"
-                        desc="ทีม IT จะดำเนินการแก้ไข พร้อมอัปเดตสถานะจนงานเสร็จสิ้น"
-                    />
-                </div>
-                <div className="text-center mt-10">
-                    <Button
-                        onClick={() => onNavigateTo('user')}
-                        size="lg"
-                        className="rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 shadow-lg shadow-indigo-200/60 dark:shadow-indigo-900/50"
-                    >
-                        <ClipboardList className="w-5 h-5" />
-                        เริ่มต้นแจ้งซ่อมเลย
-                        <ArrowRight className="w-4 h-4" />
-                    </Button>
-                </div>
-            </Card>
         </div>
     );
 };

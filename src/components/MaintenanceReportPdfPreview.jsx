@@ -5,6 +5,8 @@ import jsPDF from 'jspdf';
 import { X, Download, Printer } from 'lucide-react';
 import Swal from 'sweetalert2';
 
+const AUTO_CLOSE_NOTE = 'Auto closed after requester did not sign within 3 days.';
+
 const MaintenanceReportPdfPreview = ({ isOpen, onClose, formData }) => {
     const previewRef = useRef(null);
 
@@ -12,6 +14,7 @@ const MaintenanceReportPdfPreview = ({ isOpen, onClose, formData }) => {
         if (!previewRef.current) return;
 
         try {
+            await document.fonts?.ready;
             const canvas = await html2canvas(previewRef.current, {
                 scale: 2,
                 useCORS: true,
@@ -33,37 +36,31 @@ const MaintenanceReportPdfPreview = ({ isOpen, onClose, formData }) => {
 
     if (!isOpen || !formData) return null;
 
-    const printDate = new Date(formData.createdAt).toLocaleDateString('th-TH', { 
-        year: '2-digit', 
-        month: '2-digit', 
-        day: '2-digit' 
-    }).replace(/\//g, '/');
-
-    const getStatusBadgeText = (status) => {
-        switch (status) {
-            case 'Pending':
-                return 'รอดำเนินการ';
-            case 'In Progress':
-                return 'กำลังแก้ไข';
-            case 'Resolved':
-                return 'เสร็จสิ้น';
-            default:
-                return status;
-        }
+    const formatReportDate = (value) => {
+        if (!value) return '-';
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return '-';
+        return date.toLocaleDateString('th-TH', {
+            year: '2-digit',
+            month: '2-digit',
+            day: '2-digit'
+        });
     };
+
+    const printDate = formatReportDate(formData.createdAt);
+    const isAutoClosed = formData.userCloseNote === AUTO_CLOSE_NOTE && !formData.userCloseSign;
+    const autoCloseSignatureName = formData.userCloseName || formData.name || '-';
 
     const getSeverityText = (severity) => {
         switch (severity) {
-            case 'Low':
-                return 'ต่ำ';
+            case 'Most Urgent':
+                return 'ด่วนที่สุด';
+            case 'Urgent':
+                return 'ด่วน';
             case 'Normal':
                 return 'ปกติ';
-            case 'High':
-                return 'สูง';
-            case 'Critical':
-                return 'ฉุกเฉิน';
             default:
-                return severity;
+                return severity || '-';
         }
     };
 
@@ -133,7 +130,9 @@ const MaintenanceReportPdfPreview = ({ isOpen, onClose, formData }) => {
                                 <span style={{ marginLeft: '12px', fontSize: '18px', fontWeight: 'bold', color: '#1e293b' }}>บริษัท วาวา แพ็ค จำกัด</span>
                             </div>
                             <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#1e293b', marginTop: '8px' }}>
-                                ใบแจ้งซ่อม / Maintenance Request Report
+                                ใบแจ้งซ่อม (FMIT 01)
+                                <br />
+                                Maintenance Request Report
                             </div>
                         </div>
 
@@ -183,44 +182,30 @@ const MaintenanceReportPdfPreview = ({ isOpen, onClose, formData }) => {
                                     <td colSpan="3" style={{ border: '1px solid #cbd5e1', padding: '8px 12px', fontSize: '13px' }}>{formData.category || '—'}</td>
                                 </tr>
                                 <tr>
-                                    <td style={{ border: '1px solid #cbd5e1', padding: '8px 12px', fontSize: '13px', fontWeight: '600', backgroundColor: '#e2e8f0' }}>อุปกรณ์/ระบบ:</td>
+                                    <td style={{ border: '1px solid #cbd5e1', padding: '8px 12px', fontSize: '13px', fontWeight: '600', backgroundColor: '#e2e8f0' }}>ชื่ออุปกรณ์:</td>
                                     <td style={{ border: '1px solid #cbd5e1', padding: '8px 12px', fontSize: '13px' }}>{formData.assetName || '—'}</td>
-                                    <td style={{ border: '1px solid #cbd5e1', padding: '8px 12px', fontSize: '13px', fontWeight: '600', backgroundColor: '#e2e8f0' }}>รหัส:</td>
-                                    <td style={{ border: '1px solid #cbd5e1', padding: '8px 12px', fontSize: '13px' }}>{formData.assetId || '—'}</td>
+                                    <td style={{ border: '1px solid #cbd5e1', padding: '8px 12px', fontSize: '13px', fontWeight: '600', backgroundColor: '#e2e8f0' }}>ประเภทอุปกรณ์:</td>
+                                    <td style={{ border: '1px solid #cbd5e1', padding: '8px 12px', fontSize: '13px' }}>{formData.assetType || '—'}</td>
+                                </tr>
+                                <tr>
+                                    <td style={{ border: '1px solid #cbd5e1', padding: '8px 12px', fontSize: '13px', fontWeight: '600', backgroundColor: '#e2e8f0' }}>สถานที่ติดตั้ง:</td>
+                                    <td colSpan="3" style={{ border: '1px solid #cbd5e1', padding: '8px 12px', fontSize: '13px' }}>{formData.assetLocation || '—'}</td>
                                 </tr>
                                 <tr>
                                     <td style={{ border: '1px solid #cbd5e1', padding: '8px 12px', fontSize: '13px', fontWeight: '600', backgroundColor: '#e2e8f0' }}>ระดับความสำคัญ:</td>
-                                    <td style={{ border: '1px solid #cbd5e1', padding: '8px 12px', fontSize: '13px' }}>
+                                    <td colSpan="3" style={{ border: '1px solid #cbd5e1', padding: '8px 12px', fontSize: '13px' }}>
                                         <span style={{
                                             display: 'inline-block',
                                             padding: '3px 8px',
                                             borderRadius: '4px',
                                             fontSize: '12px',
                                             fontWeight: '600',
-                                            backgroundColor: formData.severity === 'Critical' ? '#fee2e2' : 
-                                                           formData.severity === 'High' ? '#fef3c7' :
-                                                           formData.severity === 'Normal' ? '#dbeafe' : '#d1fae5',
-                                            color: formData.severity === 'Critical' ? '#991b1b' : 
-                                                   formData.severity === 'High' ? '#92400e' :
-                                                   formData.severity === 'Normal' ? '#1e40af' : '#065f46'
+                                            backgroundColor: formData.severity === 'Most Urgent' ? '#fee2e2' :
+                                                           formData.severity === 'Urgent' ? '#fef3c7' : '#dbeafe',
+                                            color: formData.severity === 'Most Urgent' ? '#991b1b' :
+                                                   formData.severity === 'Urgent' ? '#92400e' : '#1e40af'
                                         }}>
                                             {getSeverityText(formData.severity)}
-                                        </span>
-                                    </td>
-                                    <td style={{ border: '1px solid #cbd5e1', padding: '8px 12px', fontSize: '13px', fontWeight: '600', backgroundColor: '#e2e8f0' }}>สถานะ:</td>
-                                    <td style={{ border: '1px solid #cbd5e1', padding: '8px 12px', fontSize: '13px' }}>
-                                        <span style={{
-                                            display: 'inline-block',
-                                            padding: '3px 8px',
-                                            borderRadius: '4px',
-                                            fontSize: '12px',
-                                            fontWeight: '600',
-                                            backgroundColor: formData.status === 'Resolved' ? '#d1fae5' : 
-                                                           formData.status === 'In Progress' ? '#dbeafe' : '#fef3c7',
-                                            color: formData.status === 'Resolved' ? '#065f46' : 
-                                                   formData.status === 'In Progress' ? '#1e40af' : '#92400e'
-                                        }}>
-                                            {getStatusBadgeText(formData.status)}
                                         </span>
                                     </td>
                                 </tr>
@@ -245,10 +230,26 @@ const MaintenanceReportPdfPreview = ({ isOpen, onClose, formData }) => {
                             <tbody>
                                 <tr>
                                     <td style={{ border: '1px solid #cbd5e1', padding: '8px 12px', fontSize: '13px', fontWeight: '600', width: '50%', backgroundColor: '#e2e8f0' }}>
-                                        วันที่สร้างใบแจ้ง:
+                                        วันที่ดำเนินการ:
                                     </td>
                                     <td style={{ border: '1px solid #cbd5e1', padding: '8px 12px', fontSize: '13px' }}>
-                                        {printDate}
+                                        {formatReportDate(formData.operationStartedAt)}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style={{ border: '1px solid #cbd5e1', padding: '8px 12px', fontSize: '13px', fontWeight: '600', width: '50%', backgroundColor: '#e2e8f0' }}>
+                                        วันที่แล้วเสร็จ:
+                                    </td>
+                                    <td style={{ border: '1px solid #cbd5e1', padding: '8px 12px', fontSize: '13px' }}>
+                                        {formatReportDate(formData.userClosedAt)}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style={{ border: '1px solid #cbd5e1', padding: '8px 12px', fontSize: '13px', fontWeight: '600', width: '50%', backgroundColor: '#e2e8f0' }}>
+                                        งบประมาณ:
+                                    </td>
+                                    <td style={{ border: '1px solid #cbd5e1', padding: '8px 12px', fontSize: '13px' }}>
+                                        {formData.budget === null || formData.budget === undefined || formData.budget === '' ? '-' : Number(formData.budget).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                     </td>
                                 </tr>
                             </tbody>
@@ -256,20 +257,35 @@ const MaintenanceReportPdfPreview = ({ isOpen, onClose, formData }) => {
 
                         {/* Signature Section */}
                         <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#1e293b', marginBottom: '20px', paddingTop: '15px', borderTop: '2px solid #e2e8f0' }}>
-                            ความเห็นของผู้บันทึก (Recorder)
+                            แนวทางแก้ไข/ความคิดเห็น
                         </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '35px', minHeight: '100px' }}>
-                            <div style={{ textAlign: 'center', width: '48%' }}>
-                                <div style={{ borderBottom: '1px dotted #000', height: '45px', marginBottom: '12px' }}></div>
-                                <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '6px' }}>ลงชื่อผู้บันทึก</div>
-                                <div style={{ fontSize: '13px', marginBottom: '4px' }}>(...........................................................................)</div>
-                                <div style={{ fontSize: '13px' }}>วันที่ ....../....../.....</div>
+                        <div style={{ border: '1px solid #cbd5e1', padding: '12px', marginBottom: '20px', minHeight: '54px', fontSize: '13px', lineHeight: '1.6', whiteSpace: 'pre-wrap', wordBreak: 'break-word', backgroundColor: '#f8fafc' }}>
+                            {formData.repairDetails || '-'}
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'center', gap: '44px', marginTop: '20px', minHeight: '145px' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', width: '42%' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', borderBottom: '1px dotted #000', height: '55px', margin: '0 auto 10px', width: '82%' }}>
+                                    {formData.userCloseSign && <img src={formData.userCloseSign} alt="ลายเซ็นผู้แจ้ง" style={{ display: 'block', maxHeight: '52px', maxWidth: '100%', objectFit: 'contain', margin: '0 auto' }} />}
+                                    {isAutoClosed && (
+                                        <div style={{ fontSize: '13px', lineHeight: 1.35 }}>
+                                            <div style={{ fontWeight: 600 }}>{autoCloseSignatureName}</div>
+                                            <div style={{ fontSize: '11px', color: '#64748b' }}>ระบบปิดอัตโนมัติเมื่อครบ 3 วัน</div>
+                                        </div>
+                                    )}
+                                </div>
+                                <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '5px' }}>ชื่อผู้แจ้ง</div>
+                                <div style={{ fontSize: '13px', marginBottom: '3px' }}>({formData.userCloseName || formData.name || '-'})</div>
+                                <div style={{ fontSize: '13px', marginBottom: '3px' }}>ตำแหน่ง {formData.userClosePosition || '-'}</div>
+                                <div style={{ fontSize: '13px' }}>วันที่ {formatReportDate(formData.userClosedAt)}</div>
                             </div>
-                            <div style={{ textAlign: 'center', width: '48%' }}>
-                                <div style={{ borderBottom: '1px dotted #000', height: '45px', marginBottom: '12px' }}></div>
-                                <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '6px' }}>ผู้อนุมัติ</div>
-                                <div style={{ fontSize: '13px', marginBottom: '4px' }}>(...........................................................................)</div>
-                                <div style={{ fontSize: '13px' }}>วันที่ ....../....../.....</div>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', width: '42%' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', borderBottom: '1px dotted #000', height: '55px', margin: '0 auto 10px', width: '82%' }}>
+                                    {formData.inspectorSign && <img src={formData.inspectorSign} alt="ลายเซ็นผู้ตรวจสอบดำเนินการ" style={{ display: 'block', maxHeight: '52px', maxWidth: '100%', objectFit: 'contain', margin: '0 auto' }} />}
+                                </div>
+                                <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '5px' }}>ผู้ตรวจสอบดำเนินการ</div>
+                                <div style={{ fontSize: '13px', marginBottom: '3px' }}>({formData.inspectorName || '-'})</div>
+                                <div style={{ fontSize: '13px', marginBottom: '3px' }}>ตำแหน่ง {formData.inspectorPosition || '-'}</div>
+                                <div style={{ fontSize: '13px' }}>วันที่ {formatReportDate(formData.inspectorSignedAt)}</div>
                             </div>
                         </div>
 

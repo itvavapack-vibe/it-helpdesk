@@ -1,12 +1,12 @@
-﻿import React, { useState, useRef } from 'react';
-import { Code, Save, LayoutGrid, AlertCircle, Briefcase, User, FileText, Printer } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { ClipboardPenLine, Save, LayoutGrid, AlertCircle, Briefcase, User, FileText, Printer, Paperclip, X } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { mysql } from '../mysqlClient';
 import SignatureCanvas from 'react-signature-canvas';
 import Fmit15PdfPreview from './Fmit15PdfPreview';
 import { Combobox } from './ui/combobox';
-import { copyText } from '../utils/closeIssueLink';
-import { insertWithDailyTicket } from '../utils/ticketNumber';
+import { buildManagerApprovalLink, copyText } from '../utils/closeIssueLink';
+import { insertWithMonthlyDocumentNumber } from '../utils/ticketNumber';
 import { CHANGE_REQUEST_TYPE_OPTIONS } from '../config/changeRequestTypes';
 
 const DEPARTMENTS = [
@@ -18,9 +18,15 @@ const DEPARTMENTS = [
     'สำนักกรรมการ', 'อื่นๆ'
 ];
 
+const REQUEST_CATEGORY_OPTIONS = [
+    'พัฒนาโปรแกรม',
+    'พัฒนาสื่อ'
+];
+
 const INITIAL_FORM_DATA = {
     reqType: '',
     reqTypeOther: '',
+    requestCategory: '',
     employeeId: '',
     department: '',
     requestDetails: '',
@@ -35,6 +41,7 @@ const ChangeRequestForm = ({ onCancel }) => {
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
     const [signatureData, setSignatureData] = useState(null);
     const [formData, setFormData] = useState(INITIAL_FORM_DATA);
+    const [selectedFiles, setSelectedFiles] = useState([]);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -45,11 +52,53 @@ const ChangeRequestForm = ({ onCancel }) => {
         setFormData(prev => ({ ...prev, reqType: type }));
     };
 
+    const handleFileChange = (event) => {
+        const files = Array.from(event.target.files || []);
+        if (selectedFiles.length + files.length > 5) {
+            Swal.fire('เกินกำหนด', 'สามารถแนบไฟล์ได้สูงสุด 5 ไฟล์', 'warning');
+            event.target.value = '';
+            return;
+        }
+
+        setSelectedFiles((prev) => [
+            ...prev,
+            ...files.map((file) => ({
+                id: `${Date.now()}-${file.name}-${Math.random()}`,
+                file,
+                name: file.name,
+                size: file.size,
+                type: file.type,
+            })),
+        ]);
+        event.target.value = '';
+    };
+
+    const removeFile = (fileId) => {
+        setSelectedFiles((prev) => prev.filter((file) => file.id !== fileId));
+    };
+
+    const fileToDataUrl = (file) => new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+
+    const buildAttachments = async () => Promise.all(
+        selectedFiles.map(async ({ file, name, size, type }) => ({
+            name,
+            size,
+            type,
+            url: await fileToDataUrl(file),
+            uploadedAt: new Date().toISOString(),
+        }))
+    );
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         
         // Basic validation
-        if (!formData.reqType || !formData.employeeId || !formData.requesterName || !formData.department || !formData.requesterPosition || !formData.requestDetails || !formData.reason) {
+        if (!formData.reqType || !formData.requestCategory || !formData.employeeId || !formData.requesterName || !formData.department || !formData.requesterPosition || !formData.requestDetails || !formData.reason) {
             Swal.fire({
                 icon: 'warning',
                 title: 'ข้อมูลไม่ครบถ้วน',
@@ -84,14 +133,16 @@ const ChangeRequestForm = ({ onCancel }) => {
         setIsSubmitting(true);
 
         try {
-            const { data: insertedData, generatedTicket } = await insertWithDailyTicket({
+            const attachments = await buildAttachments();
+            const { data: insertedData, generatedTicket } = await insertWithMonthlyDocumentNumber({
                 mysql,
                 table: 'change_requests',
-                prefix: 'ITC',
+                prefix: 'ITC ',
                 buildRow: (ticketNumber) => ({
                     ticket_number: ticketNumber,
                     req_type: formData.reqType,
                     req_type_other: formData.reqTypeOther,
+                    request_category: formData.requestCategory.trim() || null,
                     employee_id: formData.employeeId,
                     department: formData.department,
                     details: formData.requestDetails,
@@ -99,12 +150,13 @@ const ChangeRequestForm = ({ onCancel }) => {
                     requester_name: formData.requesterName,
                     requester_position: formData.requesterPosition,
                     requester_sign: currentSignature,
+                    attachments_json: JSON.stringify(attachments),
                     status: 'Pending_Manager'
                 })
             });
             
             const reqId = insertedData[0].id;
-            const approvalLink = `${window.location.origin}/?approveChangeReq=${reqId}`;
+            const approvalLink = buildManagerApprovalLink(reqId, 'change');
 
             Swal.fire({
                 icon: 'success',
@@ -145,6 +197,7 @@ const ChangeRequestForm = ({ onCancel }) => {
                     return;
                 }
                 setFormData(INITIAL_FORM_DATA);
+                setSelectedFiles([]);
                 setSignatureData(null);
                 signatureRef.current?.clear();
             });
@@ -166,7 +219,7 @@ const ChangeRequestForm = ({ onCancel }) => {
             {/* Header Area */}
             <div className="text-center mb-8 animate-fade-in relative z-10 pt-4">
                 <div className="inline-flex items-center justify-center p-3 sm:p-4 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl shadow-xl shadow-emerald-200/50 dark:shadow-emerald-900/30 mb-4 transform transition-all hover:scale-105 hover:rotate-3">
-                    <Code className="w-8 h-8 sm:w-10 sm:h-10 text-white" />
+                    <ClipboardPenLine className="w-8 h-8 sm:w-10 sm:h-10 text-white" />
                 </div>
                 <h2 className="text-2xl xl:text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-slate-800 to-emerald-900 dark:from-white dark:to-emerald-300 mb-2 fit-text">
                     ฟอร์มขอดำเนินการพัฒนาระบบ
@@ -212,6 +265,28 @@ const ChangeRequestForm = ({ onCancel }) => {
                             />
                         )}
                     </div>
+                </div>
+
+                <div className="mb-8 space-y-1.5">
+                    <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                        ประเภทการร้องขอ <span className="text-red-500">*</span>
+                    </label>
+                    <div className="flex flex-wrap gap-3">
+                        {REQUEST_CATEGORY_OPTIONS.map((category) => (
+                            <label key={category} className={`flex items-center gap-2 rounded-xl border p-3 cursor-pointer transition-all ${formData.requestCategory === category ? 'bg-emerald-50 dark:bg-emerald-900/30 border-emerald-200 dark:border-emerald-700 text-emerald-800 dark:text-emerald-300 font-medium' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-emerald-300 dark:hover:border-emerald-600'}`}>
+                                <input
+                                    type="radio"
+                                    name="requestCategory"
+                                    value={category}
+                                    checked={formData.requestCategory === category}
+                                    onChange={handleChange}
+                                    className="w-4 h-4 text-emerald-600 focus:ring-emerald-500 border-slate-300"
+                                />
+                                <span>{category}</span>
+                            </label>
+                        ))}
+                    </div>
+                    <p className="text-xs text-slate-400">ใช้สำหรับจัดหมวดหมู่ภายในระบบเท่านั้น และจะไม่แสดงในรายงาน</p>
                 </div>
 
                 {/* Section 1: Requester Details */}
@@ -318,16 +393,57 @@ const ChangeRequestForm = ({ onCancel }) => {
                     </div>
                 </div>
 
+                <div className="mb-8 p-4 sm:p-6 rounded-2xl bg-slate-50 dark:bg-slate-800/50 shadow-inner border border-slate-100 dark:border-slate-700">
+                    <div className="flex flex-col gap-2 min-[360px]:flex-row min-[360px]:items-center min-[360px]:justify-between mb-4">
+                        <h3 className="text-base font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                            <Paperclip className="w-5 h-5 text-emerald-500" />
+                            ไฟล์แนบเพิ่มเติม
+                        </h3>
+                        <span className="text-xs text-slate-400">สูงสุด 5 ไฟล์</span>
+                    </div>
+                    <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-white p-5 text-center text-sm text-slate-500 transition hover:border-emerald-300 hover:text-emerald-600 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-400">
+                        <Paperclip className="mb-2 h-6 w-6" />
+                        เลือกไฟล์แนบ
+                        <input
+                            type="file"
+                            multiple
+                            className="hidden"
+                            onChange={handleFileChange}
+                        />
+                    </label>
+                    {selectedFiles.length > 0 && (
+                        <div className="mt-4 space-y-2">
+                            {selectedFiles.map((file) => (
+                                <div key={file.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900">
+                                    <div className="min-w-0">
+                                        <p className="truncate font-semibold text-slate-700 dark:text-slate-200">{file.name}</p>
+                                        <p className="text-xs text-slate-400">{(file.size / 1024).toFixed(1)} KB</p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => removeFile(file.id)}
+                                        className="shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-500"
+                                        title="ลบไฟล์แนบ"
+                                        aria-label="ลบไฟล์แนบ"
+                                    >
+                                        <X className="h-4 w-4" />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
                 {/* Signature Section */}
-                <div className="mb-8 p-6 rounded-2xl bg-slate-50 dark:bg-slate-800/50 shadow-inner border border-slate-100 dark:border-slate-700">
-                    <div className="flex items-center justify-between mb-4">
+                <div className="mb-8 p-4 sm:p-6 rounded-2xl bg-slate-50 dark:bg-slate-800/50 shadow-inner border border-slate-100 dark:border-slate-700">
+                    <div className="flex flex-col gap-2 min-[360px]:flex-row min-[360px]:items-center min-[360px]:justify-between mb-4">
                         <h3 className="text-base font-bold text-slate-800 dark:text-white flex items-center gap-2">
                             <span className="text-red-500">*</span> ลายมือชื่อผู้ร้องขอ (Requested by)
                         </h3>
                         <button 
                             type="button" 
                             onClick={() => signatureRef.current.clear()}
-                            className="text-xs text-red-500 hover:text-red-600 font-semibold"
+                            className="self-end shrink-0 whitespace-nowrap text-xs text-red-500 hover:text-red-600 font-semibold"
                         >
                             ล้างลายเซ็น
                         </button>

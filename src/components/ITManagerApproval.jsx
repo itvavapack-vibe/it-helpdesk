@@ -55,7 +55,7 @@ const ITManagerApproval = ({ requestId, onBack }) => {
             const { error } = await mysql
                 .from('access_requests')
                 .update({
-                    status: 'Completed',
+                    status: 'Pending_User_Acknowledgement',
                     it_manager_sign: signData,
                     it_manager_date: toMysqlDateTime()
                 })
@@ -63,7 +63,7 @@ const ITManagerApproval = ({ requestId, onBack }) => {
 
             if (error) throw error;
             
-            Swal.fire('สำเร็จ', 'บันทึกลายเซ็นและดำเนินการปิดงานคำร้องเรียบร้อยแล้ว', 'success').then(() => {
+            Swal.fire('สำเร็จ', 'บันทึกลายเซ็นและส่งต่อให้ผู้แจ้งรับทราบเรียบร้อยแล้ว', 'success').then(() => {
                 if(onBack) onBack();
             });
         } catch (error) {

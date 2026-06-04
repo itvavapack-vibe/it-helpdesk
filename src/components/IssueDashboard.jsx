@@ -1,6 +1,7 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import * as XLSX from 'xlsx';
-import { Clock, Edit, CheckCircle2, FileSpreadsheet, Trash2, Search, Filter, AlertTriangle, Eye, Printer, FileSignature, MessageSquare, Monitor, ChevronDown, X, Copy, ChevronLeft, ChevronRight, Settings, Save, ImagePlus, Paperclip, Link2 } from 'lucide-react';
+import SignatureCanvas from 'react-signature-canvas';
+import { Clock, Edit, CheckCircle2, FileSpreadsheet, Trash2, Search, Filter, AlertTriangle, Eye, Printer, FileSignature, MessageSquare, Monitor, ChevronDown, X, XCircle, Copy, ChevronLeft, ChevronRight, Settings, Save, ImagePlus, Paperclip, Link2, Ticket, Eraser } from 'lucide-react';
 import { showCloseIssueLinkDialog } from '../utils/closeIssueLink';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Combobox } from './ui/combobox';
@@ -10,9 +11,21 @@ import MaintenanceReportPdfPreview from './MaintenanceReportPdfPreview';
 import Swal from 'sweetalert2';
 import { mysql, API_URL } from '../mysqlClient';
 import { ISSUE_CATEGORIES } from '../config/issueOptions';
+import { canDeleteRecords } from '../config/roles';
 
 const ITEMS_PER_PAGE = 10;
-const STATUS_FLOW = ['Pending', 'In Progress', 'External Repair', 'Waiting for Parts', 'Resolved', 'Cancelled'];
+const STATUS_FLOW = ['Pending', 'In Progress', 'External Repair', 'Waiting for Parts', 'Resolved', 'Closed', 'Cancelled'];
+const ASSIGNABLE_STATUSES = ['In Progress', 'External Repair', 'Waiting for Parts', 'Resolved'];
+
+const isIssueClosed = (issue) => issue?.status === 'Closed' || Boolean(issue?.userCloseSign || issue?.userClosedAt);
+
+const toDateTimeLocalValue = (value) => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    const pad = number => String(number).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
 
 const resolveAttachmentUrl = (url) => {
     if (!url) return '';
@@ -25,6 +38,7 @@ const getStatusLabel = (status) => {
         case 'Pending': return 'รอดำเนินการ';
         case 'In Progress': return 'กำลังแก้ไข';
         case 'Resolved': return 'เสร็จสิ้น';
+        case 'Closed': return 'ปิดจบ';
         case 'External Repair': return 'ส่งซ่อมภายนอก';
         case 'Waiting for Parts': return 'รออะไหล่';
         case 'Cancelled': return 'ยกเลิก';
@@ -69,7 +83,15 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
         repairDetails: '',
         status: '',
         assetId: '',
-        assetName: ''
+        assetName: '',
+        assetType: '',
+        assetLocation: '',
+        operationStartedAt: '',
+        budget: '',
+        inspectorName: '',
+        inspectorPosition: '',
+        inspectorSign: '',
+        inspectorSignedAt: ''
     });
     const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
     const [currentPdfIssue, setCurrentPdfIssue] = useState(null);
@@ -84,6 +106,9 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
     const [assetError, setAssetError] = useState(false);
     const [assetSearchTerm, setAssetSearchTerm] = useState('');
     const [isAssetDropdownOpen, setIsAssetDropdownOpen] = useState(false);
+    const inspectorSignatureRef = useRef(null);
+    const canDeleteRecord = canDeleteRecords(currentAdmin?.role);
+    const isRepairReadOnly = isIssueClosed(currentRepairIssue);
     
     // For read more modal
     const [readMoreIssue, setReadMoreIssue] = useState(null);
@@ -97,7 +122,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
             try {
                 const { data, error } = await mysql
                     .from('assets')
-                    .select('glpi_id, name, serial, otherserial, users_id')
+                    .select('glpi_id, name, serial, otherserial, users_id, computermodels_id, computertypes_id, locations_id')
                     .order('name');
                 if (error) throw error;
                 setComputers((data || []).map(c => ({ ...c, id: c.glpi_id })));
@@ -122,6 +147,23 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
         fetchAssets();
         fetchUsers();
     }, []);
+
+    useEffect(() => {
+        if (isRepairModalOpen) {
+            inspectorSignatureRef.current?.clear();
+        }
+    }, [isRepairModalOpen, currentRepairIssue?.id]);
+
+    useEffect(() => {
+        if (!isRepairModalOpen) return;
+        const originalOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        document.body.classList.add('repair-modal-open');
+        return () => {
+            document.body.style.overflow = originalOverflow;
+            document.body.classList.remove('repair-modal-open');
+        };
+    }, [isRepairModalOpen]);
 
     useEffect(() => {
         if (glpiUsersRaw.length === 0) return;
@@ -162,7 +204,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
 
     // Function to process data for the pie chart
     const statusData = useMemo(() => {
-        const counts = { 'Pending': 0, 'In Progress': 0, 'Resolved': 0, 'External Repair': 0, 'Waiting for Parts': 0, 'Cancelled': 0 };
+        const counts = { 'Pending': 0, 'In Progress': 0, 'Resolved': 0, 'Closed': 0, 'External Repair': 0, 'Waiting for Parts': 0, 'Cancelled': 0 };
         issues.forEach(issue => {
             if (counts[issue.status] !== undefined) counts[issue.status]++;
         });
@@ -170,6 +212,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
             { name: 'รอดำเนินการ (Pending)', value: counts['Pending'], color: '#f59e0b' }, // Amber
             { name: 'กำลังแก้ไข (In Progress)', value: counts['In Progress'], color: '#3b82f6' }, // Blue
             { name: 'เสร็จสิ้น (Resolved)', value: counts['Resolved'], color: '#10b981' }, // Emerald
+            { name: 'ปิดจบ (Closed)', value: counts['Closed'], color: '#059669' },
             { name: 'ส่งซ่อมภายนอก', value: counts['External Repair'], color: '#8b5cf6' }, // Violet
             { name: 'รออะไหล่', value: counts['Waiting for Parts'], color: '#ec4899' }, // Pink
             { name: 'ยกเลิก', value: counts['Cancelled'], color: '#64748b' } // Slate
@@ -198,6 +241,8 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
             'ผู้แจ้ง (Name)': issue.name,
             'แผนก (Department)': issue.department,
             'อุปกรณ์ (Asset)': issue.assetName || '-',
+            'ประเภทอุปกรณ์ (Asset Type)': issue.assetType || '-',
+            'สถานที่ติดตั้ง (Location)': issue.assetLocation || '-',
             'หมวดหมู่ (Category)': issue.category,
             'ความรุนแรง (Severity)': issue.severity,
             'รายละเอียด (Description)': issue.description,
@@ -251,7 +296,15 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
             repairDetails: issue.repairDetails || '',
             status: issue.status || 'Pending',
             assetId: issue.assetId || '',
-            assetName: issue.assetName || ''
+            assetName: issue.assetName || '',
+            assetType: issue.assetType || '',
+            assetLocation: issue.assetLocation || '',
+            operationStartedAt: toDateTimeLocalValue(issue.operationStartedAt),
+            budget: issue.budget ?? '',
+            inspectorName: issue.inspectorName || currentAdmin?.name || '',
+            inspectorPosition: issue.inspectorPosition || '',
+            inspectorSign: issue.inspectorSign || '',
+            inspectorSignedAt: issue.inspectorSignedAt || ''
         });
         setAssetSearchTerm(issue.assetName || issue.assetId || '');
         setIsRepairModalOpen(true);
@@ -262,7 +315,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
         if (name === 'name') {
             const newValue = value;
             if (newValue.trim() === '') {
-                setEditFormData(prev => ({ ...prev, name: '', assetId: '', assetName: '' }));
+                setEditFormData(prev => ({ ...prev, name: '', assetId: '', assetName: '', assetType: '', assetLocation: '' }));
                 setAssetSearchTerm('');
                 return;
             }
@@ -287,12 +340,16 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                     if (prev.assetId !== String(pc.id)) {
                         newState.assetId = String(pc.id);
                         newState.assetName = pc.name;
+                        newState.assetType = pc.computertypes_id || pc.computermodels_id || '';
+                        newState.assetLocation = pc.locations_id || '';
                         setAssetSearchTerm(pc.name);
                     }
                 } else if (userComputers.length > 1) {
                     if (!prev.assetId || !userComputers.find(c => String(c.id) === prev.assetId)) {
                         newState.assetId = ''; 
                         newState.assetName = '';
+                        newState.assetType = '';
+                        newState.assetLocation = '';
                         setAssetSearchTerm(adUsername);
                         setIsAssetDropdownOpen(true);
                     }
@@ -302,6 +359,8 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                         if(normalize(currentAsset.users_id) !== normalizedInput) {
                             newState.assetId = '';
                             newState.assetName = '';
+                            newState.assetType = '';
+                            newState.assetLocation = '';
                             setAssetSearchTerm('');
                         }
                     }
@@ -328,11 +387,39 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
         }
 
         const { status, ...fieldsToSave } = editFormData;
-        await updateIssueFullDetails(currentRepairIssue.id, fieldsToSave);
+        const activeAdminName = (currentAdmin?.name || currentAdmin?.username || '').trim();
+        const shouldAssignCurrentAdmin =
+            Boolean(activeAdminName) &&
+            !currentRepairIssue.assignedAdmin &&
+            ASSIGNABLE_STATUSES.includes(status);
+        if (shouldAssignCurrentAdmin) {
+            fieldsToSave.assignedAdmin = activeAdminName;
+        }
+        if (status === 'Resolved') {
+            const inspectorName = (fieldsToSave.inspectorName || currentAdmin?.name || '').trim();
+            const hasNewInspectorSignature = inspectorSignatureRef.current && !inspectorSignatureRef.current.isEmpty();
+            const inspectorSign = hasNewInspectorSignature
+                ? inspectorSignatureRef.current.getCanvas().toDataURL('image/png')
+                : fieldsToSave.inspectorSign;
+
+            if (!inspectorName || !fieldsToSave.inspectorPosition.trim() || !inspectorSign) {
+                Swal.fire('ข้อมูลผู้ตรวจสอบไม่ครบ', 'กรุณาระบุชื่อ ตำแหน่ง และลายเซ็นผู้ตรวจสอบก่อนเปลี่ยนสถานะเป็นเสร็จสิ้น', 'warning');
+                return;
+            }
+
+            fieldsToSave.inspectorName = inspectorName;
+            fieldsToSave.inspectorSign = inspectorSign;
+            if (hasNewInspectorSignature) {
+                fieldsToSave.inspectorSignedAt = new Date().toISOString();
+            }
+        }
+        const didSaveDetails = await updateIssueFullDetails(currentRepairIssue.id, fieldsToSave);
+        if (didSaveDetails === false) return;
 
         if (editFormData.status && editFormData.status !== currentRepairIssue.status) {
-            const adminName = (editFormData.status === 'In Progress' && !currentRepairIssue.assignedAdmin) ? currentAdmin?.name : null;
-            await updateIssueStatus(currentRepairIssue.id, editFormData.status, adminName);
+            const adminName = shouldAssignCurrentAdmin ? activeAdminName : null;
+            const didSaveStatus = await updateIssueStatus(currentRepairIssue.id, editFormData.status, adminName);
+            if (didSaveStatus === false) return;
         }
 
         setIsRepairModalOpen(false);
@@ -362,6 +449,23 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                 });
             }
         });
+    };
+
+    const handleCancelIssue = async (issue) => {
+        if (!issue || issue.status === 'Cancelled') return;
+        const result = await Swal.fire({
+            title: 'ยืนยันการยกเลิกรายการ?',
+            text: 'ระบบจะเปลี่ยนสถานะรายการนี้เป็นยกเลิก โดยไม่ลบข้อมูลออกจากระบบ',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#e11d48',
+            cancelButtonColor: '#64748b',
+            confirmButtonText: 'ยืนยันยกเลิก',
+            cancelButtonText: 'ปิด',
+            reverseButtons: true
+        });
+        if (!result.isConfirmed) return;
+        await updateIssueStatus(issue.id, 'Cancelled');
     };
 
     const handleOpenPdfPreview = (issue) => {
@@ -396,6 +500,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
             case 'Pending': return 'รอดำเนินการ';
             case 'In Progress': return 'กำลังแก้ไข';
             case 'Resolved': return 'เสร็จสิ้น';
+            case 'Closed': return 'ปิดจบ';
             case 'External Repair': return 'ส่งซ่อมภายนอก';
             case 'Waiting for Parts': return 'รออะไหล่';
             case 'Cancelled': return 'ยกเลิก';
@@ -407,7 +512,10 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
 
 
     // Empty state is handled inside the table body now.
-    const getStatusBadge = (status) => {
+    const getStatusBadge = (status, isClosed = false) => {
+        if (isClosed) {
+            return <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100/80 text-emerald-700 border border-emerald-200/50"><CheckCircle2 className="w-3 h-3 mr-1.5" /> ปิดจบ</span>;
+        }
         switch (status) {
             case 'Pending':
                 return <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-amber-100/80 text-amber-700 border border-amber-200/50"><Clock className="w-3 h-3 mr-1.5" /> รอดำเนินการ</span>;
@@ -439,8 +547,46 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
         return new Date(dateString).toLocaleDateString('th-TH', options);
     };
 
+    const displayValue = (value) => {
+        if (value === null || value === undefined || value === '') return '-';
+        return value;
+    };
+
+    const displayDate = (value) => {
+        if (!value) return '-';
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return '-';
+        return formatDate(value);
+    };
+
+    const displayBudget = (value) => {
+        if (value === null || value === undefined || value === '') return '-';
+        const amount = Number(value);
+        if (Number.isNaN(amount)) return value;
+        return `${amount.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท`;
+    };
+
+    const DetailItem = ({ label, value, full = false }) => (
+        <div className={`min-w-0 border-b border-slate-100 py-3 last:border-b-0 dark:border-slate-700/60 ${full ? 'sm:col-span-2' : ''}`}>
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">{label}</div>
+            <div className="mt-1 whitespace-pre-wrap break-words text-sm font-medium text-slate-800 dark:text-slate-100">{displayValue(value)}</div>
+        </div>
+    );
+
     return (
         <div className="space-y-8 animate-fade-in">
+            <div className="glass-card rounded-3xl p-5 shadow-sm">
+                <div className="flex items-center gap-3">
+                    <div className="rounded-xl bg-rose-100 p-2.5 text-rose-600 dark:bg-rose-900/50 dark:text-rose-300">
+                        <Ticket className="h-6 w-6" />
+                    </div>
+                    <div>
+                        <h2 className="text-xl font-bold tracking-tight text-slate-800 dark:text-white">รายการแจ้งซ่อม</h2>
+                        <p className="text-sm font-medium text-slate-500 dark:text-slate-400">ติดตามและจัดการงานแจ้งซ่อมทั้งหมด</p>
+                    </div>
+                </div>
+            </div>
+
             {/* Stats Summary Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 xl:gap-4">
                 <div className="glass-card rounded-2xl p-4 flex items-center gap-4">
@@ -512,6 +658,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                             <SelectItem value="External Repair">ส่งซ่อมภายนอก</SelectItem>
                             <SelectItem value="Waiting for Parts">รออะไหล่</SelectItem>
                             <SelectItem value="Resolved">เสร็จสิ้น</SelectItem>
+                            <SelectItem value="Closed">ปิดจบ</SelectItem>
                             <SelectItem value="Cancelled">ยกเลิก</SelectItem>
                         </SelectContent>
                     </Select>
@@ -624,7 +771,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                                 </div>
                                             </div>
                                             <div className="xl:hidden mt-0.5">
-                                                {getStatusBadge(issue.status)}
+                                                {getStatusBadge(issue.status, isIssueClosed(issue))}
                                             </div>
                                         </div>
                                     </td>
@@ -639,11 +786,9 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                                 <div className="text-sm text-slate-500 dark:text-slate-400 mt-1 flex sm:justify-end xl:block">{getSeverityBadge(issue.severity)}</div>
                                             </div>
                                         </div>
-                                        {issue.assignedAdmin && (
-                                            <div className="text-xs text-emerald-600 dark:text-emerald-400 mt-1.5 font-semibold flex items-center gap-1 xl:mt-1">
-                                                <span>👤 ผู้รับงาน: {issue.assignedAdmin}</span>
-                                            </div>
-                                        )}
+                                        <div className={`text-xs mt-1.5 font-semibold flex items-center gap-1 xl:mt-1 ${issue.assignedAdmin ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}`}>
+                                            <span>👤 ผู้รับงาน: {issue.assignedAdmin || 'ยังไม่มีผู้รับงาน'}</span>
+                                        </div>
                                     </td>
                                     <td className="hidden xl:table-cell px-4 xl:px-5 py-4 align-top xl:min-w-[140px]">
                                         <div className="text-sm text-slate-900 dark:text-white font-medium">{issue.category}</div>
@@ -694,7 +839,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                         )}
                                     </td>
                                     <td className="hidden xl:table-cell px-4 xl:px-5 py-4 whitespace-nowrap align-top">
-                                        {getStatusBadge(issue.status)}
+                                        {getStatusBadge(issue.status, isIssueClosed(issue))}
                                     </td>
                                     <td className="block xl:table-cell px-4 xl:px-5 py-3 xl:py-4 whitespace-nowrap text-right text-sm font-medium align-top bg-slate-50/50 dark:bg-slate-700/20 xl:bg-transparent rounded-b-2xl xl:rounded-none">
                                         <div className="flex items-center justify-between xl:justify-end gap-2">
@@ -702,7 +847,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                                 <span className="opacity-0 w-0"></span>
                                             </div>
                                             <div className="flex items-center justify-end gap-2">
-                                                {issue.status === 'Resolved' && !issue.userCloseSign && (
+                                                {issue.status === 'Resolved' && !isIssueClosed(issue) && (
                                                     <button
                                                         type="button"
                                                         onClick={() => showCloseIssueLinkDialog(issue)}
@@ -713,12 +858,12 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                                     </button>
                                                 )}
                                                 <button
-                                                onClick={() => openRepairModal(issue)}
-                                                className="w-9 h-9 flex items-center justify-center text-indigo-600 dark:text-indigo-400 hover:text-white bg-indigo-50 dark:bg-slate-800 hover:bg-indigo-600 dark:hover:bg-indigo-600 border border-indigo-200/80 dark:border-slate-700 hover:border-indigo-600 rounded-xl transition-all shadow-sm group"
-                                                title="แก้ไขข้อมูลแจ้งซ่อม"
-                                            >
-                                                <Edit className="w-4 h-4 group-hover:scale-110 transition-transform" />
-                                            </button>
+                                                    onClick={() => openRepairModal(issue)}
+                                                    className={`w-9 h-9 flex items-center justify-center hover:text-white dark:bg-slate-800 border dark:border-slate-700 rounded-xl transition-all shadow-sm group ${isIssueClosed(issue) ? 'text-sky-600 dark:text-sky-400 bg-sky-50 hover:bg-sky-600 dark:hover:bg-sky-600 border-sky-200/80 hover:border-sky-600' : 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 hover:bg-indigo-600 dark:hover:bg-indigo-600 border-indigo-200/80 hover:border-indigo-600'}`}
+                                                    title={isIssueClosed(issue) ? 'ดูรายละเอียด' : 'แก้ไขข้อมูลแจ้งซ่อม'}
+                                                >
+                                                    {isIssueClosed(issue) ? <Eye className="w-4 h-4 group-hover:scale-110 transition-transform" /> : <Edit className="w-4 h-4 group-hover:scale-110 transition-transform" />}
+                                                </button>
                                             <button
                                                 onClick={() => handleOpenMaintenanceReport(issue)}
                                                 className="w-9 h-9 flex items-center justify-center text-amber-600 dark:text-amber-400 hover:text-white bg-amber-50 dark:bg-slate-800 hover:bg-amber-600 dark:hover:bg-amber-600 border border-amber-200/80 dark:border-slate-700 hover:border-amber-600 rounded-xl transition-all shadow-sm group"
@@ -726,14 +871,30 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                             >
                                                 <Printer className="w-4 h-4 group-hover:scale-110 transition-transform" />
                                             </button>
-                                            <div className="w-px h-5 bg-slate-200 dark:bg-slate-700 mx-1"></div>
-                                            <button
-                                                onClick={() => handleDelete(issue.id)}
-                                                className="w-9 h-9 flex items-center justify-center text-rose-600 dark:text-rose-400 hover:text-white bg-rose-50 dark:bg-slate-800 hover:bg-rose-600 dark:hover:bg-rose-600 border border-rose-200/80 dark:border-slate-700 hover:border-rose-600 rounded-xl transition-all shadow-sm group"
-                                                title="ลบเอกสาร"
-                                            >
-                                                <Trash2 className="w-4 h-4 group-hover:scale-110 transition-transform" />
-                                            </button>
+                                            {canDeleteRecord && (
+                                                <>
+                                                    <div className="w-px h-5 bg-slate-200 dark:bg-slate-700 mx-1"></div>
+                                                    <button
+                                                        onClick={() => handleDelete(issue.id)}
+                                                        className="w-9 h-9 flex items-center justify-center text-rose-600 dark:text-rose-400 hover:text-white bg-rose-50 dark:bg-slate-800 hover:bg-rose-600 dark:hover:bg-rose-600 border border-rose-200/80 dark:border-slate-700 hover:border-rose-600 rounded-xl transition-all shadow-sm group"
+                                                        title="ลบเอกสาร"
+                                                    >
+                                                        <Trash2 className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                                                    </button>
+                                                </>
+                                            )}
+                                            {!canDeleteRecord && issue.status !== 'Cancelled' && issue.status !== 'Closed' && (
+                                                <>
+                                                    <div className="w-px h-5 bg-slate-200 dark:bg-slate-700 mx-1"></div>
+                                                    <button
+                                                        onClick={() => handleCancelIssue(issue)}
+                                                        className="w-9 h-9 flex items-center justify-center text-rose-600 dark:text-rose-400 hover:text-white bg-rose-50 dark:bg-slate-800 hover:bg-rose-600 dark:hover:bg-rose-600 border border-rose-200/80 dark:border-slate-700 hover:border-rose-600 rounded-xl transition-all shadow-sm group"
+                                                        title="ตั้งสถานะยกเลิก"
+                                                    >
+                                                        <XCircle className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                                                    </button>
+                                                </>
+                                            )}
                                             </div>
                                         </div>
                                     </td>
@@ -791,11 +952,11 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
 
             {/* Repair Details Modal */}
             {isRepairModalOpen && (
-                <div className="fixed inset-0 z-[120] flex items-start sm:items-center justify-center overflow-y-auto p-3 sm:p-4 bg-slate-900/40 dark:bg-slate-900/80 backdrop-blur-sm animate-fade-in">
-                    <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-lg max-h-[calc(100dvh-1.5rem)] overflow-hidden border border-white/20 dark:border-slate-700 transform scale-100 transition-all flex flex-col">
+                <div className="repair-modal-overlay fixed inset-0 z-[120] flex items-start sm:items-center justify-center overflow-y-auto p-3 sm:p-4 bg-slate-900/40 dark:bg-slate-900/80 backdrop-blur-sm animate-fade-in">
+                    <div className="repair-modal-card bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-2xl h-[calc(100dvh-1.5rem)] sm:h-auto sm:max-h-[calc(100dvh-2rem)] overflow-hidden border border-white/20 dark:border-slate-700 transform scale-100 transition-all grid grid-rows-[auto,minmax(0,1fr),auto]">
                         <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/80">
                             <h3 className="text-lg font-bold text-indigo-950 dark:text-indigo-100 flex items-center gap-2">
-                                <MessageSquare className="w-5 h-5 text-indigo-600 dark:text-indigo-400" /> บันทึกรายละเอียดการซ่อม
+                                {isRepairReadOnly ? <Eye className="w-5 h-5 text-indigo-600 dark:text-indigo-400" /> : <MessageSquare className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />} {isRepairReadOnly ? 'รายละเอียดงานแจ้งซ่อม' : 'บันทึกรายละเอียดการซ่อม'}
                             </h3>
                             <button
                                 onClick={() => setIsRepairModalOpen(false)}
@@ -805,7 +966,58 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                             </button>
                         </div>
 
-                        <div className="p-5 sm:p-6 space-y-4 overflow-y-auto custom-scrollbar flex-1 min-h-0">
+                        {isRepairReadOnly ? (
+                            <div className="min-h-0 overflow-y-auto custom-scrollbar px-5 py-4 sm:px-6 sm:py-5">
+                                <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4 dark:border-slate-700">
+                                    <div>
+                                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">เลขที่เอกสาร</div>
+                                        <div className="mt-1 text-lg font-bold text-indigo-700 dark:text-indigo-300">{displayValue(currentRepairIssue?.id)}</div>
+                                    </div>
+                                    {getStatusBadge(currentRepairIssue?.status, true)}
+                                </div>
+
+                                <div className="grid grid-cols-1 gap-x-6 sm:grid-cols-2">
+                                    <DetailItem label="ผู้แจ้ง" value={currentRepairIssue?.name} />
+                                    <DetailItem label="แผนก" value={currentRepairIssue?.department} />
+                                    <DetailItem label="หมวดหมู่" value={currentRepairIssue?.category} />
+                                    <DetailItem label="ระดับความสำคัญ" value={getSeverityText(currentRepairIssue?.severity)} />
+                                    <DetailItem label="อุปกรณ์" value={currentRepairIssue?.assetName || currentRepairIssue?.assetId} />
+                                    <DetailItem label="ประเภทอุปกรณ์" value={currentRepairIssue?.assetType} />
+                                    <DetailItem label="สถานที่ติดตั้ง" value={currentRepairIssue?.assetLocation} />
+                                    <DetailItem label="ผู้รับงาน" value={currentRepairIssue?.assignedAdmin} />
+                                    <DetailItem label="วันที่แจ้ง" value={displayDate(currentRepairIssue?.createdAt)} />
+                                    <DetailItem label="วันที่ดำเนินการ" value={displayDate(currentRepairIssue?.operationStartedAt)} />
+                                    <DetailItem label="วันที่ปิดจบ" value={displayDate(currentRepairIssue?.userClosedAt)} />
+                                    <DetailItem label="งบประมาณ" value={displayBudget(currentRepairIssue?.budget)} />
+                                    <DetailItem label="รายละเอียดปัญหา" value={currentRepairIssue?.description} full />
+                                    <DetailItem label="แนวทางแก้ไข / ความคิดเห็น" value={currentRepairIssue?.repairDetails} full />
+                                    <DetailItem label="ผู้ตรวจสอบ" value={currentRepairIssue?.inspectorName} />
+                                    <DetailItem label="ตำแหน่งผู้ตรวจสอบ" value={currentRepairIssue?.inspectorPosition} />
+                                    <DetailItem label="วันที่ผู้ตรวจสอบเซ็น" value={displayDate(currentRepairIssue?.inspectorSignedAt)} />
+                                    <DetailItem label="ผู้เซ็นปิดจบ" value={currentRepairIssue?.userCloseName} />
+                                    <DetailItem label="ตำแหน่งผู้เซ็นปิดจบ" value={currentRepairIssue?.userClosePosition} />
+                                    <DetailItem label="หมายเหตุปิดจบ" value={currentRepairIssue?.userCloseNote} />
+                                </div>
+
+                                {(currentRepairIssue?.inspectorSign || currentRepairIssue?.userCloseSign) && (
+                                    <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                        {currentRepairIssue?.inspectorSign && (
+                                            <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+                                                <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">ลายเซ็นผู้ตรวจสอบ</div>
+                                                <img src={currentRepairIssue.inspectorSign} alt="ลายเซ็นผู้ตรวจสอบ" className="h-28 w-full object-contain" />
+                                            </div>
+                                        )}
+                                        {currentRepairIssue?.userCloseSign && (
+                                            <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+                                                <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">ลายเซ็นผู้แจ้งปิดจบ</div>
+                                                <img src={currentRepairIssue.userCloseSign} alt="ลายเซ็นผู้แจ้งปิดจบ" className="h-28 w-full object-contain" />
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                        <fieldset disabled={isRepairReadOnly} className="m-0 min-w-0 min-h-0 border-0 p-5 sm:p-6 space-y-4 overflow-y-auto custom-scrollbar disabled:cursor-default">
                             <div className="bg-indigo-50/50 dark:bg-indigo-900/30 p-3 rounded-lg border border-indigo-100 dark:border-indigo-700/50 text-sm flex items-center gap-2">
                                 <span className="font-semibold text-slate-700 dark:text-slate-300">เลขที่เอกสาร:</span> <span className="text-indigo-700 dark:text-indigo-400 font-bold px-2 py-0.5 bg-white dark:bg-slate-800 rounded border border-indigo-200 dark:border-slate-700">{currentRepairIssue?.id}</span>
                             </div>
@@ -973,7 +1185,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                                     setAssetSearchTerm(e.target.value);
                                                     setIsAssetDropdownOpen(true);
                                                     if (e.target.value === '') {
-                                                        setEditFormData(prev => ({ ...prev, assetId: '', assetName: '', name: '' }));
+                                                        setEditFormData(prev => ({ ...prev, assetId: '', assetName: '', assetType: '', assetLocation: '', name: '' }));
                                                     }
                                                 }}
                                                 onFocus={() => setIsAssetDropdownOpen(true)}
@@ -984,7 +1196,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                                         type="button"
                                                         className="text-slate-400 hover:text-rose-500 transition-colors p-1"
                                                         onClick={() => {
-                                                            setEditFormData(prev => ({ ...prev, assetId: '', assetName: '', name: '' }));
+                                                            setEditFormData(prev => ({ ...prev, assetId: '', assetName: '', assetType: '', assetLocation: '', name: '' }));
                                                             setAssetSearchTerm('');
                                                             setIsAssetDropdownOpen(false);
                                                         }}
@@ -1010,7 +1222,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                                         <li
                                                             className={`px-4 py-2 text-sm cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-700/50 ${!editFormData.assetId ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 font-medium' : ''}`}
                                                             onClick={() => {
-                                                                setEditFormData(prev => ({ ...prev, assetId: '', assetName: '', name: '' }));
+                                                                setEditFormData(prev => ({ ...prev, assetId: '', assetName: '', assetType: '', assetLocation: '', name: '' }));
                                                                 setAssetSearchTerm('');
                                                                 setIsAssetDropdownOpen(false);
                                                             }}
@@ -1033,6 +1245,8 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                                                             ...prev, 
                                                                             assetId: c.id, 
                                                                             assetName: c.name || '',
+                                                                            assetType: c.computertypes_id || c.computermodels_id || '',
+                                                                            assetLocation: c.locations_id || '',
                                                                             name: prev.name || ownerName
                                                                         }));
                                                                         setAssetSearchTerm(c.name || '');
@@ -1062,6 +1276,31 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                     </div>
                                 )}
                             </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="space-y-1">
+                                    <label htmlFor="edit-asset-type" className="block text-sm font-semibold text-slate-700 dark:text-slate-300 ml-1">ประเภทอุปกรณ์</label>
+                                    <input
+                                        id="edit-asset-type"
+                                        type="text"
+                                        value={editFormData.assetType || ''}
+                                        readOnly
+                                        className="w-full input-modern bg-slate-50 dark:bg-slate-900/40"
+                                        placeholder="-"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label htmlFor="edit-asset-location" className="block text-sm font-semibold text-slate-700 dark:text-slate-300 ml-1">สถานที่ติดตั้ง</label>
+                                    <input
+                                        id="edit-asset-location"
+                                        type="text"
+                                        value={editFormData.assetLocation || ''}
+                                        readOnly
+                                        className="w-full input-modern bg-slate-50 dark:bg-slate-900/40"
+                                        placeholder="-"
+                                    />
+                                </div>
+                            </div>
                             
                             <div className="space-y-2">
                                 <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 ml-1">รายละเอียดปัญหา (ที่ผู้ใช้แจ้ง) <span className="text-rose-500">*</span></label>
@@ -1077,7 +1316,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                             <hr className="border-slate-100 dark:border-slate-700/50 my-4" />
 
                             <div className="space-y-2">
-                                <label className="block text-sm font-semibold text-indigo-700 dark:text-indigo-300 flex items-center gap-1.5 ml-1"><Edit className="w-4 h-4"/> รายละเอียดการทำงานของ Admin</label>
+                                <label className="block text-sm font-semibold text-indigo-700 dark:text-indigo-300 flex items-center gap-1.5 ml-1"><Edit className="w-4 h-4"/> แนวทางแก้ไข/ความคิดเห็น</label>
                                 <textarea
                                     name="repairDetails"
                                     value={editFormData.repairDetails}
@@ -1087,21 +1326,115 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                     placeholder="พิมพ์บันทึกข้อความการทำงาน การตรวจสอบ หรือผลการซ่อมแซม..."
                                 ></textarea>
                             </div>
-                        </div>
 
-                        <div className="px-6 py-4 bg-slate-50 dark:bg-slate-700/30 flex justify-end gap-3 border-t border-slate-100 dark:border-slate-700">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                <div className="space-y-1">
+                                    <label htmlFor="edit-operation-started-at" className="block text-sm font-semibold text-slate-700 dark:text-slate-300 ml-1">วันที่ดำเนินการ</label>
+                                    <input
+                                        id="edit-operation-started-at"
+                                        type="datetime-local"
+                                        name="operationStartedAt"
+                                        value={editFormData.operationStartedAt}
+                                        onChange={handleEditFormChange}
+                                        className="w-full input-modern"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label htmlFor="edit-user-closed-at" className="block text-sm font-semibold text-slate-700 dark:text-slate-300 ml-1">วันที่แล้วเสร็จ</label>
+                                    <input
+                                        id="edit-user-closed-at"
+                                        type="text"
+                                        value={currentRepairIssue?.userClosedAt ? formatDate(currentRepairIssue.userClosedAt) : '-'}
+                                        readOnly
+                                        className="w-full input-modern bg-slate-50 dark:bg-slate-900/40"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label htmlFor="edit-budget" className="block text-sm font-semibold text-slate-700 dark:text-slate-300 ml-1">งบประมาณ</label>
+                                    <input
+                                        id="edit-budget"
+                                        type="number"
+                                        name="budget"
+                                        value={editFormData.budget}
+                                        onChange={handleEditFormChange}
+                                        min="0"
+                                        step="0.01"
+                                        className="w-full input-modern"
+                                        placeholder="-"
+                                    />
+                                </div>
+                            </div>
+
+                            {(editFormData.status === 'Resolved' || editFormData.inspectorSign) && (
+                                <div className="space-y-4 rounded-2xl border border-indigo-100 bg-indigo-50/40 p-4 dark:border-indigo-800/60 dark:bg-indigo-900/20">
+                                    <div className="flex items-center gap-2 text-sm font-bold text-indigo-700 dark:text-indigo-300">
+                                        <FileSignature className="w-4 h-4" />
+                                        ลายเซ็นผู้ตรวจสอบดำเนินการ
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <div className="space-y-1">
+                                            <label htmlFor="edit-inspector-name" className="block text-sm font-semibold text-slate-700 dark:text-slate-300 ml-1">ชื่อผู้ตรวจสอบ</label>
+                                            <input
+                                                id="edit-inspector-name"
+                                                type="text"
+                                                name="inspectorName"
+                                                value={editFormData.inspectorName}
+                                                onChange={handleEditFormChange}
+                                                className="w-full input-modern"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label htmlFor="edit-inspector-position" className="block text-sm font-semibold text-slate-700 dark:text-slate-300 ml-1">ตำแหน่ง</label>
+                                            <input
+                                                id="edit-inspector-position"
+                                                type="text"
+                                                name="inspectorPosition"
+                                                value={editFormData.inspectorPosition}
+                                                onChange={handleEditFormChange}
+                                                className="w-full input-modern"
+                                                placeholder="ระบุตำแหน่งผู้ตรวจสอบ"
+                                            />
+                                        </div>
+                                    </div>
+                                    {editFormData.inspectorSign && (
+                                        <p className="text-xs text-emerald-600 dark:text-emerald-400">มีลายเซ็นผู้ตรวจสอบเดิมแล้ว เซ็นใหม่เฉพาะเมื่อต้องการแทนที่</p>
+                                    )}
+                                    <div>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">ลายเซ็น</span>
+                                            <button
+                                                type="button"
+                                                onClick={() => inspectorSignatureRef.current?.clear()}
+                                                className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-rose-500"
+                                            >
+                                                <Eraser className="w-3.5 h-3.5" />
+                                                ล้างลายเซ็น
+                                            </button>
+                                        </div>
+                                        <div className="h-36 overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-950">
+                                            <SignatureCanvas ref={inspectorSignatureRef} canvasProps={{ className: 'w-full h-full', 'aria-label': 'ลายเซ็นผู้ตรวจสอบดำเนินการ' }} />
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </fieldset>
+                        )}
+
+                        <div className="repair-modal-footer sticky bottom-0 z-20 shrink-0 px-4 sm:px-6 py-3 sm:py-4 bg-slate-50/95 dark:bg-slate-700/95 backdrop-blur-md flex justify-end gap-3 border-t border-slate-100 dark:border-slate-700 shadow-[0_-8px_20px_rgba(15,23,42,0.08)]">
                             <button
                                 onClick={() => setIsRepairModalOpen(false)}
-                                className="px-4 py-2 rounded-xl text-sm font-semibold text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all"
+                                className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all"
                             >
-                                ยกเลิก
+                                {isRepairReadOnly ? 'ปิด' : 'ยกเลิก'}
                             </button>
-                            <button
-                                onClick={handleSaveRepairDetails}
-                                className="px-5 py-2 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 shadow-md shadow-indigo-200 flex items-center gap-2 transform hover:-translate-y-0.5 transition-all"
-                            >
-                                <Save className="w-4 h-4" /> บันทึกข้อมูล
-                            </button>
+                            {!isRepairReadOnly && (
+                                <button
+                                    onClick={handleSaveRepairDetails}
+                                    className="flex-1 sm:flex-none px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 shadow-md shadow-indigo-200 flex items-center justify-center gap-2 transform hover:-translate-y-0.5 transition-all"
+                                >
+                                    <Save className="w-4 h-4" /> บันทึกข้อมูล
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>

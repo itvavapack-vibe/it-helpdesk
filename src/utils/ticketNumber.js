@@ -1,57 +1,66 @@
 import { toMysqlDateTime } from './dateTime';
 
-const MAX_TICKET_INSERT_ATTEMPTS = 5;
+const MAX_DOCUMENT_INSERT_ATTEMPTS = 5;
 
-const isDuplicateTicketError = (error) => {
+const isDuplicateDocumentNumberError = (error) => {
     const message = String(error || '').toLowerCase();
-    return message.includes('duplicate') && message.includes('ticket_number');
+    return message.includes('duplicate');
 };
 
-const getTodayBounds = () => {
+const getCurrentMonthBounds = () => {
     const start = new Date();
+    start.setDate(1);
     start.setHours(0, 0, 0, 0);
 
     const end = new Date(start);
-    end.setHours(23, 59, 59, 999);
+    end.setMonth(end.getMonth() + 1);
+    end.setMilliseconds(-1);
 
     return {
-        startOfDay: toMysqlDateTime(start),
-        endOfDay: toMysqlDateTime(end)
+        startOfMonth: toMysqlDateTime(start),
+        endOfMonth: toMysqlDateTime(end)
     };
 };
 
-const buildTicketNumber = (prefix, sequence) => {
-    const currDate = new Date();
-    const dd = String(currDate.getDate()).padStart(2, '0');
-    const mm = String(currDate.getMonth() + 1).padStart(2, '0');
-    const yy = String(currDate.getFullYear()).slice(-2);
+export const buildMonthlyDocumentNumber = (prefix, sequence, date = new Date()) => {
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const yy = String(date.getFullYear()).slice(-2);
     const sequenceNum = String(sequence).padStart(3, '0');
-    return `${prefix} ${dd}${mm}${yy}/${sequenceNum}`;
+    return `${prefix}${yy}${mm}-${sequenceNum}`;
 };
 
-export async function insertWithDailyTicket({ mysql, table, prefix, buildRow }) {
+const getExistingSequence = (documentNumber) => {
+    const match = String(documentNumber || '').match(/(?:-|\/)(\d+)$/);
+    return match ? Number(match[1]) : 0;
+};
+
+export async function insertWithMonthlyDocumentNumber({ mysql, table, prefix, numberColumn = 'ticket_number', buildRow }) {
     let lastError = null;
 
-    for (let attempt = 0; attempt < MAX_TICKET_INSERT_ATTEMPTS; attempt += 1) {
-        const { startOfDay, endOfDay } = getTodayBounds();
-        const { count } = await mysql
+    for (let attempt = 0; attempt < MAX_DOCUMENT_INSERT_ATTEMPTS; attempt += 1) {
+        const { startOfMonth, endOfMonth } = getCurrentMonthBounds();
+        const { data, error: selectError } = await mysql
             .from(table)
-            .select('*', { count: 'exact', head: true })
-            .gte('created_at', startOfDay)
-            .lte('created_at', endOfDay);
+            .select(numberColumn)
+            .gte('created_at', startOfMonth)
+            .lte('created_at', endOfMonth);
 
-        const generatedTicket = buildTicketNumber(prefix, (count || 0) + 1 + attempt);
-        const { data, error } = await mysql
+        if (selectError) throw selectError;
+
+        const existingSequences = (data || []).map((row) => getExistingSequence(row[numberColumn]));
+        const nextSequence = Math.max(data?.length || 0, ...existingSequences) + 1 + attempt;
+        const generatedTicket = buildMonthlyDocumentNumber(prefix, nextSequence);
+        const { data: insertedData, error } = await mysql
             .from(table)
             .insert([buildRow(generatedTicket)])
             .select();
 
         if (!error) {
-            return { data, generatedTicket };
+            return { data: insertedData, generatedTicket };
         }
 
         lastError = error;
-        if (!isDuplicateTicketError(error)) {
+        if (!isDuplicateDocumentNumberError(error)) {
             throw error;
         }
     }

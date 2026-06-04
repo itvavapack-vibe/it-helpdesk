@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS change_requests (
 
   req_type VARCHAR(32) NOT NULL,
   req_type_other VARCHAR(255),
+  request_category VARCHAR(255),
   department VARCHAR(255) NOT NULL,
   details TEXT NOT NULL,
   reason TEXT NOT NULL,
@@ -28,6 +29,7 @@ CREATE TABLE IF NOT EXISTS change_requests (
   employee_id VARCHAR(6),
   requester_position VARCHAR(255) NOT NULL,
   requester_sign MEDIUMTEXT,
+  attachments_json LONGTEXT,
 
   manager_name VARCHAR(255),
   manager_position VARCHAR(255),
@@ -110,6 +112,8 @@ CREATE TABLE IF NOT EXISTS access_requests (
   it_staff_sign MEDIUMTEXT,
   it_staff_date DATETIME,
   action_result TEXT,
+  user_acknowledge_sign MEDIUMTEXT,
+  user_acknowledge_date DATETIME,
 
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -148,6 +152,7 @@ CREATE TABLE IF NOT EXISTS assets (
   users_id VARCHAR(255),
   locations_id VARCHAR(128),
   computermodels_id VARCHAR(255),
+  computertypes_id VARCHAR(255),
   states_id VARCHAR(64),
   autoupdatesystems_id VARCHAR(128),
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -181,11 +186,20 @@ CREATE TABLE IF NOT EXISTS issues (
   assigned_admin VARCHAR(255),
   asset_id INT,
   asset_name VARCHAR(512),
+  asset_type VARCHAR(255),
+  asset_location VARCHAR(512),
+  operation_started_at DATETIME,
+  budget DECIMAL(12,2),
   attachments_json LONGTEXT,
   user_close_name VARCHAR(255),
+  user_close_position VARCHAR(255),
   user_close_note TEXT,
   user_close_sign MEDIUMTEXT,
   user_closed_at DATETIME,
+  inspector_name VARCHAR(255),
+  inspector_position VARCHAR(255),
+  inspector_sign MEDIUMTEXT,
+  inspector_signed_at DATETIME,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
