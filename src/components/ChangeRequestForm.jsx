@@ -8,6 +8,7 @@ import { Combobox } from './ui/combobox';
 import { buildManagerApprovalLink, copyText } from '../utils/closeIssueLink';
 import { insertWithMonthlyDocumentNumber } from '../utils/ticketNumber';
 import { CHANGE_REQUEST_TYPE_OPTIONS } from '../config/changeRequestTypes';
+import { MAX_ATTACHMENT_SIZE, uploadAttachmentFiles } from '../utils/fileUpload';
 
 const DEPARTMENTS = [
     'แอดมิน', 'บุคคลและธุรการ', 'วิศวกรรม', 'การตลาดและขาย (ในประเทศ)',
@@ -59,6 +60,12 @@ const ChangeRequestForm = ({ onCancel }) => {
             event.target.value = '';
             return;
         }
+        const oversizedFile = files.find((file) => file.size > MAX_ATTACHMENT_SIZE);
+        if (oversizedFile) {
+            Swal.fire('ไฟล์ใหญ่เกินไป', `ไฟล์ ${oversizedFile.name} มีขนาดเกิน 5 MB`, 'warning');
+            event.target.value = '';
+            return;
+        }
 
         setSelectedFiles((prev) => [
             ...prev,
@@ -76,23 +83,6 @@ const ChangeRequestForm = ({ onCancel }) => {
     const removeFile = (fileId) => {
         setSelectedFiles((prev) => prev.filter((file) => file.id !== fileId));
     };
-
-    const fileToDataUrl = (file) => new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-    });
-
-    const buildAttachments = async () => Promise.all(
-        selectedFiles.map(async ({ file, name, size, type }) => ({
-            name,
-            size,
-            type,
-            url: await fileToDataUrl(file),
-            uploadedAt: new Date().toISOString(),
-        }))
-    );
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -133,7 +123,7 @@ const ChangeRequestForm = ({ onCancel }) => {
         setIsSubmitting(true);
 
         try {
-            const attachments = await buildAttachments();
+            const attachments = await uploadAttachmentFiles(selectedFiles.map(({ file }) => file));
             const { data: insertedData, generatedTicket } = await insertWithMonthlyDocumentNumber({
                 mysql,
                 table: 'change_requests',
@@ -206,7 +196,7 @@ const ChangeRequestForm = ({ onCancel }) => {
             Swal.fire({
                 icon: 'error',
                 title: 'เกิดข้อผิดพลาด',
-                text: 'ไม่สามารถส่งคำร้องได้ กรุณาตรวจสอบว่ามีตาราง change_requests ในฐานข้อมูลแล้ว หรือติดต่อ IT',
+                text: error.message || 'ไม่สามารถส่งคำร้องได้ กรุณาลองใหม่อีกครั้งหรือติดต่อ IT',
                 confirmButtonColor: '#4f46e5'
             });
         } finally {
@@ -399,7 +389,7 @@ const ChangeRequestForm = ({ onCancel }) => {
                             <Paperclip className="w-5 h-5 text-emerald-500" />
                             ไฟล์แนบเพิ่มเติม
                         </h3>
-                        <span className="text-xs text-slate-400">สูงสุด 5 ไฟล์</span>
+                        <span className="text-xs text-slate-400">สูงสุด 5 ไฟล์ ไฟล์ละไม่เกิน 5 MB</span>
                     </div>
                     <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-white p-5 text-center text-sm text-slate-500 transition hover:border-emerald-300 hover:text-emerald-600 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-400">
                         <Paperclip className="mb-2 h-6 w-6" />
@@ -407,6 +397,7 @@ const ChangeRequestForm = ({ onCancel }) => {
                         <input
                             type="file"
                             multiple
+                            accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.zip"
                             className="hidden"
                             onChange={handleFileChange}
                         />

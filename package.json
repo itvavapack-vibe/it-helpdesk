@@ -14,6 +14,7 @@
     "migrate:change-request-attachments": "node scripts/run-migrate-change-request-attachments.mjs",
     "migrate:issue-report": "node scripts/run-migrate-issue-report.mjs",
     "migrate:admin-position": "node scripts/run-migrate-admin-position.mjs",
+    "migrate:access-request-acknowledgement": "node scripts/run-migrate-access-request-acknowledgement.mjs",
     "deploy:prod:gui": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/deploy_prod_gui.ps1",
     "deploy:prod:web": "node scripts/deploy_prod_web.mjs",
     "lan": "concurrently -n api,web -c blue,green \"npm run start:api\" \"npm run dev:lan\""

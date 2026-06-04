@@ -243,6 +243,8 @@ const AdminAccessRequests = ({ currentAdmin }) => {
             itSupervisorDate: req.it_supervisor_date || null,
             itStaffName: req.it_staff_name || '',
             actionResult: req.action_result || '',
+            userAcknowledgeSign: req.user_acknowledge_sign || null,
+            userAcknowledgeDate: req.user_acknowledge_date || null,
             createdAt: req.created_at || null,
             status: req.status || '',
             cancelledAt: req.cancelled_at || null,

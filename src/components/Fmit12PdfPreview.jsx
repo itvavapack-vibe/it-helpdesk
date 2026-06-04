@@ -298,7 +298,7 @@ const Fmit12PdfPreview = ({ isOpen, onClose, formData }) => {
                             <table style={{ ...styles.table, marginBottom: '5px' }}>
                                 <tbody>
                                     <tr>
-                                        <SignatureBox title="ผู้แจ้งงานลงนามรับทราบผลการใช้งาน" sign={formData.requesterSign} date={formData.requesterDate || formData.createdAt} height={52} />
+                                        <SignatureBox title="ผู้แจ้งงานลงนามรับทราบผลการใช้งาน" sign={formData.userAcknowledgeSign} date={formData.userAcknowledgeDate} height={52} />
                                         <SignatureBox title="ลงนามผู้ปฏิบัติงาน ผู้ติดตั้งการใช้งาน" sign={formData.itSign} name={formData.itStaffName} date={formData.itStaffDate} height={52} />
                                     </tr>
                                 </tbody>

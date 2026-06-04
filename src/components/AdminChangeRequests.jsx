@@ -9,6 +9,7 @@ import { CHANGE_QUEUE_STATUS_BY_ROLE, canDeleteRecords, canHandleChangeRequestCa
 import { getChangeRequestTypeLabel } from '../config/changeRequestTypes';
 import { showAcceptChangeRequestLinkDialog } from '../utils/closeIssueLink';
 import Fmit15PdfPreview from './Fmit15PdfPreview';
+import { MAX_ATTACHMENT_SIZE, resolveAttachmentUrl, uploadAttachmentFiles } from '../utils/fileUpload';
 
 const parseAttachments = (value) => {
     if (!value) return [];
@@ -27,6 +28,13 @@ const formatFileSize = (size) => {
     if (numericSize < 1024 * 1024) return `${(numericSize / 1024).toFixed(1)} KB`;
     return `${(numericSize / 1024 / 1024).toFixed(1)} MB`;
 };
+
+const escapeHtml = (value) => String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
 
 const AdminChangeRequests = ({ currentAdmin }) => {
     const [requests, setRequests] = useState([]);
@@ -215,6 +223,12 @@ const AdminChangeRequests = ({ currentAdmin }) => {
             event.target.value = '';
             return;
         }
+        const oversizedFile = files.find((file) => file.size > MAX_ATTACHMENT_SIZE);
+        if (oversizedFile) {
+            Swal.fire('ไฟล์ใหญ่เกินไป', `ไฟล์ ${oversizedFile.name} มีขนาดเกิน 5 MB`, 'warning');
+            event.target.value = '';
+            return;
+        }
 
         setActionFiles((prev) => [
             ...prev,
@@ -233,24 +247,6 @@ const AdminChangeRequests = ({ currentAdmin }) => {
         setActionFiles((prev) => prev.filter((file) => file.id !== fileId));
     };
 
-    const fileToDataUrl = (file) => new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-    });
-
-    const buildActionAttachments = async () => Promise.all(
-        actionFiles.map(async ({ file, name, size, type }) => ({
-            name,
-            size,
-            type,
-            url: await fileToDataUrl(file),
-            uploadedAt: new Date().toISOString(),
-            uploadedBy: currentAdmin?.name || currentAdmin?.username || '',
-        }))
-    );
-
     const showAttachmentsDialog = (req) => {
         const attachments = parseAttachments(req.attachments_json);
         if (!attachments.length) return;
@@ -258,10 +254,10 @@ const AdminChangeRequests = ({ currentAdmin }) => {
         const html = `
             <div style="display:flex;flex-direction:column;gap:8px;text-align:left;">
                 ${attachments.map((file, index) => `
-                    <a href="${file.url}" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;gap:10px;padding:10px;border:1px solid #e2e8f0;border-radius:10px;text-decoration:none;color:#334155;">
+                    <a href="${escapeHtml(resolveAttachmentUrl(file.url))}" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;gap:10px;padding:10px;border:1px solid #e2e8f0;border-radius:10px;text-decoration:none;color:#334155;">
                         <span style="font-weight:700;color:#10b981;">${index + 1}</span>
-                        <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${file.name || 'ไฟล์แนบ'}</span>
-                        <span style="font-size:12px;color:#94a3b8;">${formatFileSize(file.size)}</span>
+                        <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(file.name || 'ไฟล์แนบ')}</span>
+                        <span style="font-size:12px;color:#94a3b8;">${escapeHtml(formatFileSize(file.size))}</span>
                     </a>
                 `).join('')}
             </div>
@@ -320,7 +316,10 @@ const AdminChangeRequests = ({ currentAdmin }) => {
                     return Swal.fire('ข้อมูลไม่ครบ', 'ระบุวันที่ดำเนินการและวันที่นัดหมายแล้วเสร็จให้ครบ', 'warning');
                 }
                 const existingAttachments = parseAttachments(selectedRequest.attachments_json);
-                const newAttachments = await buildActionAttachments();
+                const newAttachments = await uploadAttachmentFiles(
+                    actionFiles.map(({ file }) => file),
+                    { uploadedBy: currentAdmin?.name || currentAdmin?.username || '' },
+                );
                 const updateData = {
                     it_operation_date: itForm.operationDate,
                     it_target_date: itForm.targetDate,
@@ -361,7 +360,7 @@ const AdminChangeRequests = ({ currentAdmin }) => {
             
         } catch (error) {
             console.error('Error IT action:', error);
-            Swal.fire('Error', 'เกิดข้อผิดพลาดในการบันทึกข้อมูล', 'error');
+            Swal.fire('Error', error.message || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล', 'error');
         }
     };
 
@@ -737,7 +736,7 @@ const AdminChangeRequests = ({ currentAdmin }) => {
                                     <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-500 hover:border-emerald-300 hover:text-emerald-600">
                                         <Paperclip className="h-4 w-4" />
                                         เลือกไฟล์
-                                        <input type="file" multiple className="hidden" onChange={handleActionFileChange} />
+                                        <input type="file" multiple accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.zip" className="hidden" onChange={handleActionFileChange} />
                                     </label>
                                     {actionFiles.length > 0 && (
                                         <div className="mt-3 space-y-2">

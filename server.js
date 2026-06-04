@@ -49,22 +49,39 @@ const storage = multer.diskStorage({
   },
 })
 
+const allowedUploadExtensions = new Set([
+  '.csv',
+  '.doc',
+  '.docx',
+  '.gif',
+  '.jpeg',
+  '.jpg',
+  '.pdf',
+  '.png',
+  '.txt',
+  '.webp',
+  '.xls',
+  '.xlsx',
+  '.zip',
+])
+
 const upload = multer({
   storage,
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
   fileFilter: (req, file, cb) => {
-    if (String(file.mimetype || '').startsWith('image/')) {
+    const extension = path.extname(file.originalname || '').toLowerCase()
+    if (allowedUploadExtensions.has(extension)) {
       cb(null, true)
       return
     }
-    cb(new Error('Only image uploads are allowed'))
+    cb(new Error('Unsupported file type'))
   },
 })
 
-const uploadImages = upload.array('files')
+const uploadFiles = upload.array('files', 5)
 
 app.post('/api/upload', (req, res) => {
-  uploadImages(req, res, (error) => {
+  uploadFiles(req, res, (error) => {
     if (error) {
       const status = error instanceof multer.MulterError ? 400 : 415
       return res.status(status).json({ error: error.message })
@@ -72,7 +89,10 @@ app.post('/api/upload', (req, res) => {
 
     const files = (req.files || []).map(file => ({
       name: file.originalname,
-      url: `/uploads/${file.filename}`
+      size: file.size,
+      type: file.mimetype,
+      url: `/uploads/${file.filename}`,
+      uploadedAt: new Date().toISOString(),
     }))
     return res.json({ data: files })
   })

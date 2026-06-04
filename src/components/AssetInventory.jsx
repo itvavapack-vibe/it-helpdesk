@@ -10,6 +10,14 @@ const mapAssetRowToComputer = (row) => ({ ...row, id: row.glpi_id });
 
 const isActiveComputer = (c) => String(c.states_id || '').toLowerCase() === 'active';
 
+const FINAL_REPAIR_STATUSES = new Set(['Resolved', 'Closed', 'Cancelled']);
+
+const isOpenRepairIssue = (issue) => (
+    !FINAL_REPAIR_STATUSES.has(issue?.status) &&
+    !issue?.userCloseSign &&
+    !issue?.userClosedAt
+);
+
 async function batchDeleteIn(table, column, ids) {
     const chunkSize = 80;
     for (let i = 0; i < ids.length; i += chunkSize) {
@@ -260,7 +268,7 @@ const AssetInventory = ({ issues = [] }) => {
     }, [issues]);
 
     const getOpenIssues = useCallback((computer) => {
-        return getAssetIssues(computer).filter(i => i.status !== 'Resolved');
+        return getAssetIssues(computer).filter(isOpenRepairIssue);
     }, [getAssetIssues]);
 
     // Stats
@@ -677,6 +685,7 @@ const AssetInventory = ({ issues = [] }) => {
                                             <div className="space-y-2 max-h-52 overflow-y-auto">
                                                 {assetIssues.map(issue => {
                                                     const getIssueStatusStyle = (status) => {
+                                                        if (status === 'Closed') return 'bg-sky-50 dark:bg-sky-900/20 border-sky-200 dark:border-sky-800 text-sky-600';
                                                         if (status === 'Resolved') return 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 text-emerald-600';
                                                         if (status === 'External Repair') return 'bg-violet-50 dark:bg-violet-900/20 border-violet-200 dark:border-violet-800 text-violet-600';
                                                         if (status === 'Waiting for Parts') return 'bg-pink-50 dark:bg-pink-900/20 border-pink-200 dark:border-pink-800 text-pink-600';
@@ -685,6 +694,7 @@ const AssetInventory = ({ issues = [] }) => {
                                                     };
                                                     
                                                     const getIssueStatusText = (status) => {
+                                                        if (status === 'Closed') return '✅ ปิดจบ';
                                                         if (status === 'Resolved') return '✅ เสร็จสิ้น';
                                                         if (status === 'In Progress') return '🔧 กำลังแก้ไข';
                                                         if (status === 'External Repair') return '⚠️ ส่งซ่อมภายนอก';

@@ -319,6 +319,7 @@ function pageHtml(saved) {
       'scripts/run-migrate-issue-report.mjs',
       'scripts/run-migrate-change-request-category.mjs',
       'scripts/run-migrate-admin-position.mjs',
+      'scripts/run-migrate-access-request-acknowledgement.mjs',
     ],
   }).replaceAll('<', '\\u003c')
 
@@ -405,6 +406,10 @@ function pageHtml(saved) {
         <div class="check">
           <input class="migration" type="checkbox" value="scripts/run-migrate-admin-position.mjs" checked />
           <label>admin position migration</label>
+        </div>
+        <div class="check">
+          <input class="migration" type="checkbox" value="scripts/run-migrate-access-request-acknowledgement.mjs" checked />
+          <label>access request acknowledgement migration</label>
         </div>
       </div>
 
