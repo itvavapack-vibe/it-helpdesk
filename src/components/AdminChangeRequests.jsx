@@ -217,6 +217,12 @@ const AdminChangeRequests = ({ currentAdmin }) => {
     };
 
     const handleActionFileChange = (event) => {
+        if (selectedActionStatus !== 'In_Development' || actionType !== 'it_schedule') {
+            event.target.value = '';
+            Swal.fire('ยังแนบไฟล์ไม่ได้', 'สามารถแนบไฟล์เพิ่มเติมได้ตอนเปลี่ยนสถานะเป็นกำลังดำเนินการเท่านั้น', 'warning');
+            return;
+        }
+
         const files = Array.from(event.target.files || []);
         if (actionFiles.length + files.length > 5) {
             Swal.fire('เกินกำหนด', 'สามารถแนบไฟล์เพิ่มเติมได้สูงสุด 5 ไฟล์ต่อครั้ง', 'warning');
@@ -731,7 +737,7 @@ const AdminChangeRequests = ({ currentAdmin }) => {
                                 <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3">
                                     <label className="mb-2 flex items-center gap-2 text-xs font-semibold text-slate-700">
                                         <Paperclip className="h-4 w-4 text-emerald-500" />
-                                        ไฟล์แนบเพิ่มเติม
+                                        ไฟล์แนบเพิ่มเติม <span className="font-normal text-slate-400">(ไม่บังคับ)</span>
                                     </label>
                                     <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-500 hover:border-emerald-300 hover:text-emerald-600">
                                         <Paperclip className="h-4 w-4" />

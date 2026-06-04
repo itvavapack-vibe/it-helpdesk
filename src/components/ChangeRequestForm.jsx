@@ -387,7 +387,7 @@ const ChangeRequestForm = ({ onCancel }) => {
                     <div className="flex flex-col gap-2 min-[360px]:flex-row min-[360px]:items-center min-[360px]:justify-between mb-4">
                         <h3 className="text-base font-bold text-slate-800 dark:text-white flex items-center gap-2">
                             <Paperclip className="w-5 h-5 text-emerald-500" />
-                            ไฟล์แนบเพิ่มเติม
+                            ไฟล์แนบเพิ่มเติม <span className="text-xs font-normal text-slate-400">(ไม่บังคับ)</span>
                         </h3>
                         <span className="text-xs text-slate-400">สูงสุด 5 ไฟล์ ไฟล์ละไม่เกิน 5 MB</span>
                     </div>

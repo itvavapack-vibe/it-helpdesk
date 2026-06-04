@@ -93,7 +93,7 @@ const IssueCloseSignature = ({ issueId, onCloseIssue }) => {
 
     if (isLoading) {
         return (
-            <Card className="min-h-screen w-full rounded-none border-0">
+            <Card className="mx-auto min-h-screen w-full max-w-3xl rounded-none border-0 sm:min-h-0 sm:rounded-3xl sm:border">
                 <CardContent className="p-10 flex items-center justify-center gap-3 text-slate-500">
                     <Loader2 className="w-5 h-5 animate-spin" />
                     กำลังโหลดข้อมูล...
@@ -104,7 +104,7 @@ const IssueCloseSignature = ({ issueId, onCloseIssue }) => {
 
     if (!issue) {
         return (
-            <Card className="min-h-screen w-full rounded-none border-0">
+            <Card className="mx-auto min-h-screen w-full max-w-3xl rounded-none border-0 sm:min-h-0 sm:rounded-3xl sm:border">
                 <CardContent className="p-10 text-center">
                     <XCircle className="w-14 h-14 text-rose-500 mx-auto mb-4" />
                     <CardTitle className="text-xl">ไม่พบรายการแจ้งซ่อม</CardTitle>
@@ -117,8 +117,8 @@ const IssueCloseSignature = ({ issueId, onCloseIssue }) => {
     const alreadyClosed = issue.status === 'Closed' || Boolean(issue.user_close_sign || issue.user_closed_at);
 
     return (
-        <div className="min-h-screen w-full animate-fade-in">
-            <Card className="min-h-screen w-full rounded-none border-0">
+        <div className="flex min-h-screen w-full items-start justify-center p-0 sm:p-6 animate-fade-in">
+            <Card className="min-h-screen w-full max-w-3xl rounded-none border-0 sm:min-h-0 sm:rounded-3xl sm:border sm:shadow-xl">
                 <CardHeader className="flex-row items-start gap-4 space-y-0">
                     <div className="p-3 rounded-2xl bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-300">
                         <ClipboardCheck className="w-7 h-7" />

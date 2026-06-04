@@ -83,7 +83,7 @@ const ChangeRequestAcceptance = ({ requestId }) => {
 
     if (isLoading) {
         return (
-            <Card className="min-h-screen w-full rounded-none border-0">
+            <Card className="mx-auto min-h-screen w-full max-w-3xl rounded-none border-0 sm:min-h-0 sm:rounded-3xl sm:border">
                 <CardContent className="flex items-center justify-center gap-3 p-10 text-slate-500">
                     <Loader2 className="h-5 w-5 animate-spin" />
                     กำลังโหลดข้อมูล...
@@ -94,7 +94,7 @@ const ChangeRequestAcceptance = ({ requestId }) => {
 
     if (!request) {
         return (
-            <Card className="min-h-screen w-full rounded-none border-0">
+            <Card className="mx-auto min-h-screen w-full max-w-3xl rounded-none border-0 sm:min-h-0 sm:rounded-3xl sm:border">
                 <CardContent className="p-10 text-center">
                     <XCircle className="mx-auto mb-4 h-14 w-14 text-rose-500" />
                     <CardTitle className="text-xl">ไม่พบคำร้องขอพัฒนา</CardTitle>
@@ -107,8 +107,8 @@ const ChangeRequestAcceptance = ({ requestId }) => {
     const alreadyAccepted = request.status === 'Completed';
 
     return (
-        <div className="min-h-screen w-full animate-fade-in">
-            <Card className="min-h-screen w-full rounded-none border-0">
+        <div className="flex min-h-screen w-full items-start justify-center p-0 sm:p-6 animate-fade-in">
+            <Card className="min-h-screen w-full max-w-3xl rounded-none border-0 sm:min-h-0 sm:rounded-3xl sm:border sm:shadow-xl">
                 <CardHeader className="flex-row items-start gap-4 space-y-0">
                     <div className="rounded-2xl bg-emerald-100 p-3 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-300">
                         <ClipboardCheck className="h-7 w-7" />
