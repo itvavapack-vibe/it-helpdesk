@@ -497,12 +497,12 @@ const ChangeRequestForm = ({ onCancel }) => {
                             {isSubmitting ? (
                                 <>
                                     <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                                    <span className="text-white">กำลังส่งคำร้อง...</span>
+                                    <span className="text-white">กำลังบันทึก...</span>
                                 </>
                             ) : (
                                 <>
                                     <Save className="w-5 h-5 text-white" />
-                                    <span className="text-white">บันทึกใบคำร้องขอพัฒนาระบบ</span>
+                                    <span className="text-white">บันทึก</span>
                                 </>
                             )}
                         </div>

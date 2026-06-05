@@ -417,12 +417,12 @@ const UserAccessRequestForm = ({ onCancel }) => {
                             {isSubmitting ? (
                                 <>
                                     <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                    <span>กำลังส่งคำร้อง...</span>
+                                    <span>กำลังบันทึก...</span>
                                 </>
                             ) : (
                                 <>
                                     <Save className="w-5 h-5" />
-                                    <span>ส่งแบบคำร้องขอสิทธิ์</span>
+                                    <span>บันทึก</span>
                                 </>
                             )}
                         </div>

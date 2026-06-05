@@ -31,16 +31,16 @@ const REQUEST_STATUS_GROUPS = [
     { name: 'ยกเลิก / ไม่อนุมัติ', statuses: ['Rejected', 'Cancelled'], color: '#f43f5e' }
 ];
 
-const SummaryCard = ({ icon: Icon, title, value, detail, color }) => (
-    <div className="glass-card rounded-3xl p-5 shadow-sm">
+const SummaryCard = ({ icon: Icon, title, value, detail, color, cardClassName = '', iconClassName = 'text-white' }) => (
+    <div className={`glass-card rounded-3xl p-5 shadow-sm ${cardClassName}`}>
         <div className="flex items-start justify-between gap-4">
             <div>
                 <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">{title}</p>
                 <p className="mt-2 text-3xl font-black text-slate-800 dark:text-white">{value}</p>
                 <p className="mt-2 text-xs font-medium text-slate-500 dark:text-slate-400">{detail}</p>
             </div>
-            <div className={`flex h-11 w-11 items-center justify-center rounded-2xl text-white shadow-lg ${color}`}>
-                <Icon className="h-5 w-5" />
+            <div className={`flex h-11 w-11 items-center justify-center rounded-2xl shadow-lg ${color}`}>
+                <Icon className={`h-5 w-5 ${iconClassName}`} />
             </div>
         </div>
     </div>
@@ -216,7 +216,15 @@ const IssueStatistics = ({ issues = [] }) => {
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <SummaryCard icon={AlertCircle} title="แจ้งซ่อม" value={issues.length} detail={`ค้างดำเนินการ ${openIssueCount} รายการ`} color="bg-gradient-to-br from-orange-500 to-amber-500" />
-                <SummaryCard icon={ClipboardList} title="ใบคำร้อง" value={allRequests.length} detail={`รอดำเนินการ ${pendingRequestCount} รายการ`} color="bg-gradient-to-br from-indigo-500 to-violet-500" />
+                <SummaryCard
+                    icon={ClipboardList}
+                    title="ใบคำร้อง"
+                    value={allRequests.length}
+                    detail={`รอดำเนินการ ${pendingRequestCount} รายการ`}
+                    color="bg-violet-100 ring-1 ring-violet-200 dark:bg-violet-900/40 dark:ring-violet-700"
+                    iconClassName="text-violet-700 dark:text-violet-200"
+                    cardClassName="border border-violet-100/80 bg-violet-50/60 dark:border-violet-900/50 dark:bg-violet-950/20"
+                />
                 <SummaryCard icon={Monitor} title="ทรัพย์สิน" value={activeAssets.length} detail={`มีผู้ใช้งาน ${assignedAssets.length} เครื่อง`} color="bg-gradient-to-br from-sky-500 to-cyan-500" />
             </div>
 
