@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { CheckCircle, Clock, Edit, Filter, Key, Link, Printer, Search, Trash2, XCircle } from 'lucide-react';
+import { CheckCircle, Clock, Edit, Eye, Filter, Key, Link, Printer, Search, Trash2, XCircle } from 'lucide-react';
 import SignatureCanvas from 'react-signature-canvas';
 import Swal from 'sweetalert2';
 import { mysql } from '../mysqlClient';
@@ -23,6 +23,17 @@ const STATUS_LABELS = {
     Cancelled: 'ยกเลิก',
 };
 
+const SYSTEM_OPTIONS = [
+    { id: 'userComputer', label: 'User Computer' },
+    { id: 'email', label: 'E-Mail' },
+    { id: 'dataAll', label: 'Data All' },
+    { id: 'vpn', label: 'VPN' },
+    { id: 'allWeb', label: 'All Web' },
+    { id: 'wms', label: 'WMS' },
+    { id: 'msDynamics365', label: 'MS Dynamics365' },
+    { id: 'cyberHrm', label: 'Cyber HRM' },
+];
+
 const normalizeSystems = (systems) => {
     if (!systems) return {};
     if (typeof systems === 'object') return systems;
@@ -36,16 +47,7 @@ const normalizeSystems = (systems) => {
 
 const formatSystems = (systemsMap, otherDetails) => {
     if (!systemsMap) return '-';
-    const labels = {
-        userComputer: 'User Computer',
-        email: 'E-Mail',
-        dataAll: 'Data All',
-        vpn: 'VPN',
-        allWeb: 'All Web',
-        wms: 'WMS',
-        msDynamics365: 'MS Dynamics365',
-        cyberHrm: 'Cyber HRM',
-    };
+    const labels = Object.fromEntries(SYSTEM_OPTIONS.map((option) => [option.id, option.label]));
     const requested = Object.keys(systemsMap)
         .filter((key) => systemsMap[key] && key !== 'other')
         .map((key) => labels[key] || key);
@@ -61,6 +63,9 @@ const AdminAccessRequests = ({ currentAdmin }) => {
     const [dateRangeStart, setDateRangeStart] = useState('');
     const [dateRangeEnd, setDateRangeEnd] = useState('');
     const [selectedRequest, setSelectedRequest] = useState(null);
+    const [detailRequest, setDetailRequest] = useState(null);
+    const [detailForm, setDetailForm] = useState({});
+    const [isSavingDetails, setIsSavingDetails] = useState(false);
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
     const [isSignModalOpen, setIsSignModalOpen] = useState(false);
     const [signingRequestId, setSigningRequestId] = useState(null);
@@ -261,6 +266,76 @@ const AdminAccessRequests = ({ currentAdmin }) => {
         setIsPreviewOpen(true);
     };
 
+    const openDetailModal = (req) => {
+        setDetailRequest(req);
+        setDetailForm({
+            ticket_number: req.ticket_number || '',
+            name_th: req.name_th || '',
+            name_en: req.name_en || '',
+            department: req.department || '',
+            position: req.position || '',
+            internal_phone: req.internal_phone || '',
+            systems: normalizeSystems(req.systems),
+            request_details: req.request_details || '',
+            other_system_details: req.other_system_details || '',
+            status: req.status || 'Pending_Manager',
+            it_staff_name: req.it_staff_name || '',
+            action_result: req.action_result || '',
+            cancel_reason: req.cancel_reason || '',
+        });
+    };
+
+    const handleDetailFormChange = (field, value) => {
+        if (!canEditAllWork) return;
+        setDetailForm((current) => ({ ...current, [field]: value }));
+    };
+
+    const handleDetailSystemChange = (systemId) => {
+        if (!canEditAllWork) return;
+        setDetailForm((current) => ({
+            ...current,
+            systems: {
+                ...normalizeSystems(current.systems),
+                [systemId]: !normalizeSystems(current.systems)[systemId],
+            },
+        }));
+    };
+
+    const handleSaveDetails = async () => {
+        if (!detailRequest || !canEditAllWork) return;
+        setIsSavingDetails(true);
+        const normalizedSystems = normalizeSystems(detailForm.systems);
+        const updatePayload = {
+            ticket_number: detailForm.ticket_number || null,
+            name_th: detailForm.name_th || null,
+            name_en: detailForm.name_en || null,
+            department: detailForm.department || null,
+            position: detailForm.position || null,
+            internal_phone: detailForm.internal_phone || null,
+            systems: JSON.stringify(normalizedSystems),
+            request_details: detailForm.request_details || null,
+            other_system_details: detailForm.other_system_details || null,
+            status: detailForm.status || 'Pending_Manager',
+            it_staff_name: detailForm.it_staff_name || null,
+            action_result: detailForm.action_result || null,
+            cancel_reason: detailForm.cancel_reason || null,
+        };
+        try {
+            const { error } = await mysql.from('access_requests').update(updatePayload).eq('id', detailRequest.id);
+            if (error) throw error;
+            const nextRequest = { ...detailRequest, ...updatePayload, systems: normalizedSystems };
+            setRequests((prev) => prev.map((req) => (req.id === detailRequest.id ? { ...req, ...updatePayload, systems: normalizedSystems } : req)));
+            setDetailRequest(nextRequest);
+            window.dispatchEvent(new Event('approval-queues:refresh'));
+            Swal.fire('บันทึกแล้ว', 'อัปเดตข้อมูลคำร้องขอสิทธิ์เรียบร้อยแล้ว', 'success');
+        } catch (error) {
+            console.error('Error updating access request detail:', error);
+            Swal.fire('Error', 'ไม่สามารถบันทึกข้อมูลได้', 'error');
+        } finally {
+            setIsSavingDetails(false);
+        }
+    };
+
     const getStatusBadge = (status) => {
         const normalizedStatus = status === 'Pending' || !status ? 'Pending_Manager' : status;
         const tone = {
@@ -397,6 +472,9 @@ const AdminAccessRequests = ({ currentAdmin }) => {
                                                         <Link className="w-4 h-4" />
                                                     </button>
                                                 )}
+                                                <button onClick={() => openDetailModal(req)} className="p-1.5 text-sky-600 hover:text-white hover:bg-sky-600 rounded-lg transition-colors" title="ดูข้อมูลคำร้อง" aria-label="ดูข้อมูลคำร้อง">
+                                                    <Eye className="w-4 h-4" />
+                                                </button>
                                                 <button onClick={() => openPreview(req)} className="p-1.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors shadow-sm" title="ดูเอกสาร" aria-label="ดูเอกสาร">
                                                     <Printer className="w-4 h-4" />
                                                 </button>
@@ -416,6 +494,136 @@ const AdminAccessRequests = ({ currentAdmin }) => {
                                 ))}
                             </tbody>
                         </table>
+                    </div>
+                </div>
+            )}
+
+            {detailRequest && (
+                <div className="fixed inset-0 z-[120] flex items-start justify-center overflow-y-auto bg-slate-900/50 p-3 backdrop-blur-sm sm:p-4">
+                    <div className="w-full max-w-4xl animate-slide-up rounded-3xl border border-slate-100 bg-white p-5 shadow-2xl dark:border-slate-700 dark:bg-slate-800 sm:p-6">
+                        <div className="mb-5 flex items-start justify-between gap-4">
+                            <div>
+                                <h3 className="flex items-center gap-2 text-xl font-bold text-slate-800 dark:text-white">
+                                    <Eye className="h-5 w-5 text-sky-500" /> ข้อมูลคำร้องขอสิทธิ์
+                                </h3>
+                                <p className="mt-1 text-sm font-medium text-slate-500 dark:text-slate-400">
+                                    {canEditAllWork ? 'Super Admin สามารถแก้ไขข้อมูลได้' : 'สิทธิ์ปัจจุบันอ่านข้อมูลได้อย่างเดียว'}
+                                </p>
+                            </div>
+                            <button onClick={() => setDetailRequest(null)} className="rounded-xl p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700 dark:hover:text-slate-200">
+                                <XCircle className="h-6 w-6" />
+                            </button>
+                        </div>
+
+                        <div className="grid max-h-[calc(100dvh-13rem)] grid-cols-1 gap-4 overflow-y-auto pr-1 md:grid-cols-2">
+                            <div>
+                                <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-slate-400">เลขที่เอกสาร</label>
+                                <input className="input-modern w-full" value={detailForm.ticket_number || ''} disabled={!canEditAllWork} onChange={(event) => handleDetailFormChange('ticket_number', event.target.value)} />
+                            </div>
+                            <div>
+                                <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-slate-400">สถานะ</label>
+                                <Select value={detailForm.status || 'Pending_Manager'} onValueChange={(value) => handleDetailFormChange('status', value)} disabled={!canEditAllWork}>
+                                    <SelectTrigger className="input-modern w-full">
+                                        <SelectValue placeholder="เลือกสถานะ" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {Object.entries(STATUS_LABELS).map(([value, label]) => (
+                                            <SelectItem key={value} value={value}>{label}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div>
+                                <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-slate-400">ชื่อ-สกุล ภาษาไทย</label>
+                                <input className="input-modern w-full" value={detailForm.name_th || ''} disabled={!canEditAllWork} onChange={(event) => handleDetailFormChange('name_th', event.target.value)} />
+                            </div>
+                            <div>
+                                <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-slate-400">ชื่อ-สกุล ภาษาอังกฤษ</label>
+                                <input className="input-modern w-full" value={detailForm.name_en || ''} disabled={!canEditAllWork} onChange={(event) => handleDetailFormChange('name_en', event.target.value)} />
+                            </div>
+                            <div>
+                                <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-slate-400">แผนก</label>
+                                <input className="input-modern w-full" value={detailForm.department || ''} disabled={!canEditAllWork} onChange={(event) => handleDetailFormChange('department', event.target.value)} />
+                            </div>
+                            <div>
+                                <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-slate-400">ตำแหน่ง</label>
+                                <input className="input-modern w-full" value={detailForm.position || ''} disabled={!canEditAllWork} onChange={(event) => handleDetailFormChange('position', event.target.value)} />
+                            </div>
+                            <div>
+                                <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-slate-400">เบอร์ภายใน</label>
+                                <input className="input-modern w-full" value={detailForm.internal_phone || ''} disabled={!canEditAllWork} onChange={(event) => handleDetailFormChange('internal_phone', event.target.value)} />
+                            </div>
+                            <div className="md:col-span-2">
+                                <label className="mb-2 block text-xs font-bold text-slate-500 dark:text-slate-400">ระบบที่ขอสิทธิ์</label>
+                                <div className="grid grid-cols-1 gap-3 rounded-2xl border border-slate-100 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900/40 sm:grid-cols-2 xl:grid-cols-4">
+                                    {SYSTEM_OPTIONS.map((system) => {
+                                        const checked = Boolean(normalizeSystems(detailForm.systems)[system.id]);
+                                        return (
+                                            <label key={system.id} className={`flex items-start gap-3 rounded-xl border p-3 transition-all ${checked ? 'border-indigo-200 bg-indigo-50 dark:border-indigo-700 dark:bg-indigo-900/30' : 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800'} ${canEditAllWork ? 'cursor-pointer hover:border-indigo-300 dark:hover:border-indigo-600' : 'cursor-default opacity-90'}`}>
+                                                <input
+                                                    type="checkbox"
+                                                    className="mt-0.5 h-4 w-4 rounded text-indigo-600 focus:ring-indigo-500 disabled:cursor-not-allowed"
+                                                    checked={checked}
+                                                    disabled={!canEditAllWork}
+                                                    onChange={() => handleDetailSystemChange(system.id)}
+                                                />
+                                                <span className={`text-sm font-medium ${checked ? 'text-indigo-800 dark:text-indigo-300' : 'text-slate-600 dark:text-slate-300'}`}>
+                                                    {system.label}
+                                                </span>
+                                            </label>
+                                        );
+                                    })}
+                                    <label className={`flex flex-col gap-3 rounded-xl border p-3 transition-all sm:col-span-2 xl:col-span-4 ${normalizeSystems(detailForm.systems).other ? 'border-indigo-200 bg-indigo-50 dark:border-indigo-700 dark:bg-indigo-900/30' : 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800'} ${canEditAllWork ? 'cursor-pointer hover:border-indigo-300 dark:hover:border-indigo-600' : 'cursor-default opacity-90'} sm:flex-row sm:items-center`}>
+                                        <input
+                                            type="checkbox"
+                                            className="h-4 w-4 rounded text-indigo-600 focus:ring-indigo-500 disabled:cursor-not-allowed"
+                                            checked={Boolean(normalizeSystems(detailForm.systems).other)}
+                                            disabled={!canEditAllWork}
+                                            onChange={() => handleDetailSystemChange('other')}
+                                        />
+                                        <span className="text-sm font-medium text-slate-600 dark:text-slate-300 sm:whitespace-nowrap">อื่น ๆ ระบุ:</span>
+                                        <input
+                                            className="flex-1 border-b border-slate-300 bg-transparent text-sm outline-none transition-all focus:border-indigo-500 disabled:cursor-not-allowed disabled:text-slate-400"
+                                            value={detailForm.other_system_details || ''}
+                                            disabled={!canEditAllWork || !normalizeSystems(detailForm.systems).other}
+                                            onChange={(event) => handleDetailFormChange('other_system_details', event.target.value)}
+                                            placeholder="โปรดระบุระบบ..."
+                                        />
+                                    </label>
+                                </div>
+                            </div>
+                            <div className="md:col-span-2">
+                                <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-slate-400">รายละเอียดคำร้อง</label>
+                                <textarea className="input-modern w-full" rows="3" value={detailForm.request_details || ''} disabled={!canEditAllWork} onChange={(event) => handleDetailFormChange('request_details', event.target.value)} />
+                            </div>
+                            <div>
+                                <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-slate-400">ผู้รับแจ้ง / ผู้ดำเนินการ</label>
+                                <input className="input-modern w-full" value={detailForm.it_staff_name || ''} disabled={!canEditAllWork} onChange={(event) => handleDetailFormChange('it_staff_name', event.target.value)} />
+                            </div>
+                            <div>
+                                <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-slate-400">วันที่สร้างคำร้อง</label>
+                                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-200">
+                                    {detailRequest.created_at ? new Date(detailRequest.created_at).toLocaleString('th-TH') : '-'}
+                                </div>
+                            </div>
+                            <div className="md:col-span-2">
+                                <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-slate-400">ผลการดำเนินการ</label>
+                                <textarea className="input-modern w-full" rows="3" value={detailForm.action_result || ''} disabled={!canEditAllWork} onChange={(event) => handleDetailFormChange('action_result', event.target.value)} />
+                            </div>
+                            <div className="md:col-span-2">
+                                <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-slate-400">เหตุผลยกเลิก</label>
+                                <textarea className="input-modern w-full" rows="2" value={detailForm.cancel_reason || ''} disabled={!canEditAllWork} onChange={(event) => handleDetailFormChange('cancel_reason', event.target.value)} />
+                            </div>
+                        </div>
+
+                        <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                            <button onClick={() => setDetailRequest(null)} className="rounded-xl bg-slate-100 px-5 py-2.5 font-semibold text-slate-700 transition hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600">ปิด</button>
+                            {canEditAllWork && (
+                                <button onClick={handleSaveDetails} disabled={isSavingDetails} className="rounded-xl bg-sky-600 px-5 py-2.5 font-semibold text-white shadow-md transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60">
+                                    {isSavingDetails ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}
+                                </button>
+                            )}
+                        </div>
                     </div>
                 </div>
             )}

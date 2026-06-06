@@ -394,8 +394,8 @@ const UserAccessRequestForm = ({ onCancel }) => {
                     </div>
                 </div>
 
-                <div className="bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 p-4 rounded-xl flex gap-3 items-start mb-8 text-sm">
-                    <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+                <div className="bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-200 p-4 rounded-xl flex gap-3 items-start mb-8 text-sm border border-amber-100 dark:border-amber-900/50">
+                    <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-orange-500 dark:text-orange-300" />
                     <div>
                         <span className="font-semibold block mb-1">หมายเหตุการขอสิทธิ์</span>
                         การขอสิทธิ์ในบางระบบ เช่น MS Dynamics365 หรือ VPN อาจต้องได้รับการอนุมัติจากผู้จัดการฝ่ายหรือผู้อำนวยการก่อนดำเนินการ
@@ -404,15 +404,16 @@ const UserAccessRequestForm = ({ onCancel }) => {
 
                 <div className="flex flex-col-reverse sm:flex-row justify-end items-center gap-3 pt-6 border-t border-slate-100 dark:border-slate-700">
                     {onCancel && (
-                        <button type="button" onClick={onCancel} className="w-full sm:w-auto px-6 py-2.5 rounded-xl font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition">
+                        <button type="button" onClick={onCancel} className="w-full sm:w-auto px-6 py-2.5 rounded-xl font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 hover:bg-amber-100 dark:hover:bg-amber-900/40 transition border border-amber-100 dark:border-amber-900/50">
                             ยกเลิก
                         </button>
                     )}
-                    <button type="button" onClick={() => setIsPreviewOpen(true)} className="w-full sm:w-auto px-6 py-2.5 rounded-xl font-bold text-indigo-700 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition flex items-center justify-center gap-2 border border-indigo-200 dark:border-indigo-800">
+                    <button type="button" onClick={() => setIsPreviewOpen(true)} className="w-full sm:w-auto px-6 py-2.5 rounded-xl font-bold text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-950/30 hover:bg-orange-100 dark:hover:bg-orange-900/40 transition flex items-center justify-center gap-2 border border-orange-200 dark:border-orange-900/50">
                         <Printer className="w-5 h-5" />
                         ดูตัวอย่างแบบฟอร์ม (PDF)
                     </button>
-                    <button type="submit" disabled={isSubmitting} className="w-full sm:w-auto overflow-hidden relative group btn-primary">
+                    <button type="submit" disabled={isSubmitting} className="w-full sm:w-auto overflow-hidden relative group rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-6 py-2.5 font-bold text-white shadow-lg shadow-amber-500/30 transition-all duration-200 hover:from-amber-600 hover:to-orange-600 disabled:cursor-not-allowed disabled:opacity-70">
+                        <span className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]" />
                         <div className="flex items-center justify-center gap-2 relative z-10">
                             {isSubmitting ? (
                                 <>
