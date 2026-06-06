@@ -146,10 +146,13 @@ CREATE TABLE IF NOT EXISTS employees (
   emp_id VARCHAR(6) NOT NULL UNIQUE,
   name_th VARCHAR(255) NOT NULL,
   department VARCHAR(255) NOT NULL,
+  position VARCHAR(255),
   start_date DATE NOT NULL,
   status VARCHAR(64) NOT NULL,
   end_date DATE,
   transfer_date DATE,
+  transfer_department VARCHAR(255),
+  transfer_position VARCHAR(255),
   resignation_link VARCHAR(1024),
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP

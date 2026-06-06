@@ -77,10 +77,13 @@ const emptyForm = {
     emp_id: '',
     name_th: '',
     department: '',
+    position: '',
     start_date: '',
     status: EMPLOYEE_STATUS.ACTIVE,
     end_date: '',
     transfer_date: '',
+    transfer_department: '',
+    transfer_position: '',
     resignation_link: '',
     cancel_it_name: '',
     cancel_it_sign: ''
@@ -171,7 +174,10 @@ const EmployeeManagement = ({ currentAdmin }) => {
                 !keyword ||
                 employee.emp_id?.includes(keyword) ||
                 employee.name_th?.toLowerCase().includes(keyword) ||
-                employee.department?.toLowerCase().includes(keyword);
+                employee.department?.toLowerCase().includes(keyword) ||
+                employee.position?.toLowerCase().includes(keyword) ||
+                employee.transfer_department?.toLowerCase().includes(keyword) ||
+                employee.transfer_position?.toLowerCase().includes(keyword);
             const matchesStatus = statusFilter === 'All' || employee.status === statusFilter;
             return matchesSearch && matchesStatus;
         });
@@ -198,10 +204,13 @@ const EmployeeManagement = ({ currentAdmin }) => {
                 emp_id: employee.emp_id || '',
                 name_th: employee.name_th || '',
                 department: employee.department || '',
+                position: employee.position || '',
                 start_date: toDateInputValue(employee.start_date),
                 status: employee.status || EMPLOYEE_STATUS.ACTIVE,
                 end_date: toDateInputValue(employee.end_date),
                 transfer_date: toDateInputValue(employee.transfer_date),
+                transfer_department: employee.transfer_department || '',
+                transfer_position: employee.transfer_position || '',
                 resignation_link: employee.resignation_link || '',
                 cancel_it_name: '',
                 cancel_it_sign: ''
@@ -232,14 +241,20 @@ const EmployeeManagement = ({ currentAdmin }) => {
                 if (value === EMPLOYEE_STATUS.ACTIVE) {
                     next.end_date = '';
                     next.transfer_date = '';
+                    next.transfer_department = '';
+                    next.transfer_position = '';
                     next.resignation_link = '';
                 }
                 if (value === EMPLOYEE_STATUS.TRANSFERRED) {
                     next.end_date = '';
                     next.resignation_link = '';
+                    next.transfer_department = prev.transfer_department || prev.department || '';
+                    next.transfer_position = prev.transfer_position || prev.position || '';
                 }
                 if (value === EMPLOYEE_STATUS.RESIGNED) {
                     next.transfer_date = '';
+                    next.transfer_department = '';
+                    next.transfer_position = '';
                     next.cancel_it_name = prev.cancel_it_name || currentAdmin?.name || currentAdmin?.username || '';
                 }
             }
@@ -248,11 +263,16 @@ const EmployeeManagement = ({ currentAdmin }) => {
         });
     };
 
-    const syncEmployeeDepartmentToReports = async (employeeId, department) => {
-        for (const table of ['access_requests', 'change_requests']) {
+    const syncEmployeeProfileToReports = async (employeeId, department, position) => {
+        const targets = [
+            { table: 'access_requests', payload: { department, position } },
+            { table: 'change_requests', payload: { department, requester_position: position } }
+        ];
+
+        for (const target of targets) {
             const { error } = await mysql
-                .from(table)
-                .update({ department })
+                .from(target.table)
+                .update(target.payload)
                 .eq('employee_id', employeeId);
 
             if (error) throw error;
@@ -282,8 +302,8 @@ const EmployeeManagement = ({ currentAdmin }) => {
     };
 
     const validateForm = () => {
-        if (!formData.emp_id || !formData.name_th || !formData.department || !formData.start_date) {
-            Swal.fire('ข้อมูลไม่ครบถ้วน', 'กรุณากรอกข้อมูลหลักให้ครบ: รหัส, ชื่อ, แผนก และวันที่เริ่มงาน', 'warning');
+        if (!formData.emp_id || !formData.name_th || !formData.department || !formData.position || !formData.start_date) {
+            Swal.fire('ข้อมูลไม่ครบถ้วน', 'กรุณากรอกข้อมูลหลักให้ครบ: รหัส, ชื่อ, แผนก, ตำแหน่ง และวันที่เริ่มงาน', 'warning');
             return false;
         }
 
@@ -294,6 +314,11 @@ const EmployeeManagement = ({ currentAdmin }) => {
 
         if (modalMode === 'edit' && formData.status === EMPLOYEE_STATUS.TRANSFERRED && !formData.transfer_date) {
             Swal.fire('ข้อมูลสถานะไม่ครบ', 'กรุณาระบุวันที่โอนย้าย', 'warning');
+            return false;
+        }
+
+        if (modalMode === 'edit' && formData.status === EMPLOYEE_STATUS.TRANSFERRED && (!formData.transfer_department || !formData.transfer_position.trim())) {
+            Swal.fire('ข้อมูลสถานะไม่ครบ', 'กรุณาระบุแผนกและตำแหน่งหลังโอนย้าย', 'warning');
             return false;
         }
 
@@ -332,10 +357,13 @@ const EmployeeManagement = ({ currentAdmin }) => {
             emp_id: formData.emp_id,
             name_th: formData.name_th.trim(),
             department: formData.department,
+            position: formData.position.trim(),
             start_date: toDateInputValue(formData.start_date),
             status: modalMode === 'add' ? EMPLOYEE_STATUS.ACTIVE : formData.status,
             end_date: modalMode === 'edit' && formData.status === EMPLOYEE_STATUS.RESIGNED ? toDateInputValue(formData.end_date) || null : null,
             transfer_date: modalMode === 'edit' && formData.status === EMPLOYEE_STATUS.TRANSFERRED ? toDateInputValue(formData.transfer_date) || null : null,
+            transfer_department: modalMode === 'edit' && formData.status === EMPLOYEE_STATUS.TRANSFERRED ? formData.transfer_department || null : null,
+            transfer_position: modalMode === 'edit' && formData.status === EMPLOYEE_STATUS.TRANSFERRED ? formData.transfer_position.trim() || null : null,
             resignation_link: modalMode === 'edit' && formData.status === EMPLOYEE_STATUS.RESIGNED ? formData.resignation_link || null : null
         };
 
@@ -349,6 +377,7 @@ const EmployeeManagement = ({ currentAdmin }) => {
                 const wasResigned = original?.status === EMPLOYEE_STATUS.RESIGNED;
                 const becomesResigned = formData.status === EMPLOYEE_STATUS.RESIGNED;
                 const departmentChanged = original?.department !== formData.department;
+                const positionChanged = (original?.position || '') !== formData.position.trim();
                 const cancelItSign = becomesResigned && !wasResigned
                     ? cancelSignatureRef.current.getCanvas().toDataURL('image/png')
                     : null;
@@ -356,8 +385,8 @@ const EmployeeManagement = ({ currentAdmin }) => {
                 const { error } = await mysql.from('employees').update(payload).eq('id', formData.id);
                 if (error) throw error;
 
-                if (departmentChanged || formData.status === EMPLOYEE_STATUS.TRANSFERRED) {
-                    await syncEmployeeDepartmentToReports(formData.emp_id, formData.department);
+                if (departmentChanged || positionChanged || formData.status === EMPLOYEE_STATUS.TRANSFERRED) {
+                    await syncEmployeeProfileToReports(formData.emp_id, formData.department, formData.position.trim());
                 }
 
                 if (becomesResigned && !wasResigned) {
@@ -525,6 +554,7 @@ const EmployeeManagement = ({ currentAdmin }) => {
                                     <th className="p-4 whitespace-nowrap">รหัส</th>
                                     <th className="p-4 whitespace-nowrap">ชื่อ-สกุล</th>
                                     <th className="p-4 whitespace-nowrap">แผนก</th>
+                                    <th className="p-4 whitespace-nowrap">ตำแหน่ง</th>
                                     <th className="p-4 whitespace-nowrap">เริ่มงาน</th>
                                     <th className="p-4 whitespace-nowrap">วันที่สถานะ</th>
                                     <th className="p-4 whitespace-nowrap">ใบลาออก</th>
@@ -542,6 +572,7 @@ const EmployeeManagement = ({ currentAdmin }) => {
                                             <span className="font-medium text-slate-800 dark:text-slate-100">{employee.name_th}</span>
                                         </td>
                                         <td className="p-4 align-middle text-slate-700 dark:text-slate-300">{employee.department}</td>
+                                        <td className="p-4 align-middle text-slate-700 dark:text-slate-300">{employee.position || '-'}</td>
                                         <td className="p-4 align-middle whitespace-nowrap text-slate-600 dark:text-slate-400 text-sm">{formatDate(employee.start_date)}</td>
                                         <td className="p-4 align-middle whitespace-nowrap text-slate-600 dark:text-slate-400 text-sm">{renderStatusDate(employee)}</td>
                                         <td className="p-4 align-middle whitespace-nowrap text-sm">
@@ -648,6 +679,19 @@ const EmployeeManagement = ({ currentAdmin }) => {
 
                             <div>
                                 <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                                    ตำแหน่ง <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    value={formData.position}
+                                    onChange={(event) => updateFormField('position', event.target.value)}
+                                    placeholder="ระบุตำแหน่ง"
+                                    className="input-modern w-full"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
                                     วันที่เริ่มงาน <span className="text-red-500">*</span>
                                 </label>
                                 <input
@@ -690,16 +734,45 @@ const EmployeeManagement = ({ currentAdmin }) => {
                                 </div>
 
                                 {formData.status === EMPLOYEE_STATUS.TRANSFERRED && (
-                                    <div>
-                                        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                                            วันที่โอนย้าย <span className="text-red-500">*</span>
-                                        </label>
-                                        <input
-                                            type="date"
-                                            value={formData.transfer_date}
-                                            onChange={(event) => updateFormField('transfer_date', event.target.value)}
-                                            className="input-modern w-full"
-                                        />
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                                                วันที่โอนย้าย <span className="text-red-500">*</span>
+                                            </label>
+                                            <input
+                                                type="date"
+                                                value={formData.transfer_date}
+                                                onChange={(event) => updateFormField('transfer_date', event.target.value)}
+                                                className="input-modern w-full"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                                                แผนกหลังโอนย้าย <span className="text-red-500">*</span>
+                                            </label>
+                                            <Select value={formData.transfer_department} onValueChange={(value) => updateFormField('transfer_department', value)}>
+                                                <SelectTrigger className="input-modern w-full">
+                                                    <SelectValue placeholder="เลือกแผนกหลังโอนย้าย" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {DEPARTMENTS.map((department) => (
+                                                        <SelectItem key={department} value={department}>{department}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <div className="sm:col-span-2">
+                                            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                                                ตำแหน่งหลังโอนย้าย <span className="text-red-500">*</span>
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={formData.transfer_position}
+                                                onChange={(event) => updateFormField('transfer_position', event.target.value)}
+                                                placeholder="ระบุตำแหน่งหลังโอนย้าย"
+                                                className="input-modern w-full"
+                                            />
+                                        </div>
                                     </div>
                                 )}
 
