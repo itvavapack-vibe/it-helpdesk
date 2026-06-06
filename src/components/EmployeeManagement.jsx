@@ -99,12 +99,30 @@ const toDateInputValue = (value) => {
     return toLocalDateInputValue(value);
 };
 
+const MONTH_OPTIONS = [
+    { value: '01', label: 'มกราคม' },
+    { value: '02', label: 'กุมภาพันธ์' },
+    { value: '03', label: 'มีนาคม' },
+    { value: '04', label: 'เมษายน' },
+    { value: '05', label: 'พฤษภาคม' },
+    { value: '06', label: 'มิถุนายน' },
+    { value: '07', label: 'กรกฎาคม' },
+    { value: '08', label: 'สิงหาคม' },
+    { value: '09', label: 'กันยายน' },
+    { value: '10', label: 'ตุลาคม' },
+    { value: '11', label: 'พฤศจิกายน' },
+    { value: '12', label: 'ธันวาคม' }
+];
+
 const EmployeeManagement = ({ currentAdmin }) => {
     const [employees, setEmployees] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('All');
-    const [monthFilter, setMonthFilter] = useState(() => toLocalDateInputValue().slice(0, 7));
+    const initialMonthFilter = toLocalDateInputValue().slice(0, 7);
+    const [monthFilter, setMonthFilter] = useState(initialMonthFilter);
+    const [monthInput, setMonthInput] = useState(initialMonthFilter.slice(5, 7));
+    const [yearInput, setYearInput] = useState(initialMonthFilter.slice(0, 4));
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalMode, setModalMode] = useState('add');
     const [formData, setFormData] = useState(emptyForm);
@@ -213,6 +231,21 @@ const EmployeeManagement = ({ currentAdmin }) => {
         resigned: employees.filter((employee) => employee.status === EMPLOYEE_STATUS.RESIGNED).length,
         transferred: employees.filter((employee) => employee.status === EMPLOYEE_STATUS.TRANSFERRED).length
     }), [employees]);
+
+    const updateMonthFilterPart = (part, value) => {
+        const nextMonth = part === 'month' ? value : monthInput;
+        const nextYear = part === 'year' ? value.replace(/\D/g, '').slice(0, 4) : yearInput;
+
+        if (part === 'month') setMonthInput(nextMonth);
+        if (part === 'year') setYearInput(nextYear);
+
+        if (!nextMonth || nextYear.length !== 4) {
+            setMonthFilter('');
+            return;
+        }
+
+        setMonthFilter(`${nextYear}-${nextMonth}`);
+    };
 
     const openModal = (employee = null) => {
         if (employee) {
@@ -516,17 +549,35 @@ const EmployeeManagement = ({ currentAdmin }) => {
                         </SelectContent>
                     </Select>
 
-                    <input
-                        type="month"
-                        value={monthFilter}
-                        onChange={(event) => setMonthFilter(event.target.value)}
+                    <select
+                        value={monthInput}
+                        onChange={(event) => updateMonthFilterPart('month', event.target.value)}
                         className="input-modern !py-2 !text-sm w-full sm:w-40"
                         title="เลือกเดือนสำหรับสรุป"
+                    >
+                        <option value="">เลือกเดือน</option>
+                        {MONTH_OPTIONS.map((month) => (
+                            <option key={month.value} value={month.value}>{month.label}</option>
+                        ))}
+                    </select>
+
+                    <input
+                        type="text"
+                        inputMode="numeric"
+                        value={yearInput}
+                        onChange={(event) => updateMonthFilterPart('year', event.target.value)}
+                        className="input-modern !py-2 !text-sm w-full sm:w-28"
+                        placeholder="ปี ค.ศ."
+                        title="กรอกปี ค.ศ. สำหรับสรุป"
                     />
 
                     <button
                         type="button"
-                        onClick={() => setMonthFilter('')}
+                        onClick={() => {
+                            setMonthInput('');
+                            setYearInput('');
+                            setMonthFilter('');
+                        }}
                         disabled={!monthFilter}
                         className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-blue-300 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-blue-500 dark:hover:text-blue-300"
                     >
