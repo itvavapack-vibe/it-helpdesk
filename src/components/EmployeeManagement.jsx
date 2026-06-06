@@ -76,6 +76,7 @@ const emptyForm = {
     id: null,
     emp_id: '',
     name_th: '',
+    name_en: '',
     department: '',
     position: '',
     start_date: '',
@@ -167,6 +168,27 @@ const EmployeeManagement = ({ currentAdmin }) => {
         }
     };
 
+    const isSameMonth = (dateValue) => {
+        if (!dateValue || !monthFilter) return false;
+        return String(dateValue).slice(0, 7) === monthFilter;
+    };
+
+    const isEmployeeInSelectedMonth = (employee) => (
+        isSameMonth(employee.start_date) ||
+        (employee.status === EMPLOYEE_STATUS.RESIGNED && isSameMonth(employee.end_date)) ||
+        (employee.status === EMPLOYEE_STATUS.TRANSFERRED && isSameMonth(employee.transfer_date || employee.updated_at))
+    );
+
+    const monthlyStats = useMemo(() => {
+        if (!monthFilter) return { newJoiners: [], exits: [], transfers: [] };
+
+        const newJoiners = employees.filter((employee) => isSameMonth(employee.start_date));
+        const exits = employees.filter((employee) => employee.status === EMPLOYEE_STATUS.RESIGNED && isSameMonth(employee.end_date));
+        const transfers = employees.filter((employee) => employee.status === EMPLOYEE_STATUS.TRANSFERRED && isSameMonth(employee.transfer_date || employee.updated_at));
+
+        return { newJoiners, exits, transfers };
+    }, [employees, monthFilter]);
+
     const filteredEmployees = useMemo(() => {
         const keyword = searchTerm.trim().toLowerCase();
         return employees.filter((employee) => {
@@ -174,27 +196,23 @@ const EmployeeManagement = ({ currentAdmin }) => {
                 !keyword ||
                 employee.emp_id?.includes(keyword) ||
                 employee.name_th?.toLowerCase().includes(keyword) ||
+                employee.name_en?.toLowerCase().includes(keyword) ||
                 employee.department?.toLowerCase().includes(keyword) ||
                 employee.position?.toLowerCase().includes(keyword) ||
                 employee.transfer_department?.toLowerCase().includes(keyword) ||
                 employee.transfer_position?.toLowerCase().includes(keyword);
             const matchesStatus = statusFilter === 'All' || employee.status === statusFilter;
-            return matchesSearch && matchesStatus;
+            const matchesMonth = !monthFilter || isEmployeeInSelectedMonth(employee);
+            return matchesSearch && matchesStatus && matchesMonth;
         });
-    }, [employees, searchTerm, statusFilter]);
+    }, [employees, searchTerm, statusFilter, monthFilter]);
 
-    const isSameMonth = (dateValue) => {
-        if (!dateValue || !monthFilter) return false;
-        return String(dateValue).slice(0, 7) === monthFilter;
-    };
-
-    const monthlyStats = useMemo(() => {
-        const newJoiners = employees.filter((employee) => isSameMonth(employee.start_date));
-        const exits = employees.filter((employee) => employee.status === EMPLOYEE_STATUS.RESIGNED && isSameMonth(employee.end_date));
-        const transfers = employees.filter((employee) => employee.status === EMPLOYEE_STATUS.TRANSFERRED && isSameMonth(employee.transfer_date || employee.updated_at));
-
-        return { newJoiners, exits, transfers };
-    }, [employees, monthFilter]);
+    const overallStats = useMemo(() => ({
+        total: employees.length,
+        active: employees.filter((employee) => employee.status === EMPLOYEE_STATUS.ACTIVE).length,
+        resigned: employees.filter((employee) => employee.status === EMPLOYEE_STATUS.RESIGNED).length,
+        transferred: employees.filter((employee) => employee.status === EMPLOYEE_STATUS.TRANSFERRED).length
+    }), [employees]);
 
     const openModal = (employee = null) => {
         if (employee) {
@@ -203,6 +221,7 @@ const EmployeeManagement = ({ currentAdmin }) => {
                 id: employee.id,
                 emp_id: employee.emp_id || '',
                 name_th: employee.name_th || '',
+                name_en: employee.name_en || '',
                 department: employee.department || '',
                 position: employee.position || '',
                 start_date: toDateInputValue(employee.start_date),
@@ -356,6 +375,7 @@ const EmployeeManagement = ({ currentAdmin }) => {
         const payload = {
             emp_id: formData.emp_id,
             name_th: formData.name_th.trim(),
+            name_en: formData.name_en.trim() || null,
             department: formData.department,
             position: formData.position.trim(),
             start_date: toDateInputValue(formData.start_date),
@@ -505,6 +525,16 @@ const EmployeeManagement = ({ currentAdmin }) => {
                     />
 
                     <button
+                        type="button"
+                        onClick={() => setMonthFilter('')}
+                        disabled={!monthFilter}
+                        className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-blue-300 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-blue-500 dark:hover:text-blue-300"
+                    >
+                        <Users className="w-4 h-4" />
+                        แสดงพนักงานทั้งหมด
+                    </button>
+
+                    <button
                         onClick={() => openModal()}
                         className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl transition-colors duration-200 font-medium text-sm whitespace-nowrap"
                     >
@@ -512,6 +542,28 @@ const EmployeeManagement = ({ currentAdmin }) => {
                         เพิ่มพนักงาน
                     </button>
                 </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+                {[
+                    { label: 'พนักงานทั้งหมด', value: overallStats.total, icon: Users, className: 'bg-slate-100 text-slate-700 dark:bg-slate-700/60 dark:text-slate-200' },
+                    { label: 'ทำงาน', value: overallStats.active, icon: Briefcase, className: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-300' },
+                    { label: 'ลาออก', value: overallStats.resigned, icon: UserMinus, className: 'bg-rose-100 text-rose-600 dark:bg-rose-900/40 dark:text-rose-300' },
+                    { label: 'โอนย้าย', value: overallStats.transferred, icon: MoveRight, className: 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300' }
+                ].map((item) => {
+                    const Icon = item.icon;
+                    return (
+                        <div key={item.label} className="glass-card rounded-2xl p-5 flex items-center gap-4">
+                            <div className={`p-3 rounded-xl ${item.className}`}>
+                                <Icon className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">{item.label}</p>
+                                <p className="text-3xl font-extrabold text-slate-800 dark:text-white">{item.value}</p>
+                            </div>
+                        </div>
+                    );
+                })}
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -570,6 +622,9 @@ const EmployeeManagement = ({ currentAdmin }) => {
                                         </td>
                                         <td className="p-4 align-middle">
                                             <span className="font-medium text-slate-800 dark:text-slate-100">{employee.name_th}</span>
+                                            {employee.name_en && (
+                                                <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">{employee.name_en}</span>
+                                            )}
                                         </td>
                                         <td className="p-4 align-middle text-slate-700 dark:text-slate-300">{employee.department}</td>
                                         <td className="p-4 align-middle text-slate-700 dark:text-slate-300">{employee.position || '-'}</td>
@@ -657,6 +712,19 @@ const EmployeeManagement = ({ currentAdmin }) => {
                                     value={formData.name_th}
                                     onChange={(event) => updateFormField('name_th', event.target.value)}
                                     placeholder="ชื่อพนักงาน"
+                                    className="input-modern w-full"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                                    ชื่อ-นามสกุล อังกฤษ
+                                </label>
+                                <input
+                                    type="text"
+                                    value={formData.name_en}
+                                    onChange={(event) => updateFormField('name_en', event.target.value)}
+                                    placeholder="English full name"
                                     className="input-modern w-full"
                                 />
                             </div>
