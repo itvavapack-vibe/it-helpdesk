@@ -410,11 +410,11 @@ function pageHtml(saved) {
   }).replaceAll('<', '\\u003c')
 
   return `<!doctype html>
-<html lang="en">
+<html lang="th">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>IT Helpdesk Deploy</title>
+  <title>Deploy ระบบ IT Helpdesk</title>
   <style>
     :root { color-scheme: dark; font-family: Inter, Segoe UI, Arial, sans-serif; }
     body { margin: 0; background: #0f172a; color: #e2e8f0; }
@@ -455,83 +455,83 @@ function pageHtml(saved) {
 <body>
   <main>
     <section class="card">
-      <h1>IT Helpdesk Deploy</h1>
-      <p>Deploy code from test to production, then optionally run production database migrations.</p>
+      <h1>Deploy ระบบ IT Helpdesk</h1>
+      <p>ส่งโค้ดจากก้อนเทสขึ้นก้อนจริง พร้อมเลือกได้ว่าจะอัปเดตฐานข้อมูลจริงหรือไม่</p>
 
-      <label>Test project folder</label>
+      <label>โฟลเดอร์ก้อนเทส</label>
       <input id="sourcePath" type="text" />
 
-      <label>Production project folder</label>
-      <input id="productionPath" type="text" placeholder="C:\\Next.js Project\\it-helpdesk-prod" />
+      <label>โฟลเดอร์ก้อนจริง</label>
+      <input id="productionPath" type="text" placeholder="C:\\Next.js Project\\it-helpdesk" />
 
       <div class="row">
         <div>
-          <label>Git branch</label>
+          <label>Branch ที่จะ deploy</label>
           <input id="branch" type="text" />
         </div>
         <div>
-          <label>Commit message</label>
+          <label>ข้อความ commit</label>
           <input id="commitMessage" type="text" />
         </div>
       </div>
 
       <div class="check">
         <input id="stopPorts" type="checkbox" />
-        <label for="stopPorts">Stop production web/API ports before restart</label>
+        <label for="stopPorts">ปิดเว็บ/API ก้อนจริงก่อนเปิดใหม่</label>
       </div>
 
       <div class="check">
         <input id="stashProductionChanges" type="checkbox" />
-        <label for="stashProductionChanges">Back up production uncommitted files with git stash before deploy</label>
+        <label for="stashProductionChanges">สำรองไฟล์ที่ค้างในก้อนจริงก่อน deploy</label>
       </div>
 
       <div class="check">
         <input id="runMigrations" type="checkbox" />
-        <label for="runMigrations">Run production database migrations <span class="danger">(changes real DB)</span></label>
+        <label for="runMigrations">อัปเดตโครงสร้างฐานข้อมูลจริง <span class="danger">(มีผลกับ DB จริง)</span></label>
       </div>
 
       <div id="migrationBox">
         <div class="check">
           <input class="migration" type="checkbox" value="scripts/run-migrate-computermodels.mjs" checked />
-          <label>computermodels migration</label>
+          <label>เพิ่มข้อมูลรุ่น/ประเภททรัพย์สินจาก GLPI</label>
         </div>
         <div class="check">
           <input class="migration" type="checkbox" value="scripts/run-migrate-change-request-attachments.mjs" checked />
-          <label>change request attachments migration</label>
+          <label>เพิ่มช่องแนบไฟล์คำร้องขอพัฒนา</label>
         </div>
         <div class="check">
           <input class="migration" type="checkbox" value="scripts/run-migrate-issue-report.mjs" checked />
-          <label>issue report migration</label>
+          <label>เพิ่มข้อมูลรายงานแจ้งซ่อม</label>
         </div>
         <div class="check">
           <input class="migration" type="checkbox" value="scripts/run-migrate-change-request-category.mjs" checked />
-          <label>change request category migration</label>
+          <label>เพิ่มประเภทคำร้องขอพัฒนา</label>
         </div>
         <div class="check">
           <input class="migration" type="checkbox" value="scripts/run-migrate-admin-position.mjs" checked />
-          <label>admin position migration</label>
+          <label>เพิ่มตำแหน่งผู้ใช้งานระบบ</label>
         </div>
         <div class="check">
           <input class="migration" type="checkbox" value="scripts/run-migrate-admin-signature.mjs" checked />
-          <label>admin signature migration</label>
+          <label>เพิ่มลายเซ็นในโปรไฟล์ผู้ใช้งาน</label>
         </div>
         <div class="check">
           <input class="migration" type="checkbox" value="scripts/run-migrate-admin-security.mjs" checked />
-          <label>admin login security and policy settings migration</label>
+          <label>เพิ่มนโยบายรหัสผ่านและความปลอดภัยล็อกอิน</label>
         </div>
         <div class="check">
           <input class="migration" type="checkbox" value="scripts/run-migrate-access-request-acknowledgement.mjs" checked />
-          <label>access request acknowledgement migration</label>
+          <label>เพิ่มลายเซ็นรับทราบคำร้องขอสิทธิ์</label>
         </div>
       </div>
 
-      <p class="muted">The production .env is not copied or overwritten. The database used by migrations comes from the production folder's .env.</p>
-      <button id="deploy">Deploy Code + Selected Database Changes</button>
+      <p class="muted">ระบบจะไม่คัดลอกหรือเขียนทับไฟล์ .env ของก้อนจริง การอัปเดตฐานข้อมูลจะใช้ค่าจาก .env ในโฟลเดอร์ก้อนจริงเท่านั้น</p>
+      <button id="deploy">เริ่ม Deploy โค้ดและรายการฐานข้อมูลที่เลือก</button>
       <div class="summary">
-        <div id="summaryHead" class="summary-head">● พร้อม Deploy</div>
+        <div id="summaryHead" class="summary-head">● พร้อม deploy</div>
         <div id="steps" class="steps"></div>
       </div>
-      <h2>Log</h2>
+      <h2>บันทึกการทำงาน</h2>
       <pre id="log"></pre>
     </section>
   </main>
@@ -566,7 +566,7 @@ function pageHtml(saved) {
       stepElements.clear()
       steps.innerHTML = ''
       summaryHead.className = 'summary-head running'
-      summaryHead.textContent = '↻ กำลังเตรียม Deploy...'
+      summaryHead.textContent = '↻ กำลังเตรียม deploy...'
     }
     const renderStep = event => {
       let element = stepElements.get(event.id)
@@ -611,9 +611,9 @@ function pageHtml(saved) {
         runMigrations,
         migrations,
       }
-      const stashWarning = payload.stashProductionChanges ? '\\n\\nUncommitted production files will be backed up in git stash.' : ''
-      const dbWarning = runMigrations ? '\\n\\nThis will run migrations against the PRODUCTION database.' : ''
-      if (!confirm('Deploy production now?' + stashWarning + dbWarning)) return
+      const stashWarning = payload.stashProductionChanges ? '\\n\\nระบบจะสำรองไฟล์ที่ยังไม่ commit ในก้อนจริงด้วย git stash ก่อน deploy' : ''
+      const dbWarning = runMigrations ? '\\n\\nระบบจะอัปเดตโครงสร้างฐานข้อมูลจริง โปรดตรวจรายการที่เลือกให้ถูกต้อง' : ''
+      if (!confirm('ยืนยัน deploy ขึ้นก้อนจริงตอนนี้หรือไม่?' + stashWarning + dbWarning)) return
 
       resetSummary()
       log.textContent = ''
@@ -627,11 +627,11 @@ function pageHtml(saved) {
         const result = await response.json()
         if (!response.ok) {
           deployButton.disabled = false
-          alert(result.error || 'Deploy failed')
+          alert(result.error || 'Deploy ไม่สำเร็จ')
         }
       } catch (error) {
         deployButton.disabled = false
-        alert(error.message || 'Deploy failed')
+        alert(error.message || 'Deploy ไม่สำเร็จ')
       }
     })
   </script>

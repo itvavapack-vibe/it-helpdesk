@@ -20,6 +20,7 @@
     "migrate:employee-position": "node scripts/run-migrate-employee-position.mjs",
     "migrate:employee-name-en": "node scripts/run-migrate-employee-name-en.mjs",
     "import:employees": "node scripts/import-employees-xlsx.mjs",
+    "import:access-requests": "node scripts/import-access-requests-xlsx.mjs",
     "migrate:ai-helpdesk-documents": "node scripts/run-migrate-ai-helpdesk-documents.mjs",
     "import:ai-helpdesk-pdfs": "node scripts/import-ai-helpdesk-pdfs.mjs",
     "import:ai-helpdesk-documents": "node scripts/import-ai-helpdesk-documents.mjs",
