@@ -14,6 +14,16 @@ const host = process.env.DEPLOY_WEB_HOST || '127.0.0.1'
 const port = Number(process.env.DEPLOY_WEB_PORT || 4783)
 const token = process.env.DEPLOY_WEB_TOKEN || crypto.randomBytes(16).toString('hex')
 const npmCommand = os.platform() === 'win32' ? 'npm.cmd' : 'npm'
+const defaultMigrations = [
+  'scripts/run-migrate-computermodels.mjs',
+  'scripts/run-migrate-change-request-attachments.mjs',
+  'scripts/run-migrate-issue-report.mjs',
+  'scripts/run-migrate-change-request-category.mjs',
+  'scripts/run-migrate-admin-position.mjs',
+  'scripts/run-migrate-admin-signature.mjs',
+  'scripts/run-migrate-admin-security.mjs',
+  'scripts/run-migrate-access-request-acknowledgement.mjs',
+]
 
 let isDeploying = false
 const clients = new Set()
@@ -397,16 +407,7 @@ function pageHtml(saved) {
     stopPorts: saved.stopPorts ?? saved.stop_ports ?? true,
     stashProductionChanges: saved.stashProductionChanges ?? true,
     runMigrations: saved.runMigrations || false,
-    migrations: saved.migrations || [
-      'scripts/run-migrate-computermodels.mjs',
-      'scripts/run-migrate-change-request-attachments.mjs',
-      'scripts/run-migrate-issue-report.mjs',
-      'scripts/run-migrate-change-request-category.mjs',
-      'scripts/run-migrate-admin-position.mjs',
-      'scripts/run-migrate-admin-signature.mjs',
-      'scripts/run-migrate-admin-security.mjs',
-      'scripts/run-migrate-access-request-acknowledgement.mjs',
-    ],
+    migrations: saved.migrations || defaultMigrations,
   }).replaceAll('<', '\\u003c')
 
   return `<!doctype html>
@@ -425,6 +426,7 @@ function pageHtml(saved) {
     label { display: block; margin: 14px 0 6px; color: #cbd5e1; font-weight: 650; }
     input[type="text"] { width: 100%; box-sizing: border-box; border: 1px solid #475569; border-radius: 10px; padding: 11px 12px; background: #020617; color: #f8fafc; }
     .row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .hidden-field { display: none; }
     .check { display: flex; gap: 10px; align-items: center; margin: 14px 0; }
     .check label { margin: 0; font-weight: 500; }
     button { width: 100%; border: 0; border-radius: 12px; padding: 13px 16px; background: #38bdf8; color: #082f49; font-weight: 800; cursor: pointer; }
@@ -456,7 +458,7 @@ function pageHtml(saved) {
   <main>
     <section class="card">
       <h1>Deploy ระบบ IT Helpdesk</h1>
-      <p>ส่งโค้ดจากก้อนเทสขึ้นก้อนจริง พร้อมเลือกได้ว่าจะอัปเดตฐานข้อมูลจริงหรือไม่</p>
+      <p>ส่งโค้ดจากก้อนเทสขึ้นก้อนจริง และเปิดระบบก้อนจริงใหม่ให้อัตโนมัติ</p>
 
       <label>โฟลเดอร์ก้อนเทส</label>
       <input id="sourcePath" type="text" />
@@ -487,46 +489,11 @@ function pageHtml(saved) {
 
       <div class="check">
         <input id="runMigrations" type="checkbox" />
-        <label for="runMigrations">อัปเดตโครงสร้างฐานข้อมูลจริง <span class="danger">(มีผลกับ DB จริง)</span></label>
+        <label for="runMigrations">Migrate database / อัปเดตฐานข้อมูลจริง <span class="danger">(มีผลกับ DB จริง)</span></label>
       </div>
 
-      <div id="migrationBox">
-        <div class="check">
-          <input class="migration" type="checkbox" value="scripts/run-migrate-computermodels.mjs" checked />
-          <label>เพิ่มข้อมูลรุ่น/ประเภททรัพย์สินจาก GLPI</label>
-        </div>
-        <div class="check">
-          <input class="migration" type="checkbox" value="scripts/run-migrate-change-request-attachments.mjs" checked />
-          <label>เพิ่มช่องแนบไฟล์คำร้องขอพัฒนา</label>
-        </div>
-        <div class="check">
-          <input class="migration" type="checkbox" value="scripts/run-migrate-issue-report.mjs" checked />
-          <label>เพิ่มข้อมูลรายงานแจ้งซ่อม</label>
-        </div>
-        <div class="check">
-          <input class="migration" type="checkbox" value="scripts/run-migrate-change-request-category.mjs" checked />
-          <label>เพิ่มประเภทคำร้องขอพัฒนา</label>
-        </div>
-        <div class="check">
-          <input class="migration" type="checkbox" value="scripts/run-migrate-admin-position.mjs" checked />
-          <label>เพิ่มตำแหน่งผู้ใช้งานระบบ</label>
-        </div>
-        <div class="check">
-          <input class="migration" type="checkbox" value="scripts/run-migrate-admin-signature.mjs" checked />
-          <label>เพิ่มลายเซ็นในโปรไฟล์ผู้ใช้งาน</label>
-        </div>
-        <div class="check">
-          <input class="migration" type="checkbox" value="scripts/run-migrate-admin-security.mjs" checked />
-          <label>เพิ่มนโยบายรหัสผ่านและความปลอดภัยล็อกอิน</label>
-        </div>
-        <div class="check">
-          <input class="migration" type="checkbox" value="scripts/run-migrate-access-request-acknowledgement.mjs" checked />
-          <label>เพิ่มลายเซ็นรับทราบคำร้องขอสิทธิ์</label>
-        </div>
-      </div>
-
-      <p class="muted">ระบบจะไม่คัดลอกหรือเขียนทับไฟล์ .env ของก้อนจริง การอัปเดตฐานข้อมูลจะใช้ค่าจาก .env ในโฟลเดอร์ก้อนจริงเท่านั้น</p>
-      <button id="deploy">เริ่ม Deploy โค้ดและรายการฐานข้อมูลที่เลือก</button>
+      <p class="muted">ระบบจะไม่คัดลอกหรือเขียนทับไฟล์ .env ของก้อนจริง</p>
+      <button id="deploy">เริ่ม Deploy โค้ดขึ้นก้อนจริง</button>
       <div class="summary">
         <div id="summaryHead" class="summary-head">● พร้อม deploy</div>
         <div id="steps" class="steps"></div>
@@ -600,7 +567,7 @@ function pageHtml(saved) {
 
     deployButton.addEventListener('click', async () => {
       const runMigrations = document.getElementById('runMigrations').checked
-      const migrations = [...document.querySelectorAll('.migration:checked')].map(input => input.value)
+      const migrations = runMigrations ? saved.migrations : []
       const payload = {
         sourcePath: document.getElementById('sourcePath').value.trim(),
         productionPath: document.getElementById('productionPath').value.trim(),
@@ -611,9 +578,8 @@ function pageHtml(saved) {
         runMigrations,
         migrations,
       }
-      const stashWarning = payload.stashProductionChanges ? '\\n\\nระบบจะสำรองไฟล์ที่ยังไม่ commit ในก้อนจริงด้วย git stash ก่อน deploy' : ''
-      const dbWarning = runMigrations ? '\\n\\nระบบจะอัปเดตโครงสร้างฐานข้อมูลจริง โปรดตรวจรายการที่เลือกให้ถูกต้อง' : ''
-      if (!confirm('ยืนยัน deploy ขึ้นก้อนจริงตอนนี้หรือไม่?' + stashWarning + dbWarning)) return
+      const dbWarning = runMigrations ? '\\n\\nระบบจะ migrate database ก้อนจริงด้วย' : ''
+      if (!confirm('ยืนยัน deploy ขึ้นก้อนจริงตอนนี้หรือไม่?' + dbWarning)) return
 
       resetSummary()
       log.textContent = ''

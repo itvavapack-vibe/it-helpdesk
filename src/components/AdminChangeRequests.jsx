@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { mysql } from '../mysqlClient';
-import { Search, Filter, ClipboardPenLine, CheckCircle, XCircle, Clock, Trash2, Edit, Link, Printer, Paperclip, X } from 'lucide-react';
+import { Search, Filter, ClipboardPenLine, CheckCircle, XCircle, Clock, Trash2, Edit, Link, Printer, Paperclip, X, Eye, LayoutGrid, User, Briefcase, FileText, AlertCircle } from 'lucide-react';
 import Swal from 'sweetalert2';
 import SignatureCanvas from 'react-signature-canvas';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { toLocalDateInputValue, toMysqlDateTime } from '../utils/dateTime';
 import { CHANGE_QUEUE_STATUS_BY_ROLE, canDeleteRecords, canHandleChangeRequestCategory, canManageAllWork, normalizeRoleValue, visibleQueueStatuses } from '../config/roles';
-import { getChangeRequestTypeLabel } from '../config/changeRequestTypes';
+import { CHANGE_REQUEST_TYPE_OPTIONS, getChangeRequestTypeLabel } from '../config/changeRequestTypes';
 import { showAcceptChangeRequestLinkDialog } from '../utils/closeIssueLink';
 import Fmit15PdfPreview from './Fmit15PdfPreview';
 import { MAX_ATTACHMENT_SIZE, resolveAttachmentUrl, uploadAttachmentFiles } from '../utils/fileUpload';
@@ -30,6 +30,11 @@ const formatFileSize = (size) => {
     return `${(numericSize / 1024 / 1024).toFixed(1)} MB`;
 };
 
+const REQUEST_CATEGORY_OPTIONS = [
+    'พัฒนาโปรแกรม',
+    'พัฒนาสื่อ'
+];
+
 const escapeHtml = (value) => String(value ?? '')
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
@@ -50,6 +55,9 @@ const AdminChangeRequests = ({ currentAdmin }) => {
     const [isActionModalOpen, setIsActionModalOpen] = useState(false);
     const [previewRequest, setPreviewRequest] = useState(null);
     const [selectedActionStatus, setSelectedActionStatus] = useState('');
+    const [detailRequest, setDetailRequest] = useState(null);
+    const [detailForm, setDetailForm] = useState({});
+    const [isSavingDetails, setIsSavingDetails] = useState(false);
     
     // For IT Action Form 
     const [actionType, setActionType] = useState('it_intake'); // 'it_intake', 'it_manager' or 'it_staff'
@@ -308,6 +316,14 @@ const AdminChangeRequests = ({ currentAdmin }) => {
         });
     };
 
+    const getActionSignature = (signatureRef) => {
+        if (currentAdmin?.signature) return currentAdmin.signature;
+        if (signatureRef.current && !signatureRef.current.isEmpty()) {
+            return signatureRef.current.getCanvas().toDataURL('image/png');
+        }
+        return null;
+    };
+
     const handleItAction = async () => {
         const reqId = selectedRequest.id;
         if (!selectedActionStatus) {
@@ -328,10 +344,10 @@ const AdminChangeRequests = ({ currentAdmin }) => {
                 const { error } = await mysql.from('change_requests').update(updateData).eq('id', reqId);
                 if (error) throw error;
             } else if (actionType === 'it_manager') {
-                if (!itForm.managerName || !itForm.managerPosition || itManagerSignatureRef.current.isEmpty()) {
-                    return Swal.fire('ข้อมูลไม่ครบ', 'ระบุชื่อ ตำแหน่ง และลายเซ็น IT Manager ให้ครบ', 'warning');
+                if (!itForm.managerName || !itForm.managerPosition) {
+                    return Swal.fire('ข้อมูลไม่ครบ', 'ระบุชื่อและตำแหน่ง IT Manager ให้ครบ', 'warning');
                 }
-                const signData = itManagerSignatureRef.current.getCanvas().toDataURL('image/png');
+                const signData = getActionSignature(itManagerSignatureRef);
                 const updateData = {
                     it_received_date: itForm.receivedDate || null,
                     it_target_date: itForm.targetDate || null,
@@ -361,10 +377,10 @@ const AdminChangeRequests = ({ currentAdmin }) => {
                 if (error) throw error;
 
             } else if (actionType === 'it_staff') {
-                if (!itForm.solution || !itForm.staffName || !itForm.staffPosition || staffSignatureRef.current.isEmpty()) {
-                    return Swal.fire('ข้อมูลไม่ครบ', 'ระบุวิธีแก้ไข ผู้ดำเนินการ ตำแหน่ง และลายเซ็นให้ครบ', 'warning');
+                if (!itForm.solution || !itForm.staffName || !itForm.staffPosition) {
+                    return Swal.fire('ข้อมูลไม่ครบ', 'ระบุวิธีแก้ไข ผู้ดำเนินการ และตำแหน่งให้ครบ', 'warning');
                 }
-                const signData = staffSignatureRef.current.getCanvas().toDataURL('image/png');
+                const signData = getActionSignature(staffSignatureRef);
                 const existingAttachments = parseAttachments(selectedRequest.attachments_json);
                 const newAttachments = await uploadAttachmentFiles(
                     actionFiles.map(({ file }) => file),
@@ -385,6 +401,7 @@ const AdminChangeRequests = ({ currentAdmin }) => {
             }
 
             setIsActionModalOpen(false);
+            setDetailRequest(null);
             setSelectedActionStatus('');
             setActionFiles([]);
             window.dispatchEvent(new Event('approval-queues:refresh'));
@@ -472,6 +489,124 @@ const AdminChangeRequests = ({ currentAdmin }) => {
         } catch (error) {
             console.error('Error cancelling change request:', error);
             Swal.fire('Error', 'ไม่สามารถยกเลิกคำร้องได้', 'error');
+        }
+    };
+
+    const openDetailModal = (req) => {
+        setSelectedRequest(req);
+        setSelectedActionStatus('');
+        setActionFiles([]);
+        setDetailRequest(req);
+        setDetailForm({
+            ticket_number: req.ticket_number || '',
+            req_type: req.req_type || '',
+            req_type_other: req.req_type_other || '',
+            request_category: req.request_category || '',
+            employee_id: req.employee_id || '',
+            requester_name: req.requester_name || '',
+            requester_position: req.requester_position || '',
+            department: req.department || '',
+            details: req.details || '',
+            reason: req.reason || '',
+            it_received_date: req.it_received_date ? toLocalDateInputValue(req.it_received_date) : '',
+            it_operation_date: req.it_operation_date ? toLocalDateInputValue(req.it_operation_date) : '',
+            it_target_date: req.it_target_date ? toLocalDateInputValue(req.it_target_date) : '',
+            it_approval_status: req.it_approval_status || '',
+            it_reject_reason: req.it_reject_reason || '',
+            it_manager_name: req.it_manager_name || '',
+            it_manager_position: req.it_manager_position || '',
+            it_solution: req.it_solution || '',
+            it_staff_name: req.it_staff_name || '',
+            it_staff_position: req.it_staff_position || '',
+            user_acceptance: req.user_acceptance || '',
+            user_reject_reason: req.user_reject_reason || '',
+            cancel_reason: req.cancel_reason || '',
+        });
+    };
+
+    const canEditDetailRequest = Boolean(detailRequest && canEditAllWork && detailRequest.status !== 'Completed');
+
+    const handleDetailFormChange = (field, value) => {
+        if (!canEditDetailRequest) return;
+        setDetailForm((current) => ({ ...current, [field]: value }));
+    };
+
+    const saveDetailChanges = async ({ showSuccess = false } = {}) => {
+        if (!detailRequest || !canEditDetailRequest) return true;
+        if (!detailForm.ticket_number || !detailForm.req_type || !detailForm.request_category || !detailForm.requester_name || !detailForm.department || !detailForm.requester_position || !detailForm.details || !detailForm.reason) {
+            Swal.fire('ข้อมูลไม่ครบ', 'กรุณาระบุเลขเอกสาร ประเภทคำร้อง หมวดคำร้อง ผู้ร้องขอ แผนก ตำแหน่ง รายละเอียด และเหตุผลให้ครบ', 'warning');
+            return false;
+        }
+
+        const updatePayload = {
+            ticket_number: detailForm.ticket_number || null,
+            req_type: detailForm.req_type || null,
+            req_type_other: detailForm.req_type_other || null,
+            request_category: detailForm.request_category || null,
+            employee_id: detailForm.employee_id || null,
+            requester_name: detailForm.requester_name || null,
+            requester_position: detailForm.requester_position || null,
+            department: detailForm.department || null,
+            details: detailForm.details || null,
+            reason: detailForm.reason || null,
+            it_received_date: detailForm.it_received_date || null,
+            it_operation_date: detailForm.it_operation_date || null,
+            it_target_date: detailForm.it_target_date || null,
+            it_approval_status: detailForm.it_approval_status || null,
+            it_reject_reason: detailForm.it_reject_reason || null,
+            it_manager_name: detailForm.it_manager_name || null,
+            it_manager_position: detailForm.it_manager_position || null,
+            it_solution: detailForm.it_solution || null,
+            it_staff_name: detailForm.it_staff_name || null,
+            it_staff_position: detailForm.it_staff_position || null,
+            user_acceptance: detailForm.user_acceptance || null,
+            user_reject_reason: detailForm.user_reject_reason || null,
+            cancel_reason: detailForm.cancel_reason || null,
+        };
+
+        try {
+            const { error } = await mysql.from('change_requests').update(updatePayload).eq('id', detailRequest.id);
+            if (error) throw error;
+
+            const nextRequest = { ...detailRequest, ...updatePayload };
+            setRequests((prev) => prev.map((req) => (req.id === detailRequest.id ? { ...req, ...updatePayload } : req)));
+            setDetailRequest(nextRequest);
+            setSelectedRequest(nextRequest);
+            window.dispatchEvent(new Event('approval-queues:refresh'));
+            if (showSuccess) {
+                Swal.fire('บันทึกแล้ว', 'อัปเดตข้อมูลคำร้องขอพัฒนาระบบเรียบร้อยแล้ว', 'success');
+            }
+            return true;
+        } catch (error) {
+            console.error('Error updating change request detail:', error);
+            Swal.fire('Error', error.message || 'ไม่สามารถบันทึกข้อมูลได้', 'error');
+            return false;
+        }
+    };
+
+    const handleSaveDetails = async () => {
+        setIsSavingDetails(true);
+        try {
+            await saveDetailChanges({ showSuccess: true });
+        } finally {
+            setIsSavingDetails(false);
+        }
+    };
+
+    const handleSaveDetailAndStatus = async () => {
+        setIsSavingDetails(true);
+        try {
+            const saved = await saveDetailChanges({ showSuccess: false });
+            if (!saved) return;
+
+            if (selectedActionStatus) {
+                await handleItAction();
+                return;
+            }
+
+            Swal.fire('บันทึกแล้ว', 'อัปเดตข้อมูลคำร้องขอพัฒนาระบบเรียบร้อยแล้ว', 'success');
+        } finally {
+            setIsSavingDetails(false);
         }
     };
 
@@ -591,31 +726,31 @@ const AdminChangeRequests = ({ currentAdmin }) => {
             ) : (
                 <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                     <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
+                        <table className="w-full table-fixed text-left border-collapse">
                             <thead>
                                 <tr className="bg-slate-50 border-b text-slate-500 text-xs uppercase">
-                                    <th className="p-4 whitespace-nowrap">วันที่ / เลขเอกสาร</th>
-                                    <th className="p-4 whitespace-nowrap">ประเภทการร้องขอ</th>
-                                    <th className="p-4 whitespace-nowrap">ผู้ร้องขอ / แผนก</th>
-                                    <th className="p-4">รายละเอียดการขอ (Requirement)</th>
-                                    <th className="p-4 whitespace-nowrap">สถานะ</th>
-                                    <th className="p-4 whitespace-nowrap text-right">จัดการ</th>
+                                    <th className="w-[130px] p-3 whitespace-nowrap">วันที่ / เลขเอกสาร</th>
+                                    <th className="w-[130px] p-3 whitespace-nowrap">ประเภทการร้องขอ</th>
+                                    <th className="w-[170px] p-3 whitespace-nowrap">ผู้ร้องขอ / แผนก</th>
+                                    <th className="p-3">รายละเอียดการขอ (Requirement)</th>
+                                    <th className="w-[145px] p-3 whitespace-nowrap">สถานะ</th>
+                                    <th className="w-[210px] p-3 whitespace-nowrap text-right">จัดการ</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
                                 {filteredRequests.map((req) => (
                                     <tr key={req.id} className="hover:bg-slate-50 transition-colors">
-                                        <td className="p-4 align-top">
+                                        <td className="p-3 align-top">
                                             <div className="text-sm font-semibold">{new Date(req.created_at).toLocaleDateString('th-TH')}</div>
                                             <div className="text-xs text-emerald-600 font-mono mt-1">{req.ticket_number}</div>
                                             <div className="text-xs text-slate-400 mt-1 font-bold">{getChangeRequestTypeLabel(req.req_type)}</div>
                                         </td>
-                                        <td className="p-4 align-top">
+                                        <td className="p-3 align-top">
                                             {getRequestCategoryBadge(req.request_category)}
                                         </td>
-                                        <td className="p-4 align-top">
-                                            <div className="text-sm font-bold text-slate-800">{req.requester_name}</div>
-                                            <div className="text-xs text-slate-500 mt-1">{req.department}</div>
+                                        <td className="p-3 align-top">
+                                            <div className="truncate text-sm font-bold text-slate-800" title={req.requester_name}>{req.requester_name}</div>
+                                            <div className="mt-1 truncate text-xs text-slate-500" title={req.department}>{req.department}</div>
                                             {req.status === 'Cancelled' && (
                                                 <div className="inline-flex items-center gap-1 mt-2 px-2 py-0.5 rounded-full bg-rose-50 text-rose-600 border border-rose-200 text-[11px] font-semibold">
                                                     <XCircle className="w-3 h-3" />
@@ -623,19 +758,28 @@ const AdminChangeRequests = ({ currentAdmin }) => {
                                                 </div>
                                             )}
                                         </td>
-                                        <td className="p-4 align-top min-w-[250px] max-w-sm">
+                                        <td className="p-3 align-top">
                                             <p className="text-sm text-slate-700 line-clamp-2" title={req.details}>{req.details}</p>
                                             <p className="text-xs text-amber-600 border border-amber-200 bg-amber-50 rounded p-1 mt-2 line-clamp-1 truncate" title={req.reason}>เหตุผล: {req.reason}</p>
                                         </td>
-                                        <td className="p-4 align-top">
+                                        <td className="p-3 align-top">
                                             {getStatusBadge(req.status)}
                                         </td>
-                                        <td className="p-4 align-top text-right">
-                                            {canActOnRequest(req) && getActionStatusOptions(req.status).length > 0 && (
-                                                <button type="button" onClick={() => openStatusActionModal(req)} className="p-2 text-amber-600 hover:text-white hover:bg-amber-600 rounded-lg" title="เปลี่ยนสถานะ">
-                                                    <Edit className="w-4 h-4" />
-                                                </button>
-                                            )}
+                                        <td className="p-3 align-top text-right whitespace-nowrap">
+                                            <div className="flex items-center justify-end gap-1.5">
+                                            <button
+                                                type="button"
+                                                onClick={() => openDetailModal(req)}
+                                                className={`p-1.5 rounded-lg transition-colors ${
+                                                    (canEditAllWork || canActOnRequest(req)) && req.status !== 'Completed'
+                                                        ? 'text-amber-600 hover:text-white hover:bg-amber-600'
+                                                        : 'text-sky-600 hover:text-white hover:bg-sky-600'
+                                                }`}
+                                                title={(canEditAllWork || canActOnRequest(req)) && req.status !== 'Completed' ? 'แก้ไขข้อมูล' : 'ดูข้อมูล'}
+                                                aria-label={(canEditAllWork || canActOnRequest(req)) && req.status !== 'Completed' ? 'แก้ไขข้อมูล' : 'ดูข้อมูล'}
+                                            >
+                                                {(canEditAllWork || canActOnRequest(req)) && req.status !== 'Completed' ? <Edit className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                            </button>
                                             {req.status === 'Pending_User_Acceptance' && (
                                                 <button type="button" onClick={() => showAcceptChangeRequestLinkDialog(req)} className="p-2 text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg" title="สร้างลิงก์เซ็นรับมอบงาน">
                                                     <Link className="w-4 h-4" />
@@ -659,11 +803,349 @@ const AdminChangeRequests = ({ currentAdmin }) => {
                                                     <XCircle className="w-4 h-4" />
                                                 </button>
                                             )}
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}
                             </tbody>
                         </table>
+                    </div>
+                </div>
+            )}
+
+            {detailRequest && (
+                <div className="fixed inset-0 z-[120] flex items-start justify-center overflow-y-auto bg-slate-900/50 p-3 backdrop-blur-sm sm:items-center sm:p-4">
+                    <div className="w-full max-w-4xl max-h-[calc(100dvh-1.5rem)] overflow-y-auto rounded-3xl border border-slate-100 bg-white p-5 shadow-2xl animate-fade-in dark:border-slate-700 dark:bg-slate-800 sm:p-6">
+                        <div className="mb-5 flex items-start justify-between gap-3">
+                            <div>
+                                <h3 className="flex items-center gap-2 text-xl font-bold text-slate-800 dark:text-white">
+                                    {canEditDetailRequest ? <Edit className="h-5 w-5 text-sky-600" /> : <Eye className="h-5 w-5 text-slate-500" />}
+                                    {canEditDetailRequest ? 'แก้ไขข้อมูลคำร้องขอพัฒนา' : 'ดูข้อมูลคำร้องขอพัฒนา'}
+                                </h3>
+                                <p className="mt-1 text-sm text-slate-500">
+                                    {detailRequest.status === 'Completed'
+                                        ? 'คำร้องสถานะปิดจบ เปิดดูได้อย่างเดียว และไม่แสดงลายเซ็นในหน้านี้'
+                                        : 'แก้ไขเฉพาะข้อมูลคำร้องและผลดำเนินการ โดยไม่แก้ไขลายเซ็น'}
+                                </p>
+                            </div>
+                            <button onClick={() => setDetailRequest(null)} className="rounded-lg p-1 text-slate-400 transition hover:bg-slate-100 hover:text-rose-500 dark:hover:bg-slate-700">
+                                <XCircle className="h-6 w-6" />
+                            </button>
+                        </div>
+
+                        <div className="mb-4 grid grid-cols-1 gap-3 rounded-2xl border border-slate-100 bg-slate-50 p-4 text-sm dark:border-slate-700 dark:bg-slate-900/40 sm:grid-cols-3">
+                            <div>
+                                <div className="text-xs font-bold text-slate-400">สถานะ</div>
+                                <div className="mt-1">{getStatusBadge(detailRequest.status)}</div>
+                            </div>
+                            <div>
+                                <div className="text-xs font-bold text-slate-400">วันที่สร้าง</div>
+                                <div className="mt-1 font-semibold text-slate-700 dark:text-slate-200">{detailRequest.created_at ? new Date(detailRequest.created_at).toLocaleString('th-TH') : '-'}</div>
+                            </div>
+                            <div>
+                                <div className="text-xs font-bold text-slate-400">อัปเดตล่าสุด</div>
+                                <div className="mt-1 font-semibold text-slate-700 dark:text-slate-200">{detailRequest.updated_at ? new Date(detailRequest.updated_at).toLocaleString('th-TH') : '-'}</div>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                            <div>
+                                <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-slate-400">เลขเอกสาร</label>
+                                <input className="input-modern w-full" value={detailForm.ticket_number || ''} disabled={!canEditDetailRequest} onChange={(event) => handleDetailFormChange('ticket_number', event.target.value)} />
+                            </div>
+                            <div className="md:col-span-2 rounded-2xl border border-slate-100 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900/40">
+                                <h4 className="mb-4 flex items-center gap-2 border-b border-slate-200 pb-2 text-lg font-bold text-slate-800 dark:border-slate-700 dark:text-white">
+                                    <LayoutGrid className="h-5 w-5 text-emerald-500" />
+                                    ความต้องการ
+                                </h4>
+                                <div className="flex flex-wrap items-center gap-3">
+                                    {CHANGE_REQUEST_TYPE_OPTIONS.map((option) => (
+                                        <label key={option.value} className={`flex cursor-pointer items-center gap-2 rounded-xl border p-3 transition-all ${detailForm.req_type === option.value ? 'border-emerald-200 bg-emerald-50 font-medium text-emerald-800 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'border-slate-200 bg-white text-slate-600 hover:border-emerald-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'} ${!canEditDetailRequest ? 'cursor-default opacity-90' : ''}`}>
+                                            <input
+                                                type="radio"
+                                                name="change-detail-req-type"
+                                                value={option.value}
+                                                checked={detailForm.req_type === option.value}
+                                                disabled={!canEditDetailRequest}
+                                                onChange={() => handleDetailFormChange('req_type', option.value)}
+                                                className="h-4 w-4 text-emerald-600 focus:ring-emerald-500"
+                                            />
+                                            <span>{option.label}</span>
+                                        </label>
+                                    ))}
+                                    {detailForm.req_type === 'change' && (
+                                        <input className="input-modern min-w-[220px] flex-1" placeholder="ระบุเพิ่มเติม..." value={detailForm.req_type_other || ''} disabled={!canEditDetailRequest} onChange={(event) => handleDetailFormChange('req_type_other', event.target.value)} />
+                                    )}
+                                </div>
+                                <div className="mt-5 space-y-2">
+                                    <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">ประเภทการร้องขอ</label>
+                                    <div className="flex flex-wrap gap-3">
+                                        {REQUEST_CATEGORY_OPTIONS.map((category) => (
+                                            <label key={category} className={`flex cursor-pointer items-center gap-2 rounded-xl border p-3 transition-all ${detailForm.request_category === category ? 'border-emerald-200 bg-emerald-50 font-medium text-emerald-800 dark:border-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'border-slate-200 bg-white text-slate-600 hover:border-emerald-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'} ${!canEditDetailRequest ? 'cursor-default opacity-90' : ''}`}>
+                                                <input
+                                                    type="radio"
+                                                    name="change-detail-request-category"
+                                                    value={category}
+                                                    checked={detailForm.request_category === category}
+                                                    disabled={!canEditDetailRequest}
+                                                    onChange={() => handleDetailFormChange('request_category', category)}
+                                                    className="h-4 w-4 text-emerald-600 focus:ring-emerald-500"
+                                                />
+                                                <span>{category}</span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="md:col-span-2 mt-2 border-b border-slate-100 pb-2 dark:border-slate-700">
+                                <h4 className="flex items-center gap-2 text-lg font-bold text-slate-800 dark:text-white">
+                                    <User className="h-5 w-5 text-emerald-500" />
+                                    ส่วนที่ 1 : ข้อมูลผู้ร้องขอเปลี่ยนแปลงระบบ
+                                </h4>
+                            </div>
+                            <div>
+                                <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-slate-400">รหัสพนักงาน</label>
+                                <input className="input-modern w-full" value={detailForm.employee_id || ''} disabled={!canEditDetailRequest} onChange={(event) => handleDetailFormChange('employee_id', event.target.value)} />
+                            </div>
+                            <div>
+                                <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-slate-400">ชื่อผู้ร้องขอ</label>
+                                <input className="input-modern w-full" value={detailForm.requester_name || ''} disabled={!canEditDetailRequest} onChange={(event) => handleDetailFormChange('requester_name', event.target.value)} />
+                            </div>
+                            <div>
+                                <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-slate-400">ตำแหน่งผู้ร้องขอ</label>
+                                <div className="relative">
+                                    <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+                                        <Briefcase className="h-4 w-4" />
+                                    </span>
+                                    <input className="input-modern !pl-10 w-full" value={detailForm.requester_position || ''} disabled={!canEditDetailRequest} onChange={(event) => handleDetailFormChange('requester_position', event.target.value)} />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-slate-400">แผนก</label>
+                                <input className="input-modern w-full" value={detailForm.department || ''} disabled={!canEditDetailRequest} onChange={(event) => handleDetailFormChange('department', event.target.value)} />
+                            </div>
+                            <div className="md:col-span-2 mt-2 space-y-4 rounded-2xl border border-slate-100 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900/40">
+                                <div>
+                                    <label className="mb-1 flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
+                                        <FileText className="h-4 w-4 text-emerald-500" />
+                                        รายละเอียดของโปรเจ็กต์/ระบบที่ต้องการ
+                                    </label>
+                                    <textarea className="input-modern min-h-[100px] w-full p-4 text-sm" rows="3" value={detailForm.details || ''} disabled={!canEditDetailRequest} onChange={(event) => handleDetailFormChange('details', event.target.value)} />
+                                </div>
+                                <div>
+                                    <label className="mb-1 flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
+                                        <AlertCircle className="h-4 w-4 text-amber-500" />
+                                        เหตุผลการขอพัฒนาโปรแกรม
+                                    </label>
+                                    <textarea className="input-modern min-h-[80px] w-full p-4 text-sm" rows="3" value={detailForm.reason || ''} disabled={!canEditDetailRequest} onChange={(event) => handleDetailFormChange('reason', event.target.value)} />
+                                </div>
+                            </div>
+                            <div className="md:col-span-2 mt-2 border-b border-slate-100 pb-2 dark:border-slate-700">
+                                <h4 className="flex items-center gap-2 text-lg font-bold text-slate-800 dark:text-white">
+                                    <ClipboardPenLine className="h-5 w-5 text-emerald-500" />
+                                    ข้อมูลการดำเนินการ
+                                </h4>
+                            </div>
+
+                            <div>
+                                <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-slate-400">วันที่รับคำร้อง</label>
+                                <input type="date" className="input-modern w-full" value={detailForm.it_received_date || ''} disabled={!canEditDetailRequest} onChange={(event) => handleDetailFormChange('it_received_date', event.target.value)} />
+                            </div>
+                            <div>
+                                <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-slate-400">วันที่เริ่มดำเนินการ</label>
+                                <input type="date" className="input-modern w-full" value={detailForm.it_operation_date || ''} disabled={!canEditDetailRequest} onChange={(event) => handleDetailFormChange('it_operation_date', event.target.value)} />
+                            </div>
+                            <div>
+                                <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-slate-400">วันที่นัดหมายแล้วเสร็จ</label>
+                                <input type="date" className="input-modern w-full" value={detailForm.it_target_date || ''} disabled={!canEditDetailRequest} onChange={(event) => handleDetailFormChange('it_target_date', event.target.value)} />
+                            </div>
+                            <div>
+                                <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-slate-400">ผลอนุมัติ IT Manager</label>
+                                <input className="input-modern w-full" value={detailForm.it_approval_status || ''} disabled={!canEditDetailRequest} onChange={(event) => handleDetailFormChange('it_approval_status', event.target.value)} />
+                            </div>
+                            <div>
+                                <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-slate-400">ชื่อ IT Manager</label>
+                                <input className="input-modern w-full" value={detailForm.it_manager_name || ''} disabled={!canEditDetailRequest} onChange={(event) => handleDetailFormChange('it_manager_name', event.target.value)} />
+                            </div>
+                            <div>
+                                <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-slate-400">ตำแหน่ง IT Manager</label>
+                                <input className="input-modern w-full" value={detailForm.it_manager_position || ''} disabled={!canEditDetailRequest} onChange={(event) => handleDetailFormChange('it_manager_position', event.target.value)} />
+                            </div>
+                            <div className="md:col-span-2">
+                                <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-slate-400">เหตุผลไม่อนุมัติ</label>
+                                <textarea className="input-modern w-full" rows="2" value={detailForm.it_reject_reason || ''} disabled={!canEditDetailRequest} onChange={(event) => handleDetailFormChange('it_reject_reason', event.target.value)} />
+                            </div>
+                            <div className="md:col-span-2">
+                                <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-slate-400">วิธีแก้ไข/พัฒนา</label>
+                                <textarea className="input-modern w-full" rows="3" value={detailForm.it_solution || ''} disabled={!canEditDetailRequest} onChange={(event) => handleDetailFormChange('it_solution', event.target.value)} />
+                            </div>
+                            <div>
+                                <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-slate-400">ผู้ดำเนินการ</label>
+                                <input className="input-modern w-full" value={detailForm.it_staff_name || ''} disabled={!canEditDetailRequest} onChange={(event) => handleDetailFormChange('it_staff_name', event.target.value)} />
+                            </div>
+                            <div>
+                                <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-slate-400">ตำแหน่งผู้ดำเนินการ</label>
+                                <input className="input-modern w-full" value={detailForm.it_staff_position || ''} disabled={!canEditDetailRequest} onChange={(event) => handleDetailFormChange('it_staff_position', event.target.value)} />
+                            </div>
+                            <div>
+                                <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-slate-400">ผลการรับมอบของผู้แจ้ง</label>
+                                <input className="input-modern w-full" value={detailForm.user_acceptance || ''} disabled={!canEditDetailRequest} onChange={(event) => handleDetailFormChange('user_acceptance', event.target.value)} />
+                            </div>
+                            <div>
+                                <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-slate-400">เหตุผลผู้แจ้งไม่รับมอบ</label>
+                                <input className="input-modern w-full" value={detailForm.user_reject_reason || ''} disabled={!canEditDetailRequest} onChange={(event) => handleDetailFormChange('user_reject_reason', event.target.value)} />
+                            </div>
+                            <div className="md:col-span-2">
+                                <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-slate-400">เหตุผลยกเลิก</label>
+                                <textarea className="input-modern w-full" rows="2" value={detailForm.cancel_reason || ''} disabled={!canEditDetailRequest} onChange={(event) => handleDetailFormChange('cancel_reason', event.target.value)} />
+                            </div>
+                        </div>
+
+                        {canActOnRequest(detailRequest) && getActionStatusOptions(detailRequest.status).length > 0 && (
+                            <div className="mt-6 rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4 dark:border-emerald-800 dark:bg-emerald-900/20">
+                                <div className="mb-4 flex items-start justify-between gap-3">
+                                    <div>
+                                        <h4 className="flex items-center gap-2 text-base font-bold text-emerald-800 dark:text-emerald-200">
+                                            <ClipboardPenLine className="h-5 w-5" />
+                                            บันทึกสถานะ/การดำเนินการ
+                                        </h4>
+                                        <p className="mt-1 text-xs text-emerald-700/80 dark:text-emerald-200/80">
+                                            ใช้ส่วนนี้แทนหน้าต่างเปลี่ยนสถานะเดิม และไม่แสดงช่องลายเซ็นในหน้าแก้ไข
+                                        </p>
+                                    </div>
+                                    <span className="shrink-0 rounded-full bg-white px-3 py-1 text-xs font-bold text-emerald-700 shadow-sm dark:bg-emerald-950 dark:text-emerald-200">
+                                        {detailRequest.ticket_number || '-'}
+                                    </span>
+                                </div>
+
+                                <div className="mb-4">
+                                    <label className="mb-1 block text-xs font-semibold text-emerald-900 dark:text-emerald-100">สถานะที่ต้องการเปลี่ยน</label>
+                                    <Select value={selectedActionStatus} onValueChange={(value) => prepareActionForm(detailRequest, value)}>
+                                        <SelectTrigger className="input-modern w-full bg-white dark:bg-slate-900">
+                                            <SelectValue placeholder="เลือกสถานะ" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {getActionStatusOptions(detailRequest.status).map((option) => (
+                                                <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                {selectedActionStatus === 'Pending_IT_Manager' && actionType === 'it_intake' && (
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-200">วันที่รับคำร้องขอ</label>
+                                            <input type="date" className="input-modern w-full text-sm" value={itForm.receivedDate} onChange={e => setItForm({...itForm, receivedDate: e.target.value})} />
+                                        </div>
+                                        <div className="rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs text-emerald-700 dark:border-emerald-800 dark:bg-slate-900 dark:text-emerald-200">
+                                            บันทึกวันที่แล้วระบบจะส่งรายการต่อให้ IT Manager ลงนาม
+                                        </div>
+                                    </div>
+                                )}
+
+                                {selectedActionStatus === 'In_Progress' && actionType === 'it_manager' && (
+                                    <div className="space-y-4">
+                                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                            <div>
+                                                <label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-200">วันที่รับคำร้อง</label>
+                                                <input type="date" className="input-modern w-full text-sm" value={itForm.receivedDate} onChange={e => setItForm({...itForm, receivedDate: e.target.value})} />
+                                            </div>
+                                            <div>
+                                                <label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-200">วันที่นัดหมายแล้วเสร็จ</label>
+                                                <input type="date" className="input-modern w-full text-sm" value={itForm.targetDate} onChange={e => setItForm({...itForm, targetDate: e.target.value})} />
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="mb-2 block text-xs font-semibold text-slate-700 dark:text-slate-200">ผลการพิจารณา</label>
+                                            <div className="flex flex-wrap gap-4 text-sm">
+                                                <label className="flex items-center gap-2"><input type="radio" checked={itStatus === 'Approved'} onChange={() => setItStatus('Approved')} /> อนุมัติ</label>
+                                                <label className="flex items-center gap-2"><input type="radio" checked={itStatus === 'Rejected'} onChange={() => setItStatus('Rejected')} /> ไม่อนุมัติ</label>
+                                            </div>
+                                        </div>
+                                        {itStatus === 'Rejected' && (
+                                            <textarea className="input-modern w-full p-3 text-sm" placeholder="ระบุสาเหตุที่ไม่อนุมัติ..." value={itForm.reason} onChange={e => setItForm({...itForm, reason: e.target.value})} />
+                                        )}
+                                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                            <input type="text" className="input-modern" placeholder="ชื่อผู้อนุมัติ" value={itForm.managerName} onChange={e => setItForm({...itForm, managerName: e.target.value})} />
+                                            <input type="text" className="input-modern" placeholder="ตำแหน่ง" value={itForm.managerPosition} onChange={e => setItForm({...itForm, managerPosition: e.target.value})} />
+                                        </div>
+                                    </div>
+                                )}
+
+                                {selectedActionStatus === 'In_Development' && actionType === 'it_schedule' && (
+                                    <div className="space-y-4">
+                                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                            <div>
+                                                <label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-200">วันที่ดำเนินการ</label>
+                                                <input type="date" className="input-modern w-full text-sm" value={itForm.operationDate} onChange={e => setItForm({...itForm, operationDate: e.target.value})} />
+                                            </div>
+                                            <div>
+                                                <label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-200">วันที่นัดหมายแล้วเสร็จ</label>
+                                                <input type="date" className="input-modern w-full text-sm" value={itForm.targetDate} onChange={e => setItForm({...itForm, targetDate: e.target.value})} />
+                                            </div>
+                                        </div>
+                                        <div className="rounded-xl border border-sky-200 bg-white px-3 py-2 text-xs text-sky-700 dark:border-sky-800 dark:bg-slate-900 dark:text-sky-200">
+                                            บันทึกวันที่แล้วระบบจะเปลี่ยนสถานะเป็นกำลังดำเนินการ
+                                        </div>
+                                    </div>
+                                )}
+
+                                {selectedActionStatus === 'Pending_User_Acceptance' && actionType === 'it_staff' && (
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-200">วิธีแก้ไข/พัฒนา (Solution)</label>
+                                            <textarea className="input-modern min-h-[100px] w-full p-3 text-sm" placeholder="ระบุวิธีแก้ไขหรือรายละเอียดที่ดำเนินการ..." value={itForm.solution} onChange={e => setItForm({...itForm, solution: e.target.value})} />
+                                        </div>
+                                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                            <input type="text" className="input-modern" placeholder="ชื่อผู้ดำเนินการ" value={itForm.staffName} onChange={e => setItForm({...itForm, staffName: e.target.value})} />
+                                            <input type="text" className="input-modern" placeholder="ตำแหน่ง" value={itForm.staffPosition} onChange={e => setItForm({...itForm, staffPosition: e.target.value})} />
+                                        </div>
+                                        <div className="rounded-xl border border-dashed border-slate-300 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+                                            <label className="mb-2 flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                                                <Paperclip className="h-4 w-4 text-emerald-500" />
+                                                ไฟล์แนบเพิ่มเติม <span className="font-normal text-slate-400">(ไม่บังคับ)</span>
+                                            </label>
+                                            <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-500 hover:border-emerald-300 hover:text-emerald-600 dark:border-slate-700 dark:bg-slate-950">
+                                                <Paperclip className="h-4 w-4" />
+                                                เลือกไฟล์
+                                                <input type="file" multiple accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.zip" className="hidden" onChange={handleActionFileChange} />
+                                            </label>
+                                            {actionFiles.length > 0 && (
+                                                <div className="mt-3 space-y-2">
+                                                    {actionFiles.map((file) => (
+                                                        <div key={file.id} className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 text-xs dark:bg-slate-800">
+                                                            <span className="min-w-0 truncate font-semibold text-slate-700 dark:text-slate-200">{file.name}</span>
+                                                            <button type="button" onClick={() => removeActionFile(file.id)} className="shrink-0 rounded p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-500" title="ลบไฟล์แนบ" aria-label="ลบไฟล์แนบ">
+                                                                <X className="h-3.5 w-3.5" />
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
+                            </div>
+                        )}
+
+                        <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                            <button onClick={() => setDetailRequest(null)} className="rounded-xl bg-slate-100 px-5 py-2.5 font-semibold text-slate-700 transition hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600">ปิด</button>
+                            {(canEditDetailRequest || canActOnRequest(detailRequest)) && (
+                                <button
+                                    onClick={handleSaveDetailAndStatus}
+                                    disabled={isSavingDetails || (!canEditDetailRequest && canActOnRequest(detailRequest) && !selectedActionStatus)}
+                                    className="rounded-xl bg-emerald-600 px-5 py-2.5 font-semibold text-white shadow-md transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                    {isSavingDetails
+                                        ? 'กำลังบันทึก...'
+                                        : selectedActionStatus
+                                            ? 'บันทึกข้อมูลและสถานะ'
+                                            : 'บันทึกข้อมูล'}
+                                </button>
+                            )}
+                        </div>
                     </div>
                 </div>
             )}
