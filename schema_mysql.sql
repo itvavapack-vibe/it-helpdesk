@@ -227,4 +227,17 @@ CREATE TABLE IF NOT EXISTS issues (
 CREATE INDEX idx_issues_status ON issues(status);
 CREATE INDEX idx_issues_asset_id ON issues(asset_id);
 
+-- AI Helpdesk knowledge documents
+CREATE TABLE IF NOT EXISTS ai_helpdesk_documents (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  source_file VARCHAR(512) NOT NULL UNIQUE,
+  title VARCHAR(512),
+  content LONGTEXT NOT NULL,
+  document_type VARCHAR(64) DEFAULT 'pdf',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_ai_helpdesk_documents_type ON ai_helpdesk_documents(document_type);
+
 SET FOREIGN_KEY_CHECKS = 1;

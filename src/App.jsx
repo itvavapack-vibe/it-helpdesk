@@ -8,6 +8,7 @@ import IssueDashboard from './components/IssueDashboard';
 import AdminLogin from './components/AdminLogin';
 import UserManagement from './components/UserManagement';
 import EmployeeManagement from './components/EmployeeManagement';
+import AIHelpdesk from './components/AIHelpdesk';
 import HomePage from './components/HomePage';
 import AssetInventory from './components/AssetInventory';
 import IssueStatistics from './components/IssueStatistics';
@@ -44,6 +45,7 @@ const AUTH_HIDDEN_MAIN_NAV_ITEMS = new Set(['user', 'access_request', 'change_re
 const BOTTOM_NAV_VISIBLE_LIMIT = 4;
 const TAB_PATHS = {
     home: '/',
+    ai_helpdesk: '/ai-helpdesk',
     user: '/report-issue',
     tracking: '/track-repair',
     request_tracking: '/track',
@@ -824,6 +826,10 @@ function App() {
 
         if (activeTab === 'user') {
             return <IssueForm addIssue={addIssue} qrParams={qrParams} />;
+        }
+
+        if (activeTab === 'ai_helpdesk') {
+            return <AIHelpdesk />;
         }
 
         if (activeTab === 'tracking') {

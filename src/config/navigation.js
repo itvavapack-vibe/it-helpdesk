@@ -3,6 +3,7 @@ import {
     FileCheck2,
     Home,
     Key,
+    Bot,
     Monitor,
     Settings,
     Ticket,
@@ -45,6 +46,7 @@ export const canSee = (itemRoles = [], role = NAV_ROLES.PUBLIC) => {
 
 export const MAIN_NAV_ITEMS = [
     { id: 'home', label: 'หน้าแรก', icon: Home, iconColor: 'text-sky-500 dark:text-sky-300', iconAura: '14, 165, 233', tab: 'home', roles: [NAV_ROLES.PUBLIC, ...ALL_IT_ROLES] },
+    { id: 'ai_helpdesk', label: 'AI Helpdesk', icon: Bot, iconColor: 'text-violet-500 dark:text-violet-300', iconAura: '139, 92, 246', tab: 'ai_helpdesk', roles: [NAV_ROLES.PUBLIC, ...ALL_IT_ROLES] },
     { id: 'user', label: 'แจ้งซ่อม/ปัญหา', icon: ClipboardList, iconColor: 'text-rose-500 dark:text-rose-300', iconAura: '244, 63, 94', tab: 'user', roles: [NAV_ROLES.PUBLIC, ...ALL_IT_ROLES] },
     { id: 'access_request', label: 'ขอสิทธิ์ใช้งาน', icon: UserPlus, iconColor: 'text-amber-500 dark:text-amber-300', iconAura: '245, 158, 11', tab: 'access_request', roles: [NAV_ROLES.PUBLIC, ...ALL_IT_ROLES] },
     { id: 'change_request', label: 'ขอพัฒนาระบบ', icon: ClipboardPenLine, iconColor: 'text-emerald-500 dark:text-emerald-300', iconAura: '16, 185, 129', tab: 'change_request', roles: [NAV_ROLES.PUBLIC, ...ALL_IT_ROLES] },
@@ -52,6 +54,7 @@ export const MAIN_NAV_ITEMS = [
 ];
 
 export const HOME_QUICK_ACTIONS = [
+    { id: 'ai_helpdesk', label: 'AI Helpdesk', icon: Bot, tab: 'ai_helpdesk', roles: [NAV_ROLES.PUBLIC, ...ALL_IT_ROLES] },
     { id: 'repair', label: 'แจ้งซ่อมเดี๋ยวนี้', icon: ClipboardList, tab: 'user', roles: [NAV_ROLES.PUBLIC, ...ALL_IT_ROLES] },
     { id: 'access', label: 'ขอสิทธิ์ใช้งาน', icon: UserPlus, tab: 'access_request', roles: [NAV_ROLES.PUBLIC, ...ALL_IT_ROLES] },
     { id: 'change', label: 'ใบขอพัฒนาโปรแกรม', icon: ClipboardPenLine, tab: 'change_request', roles: [NAV_ROLES.PUBLIC, ...ALL_IT_ROLES] },

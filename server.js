@@ -26,6 +26,7 @@ import {
 import { proxyGlpiRequest } from './lib/glpi-proxy.js'
 import { getLanAddresses } from './lib/network.js'
 import { sendTelegramNotification } from './lib/telegram.js'
+import { answerAiHelpdeskQuestion } from './lib/ai-helpdesk.js'
 
 dotenv.config()
 
@@ -203,6 +204,14 @@ app.put('/api/auth/security-settings', async (req, res) => {
 app.post('/api/telegram/notify', async (req, res) => {
   try {
     return res.json({ data: await sendTelegramNotification(req.body || {}) })
+  } catch (error) {
+    return res.status(error.status || 500).json({ error: error.message })
+  }
+})
+
+app.post('/api/ai-helpdesk/chat', async (req, res) => {
+  try {
+    return res.json({ data: await answerAiHelpdeskQuestion(req.body || {}) })
   } catch (error) {
     return res.status(error.status || 500).json({ error: error.message })
   }

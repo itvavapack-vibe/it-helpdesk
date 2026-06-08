@@ -114,15 +114,24 @@ const MONTH_OPTIONS = [
     { value: '12', label: 'ธันวาคม' }
 ];
 
+const getDepartmentOptions = (...currentDepartments) => {
+    const extraDepartments = currentDepartments
+        .map((department) => String(department || '').trim())
+        .filter(Boolean);
+
+    return [...new Set([...DEPARTMENTS, ...extraDepartments])];
+};
+
 const EmployeeManagement = ({ currentAdmin }) => {
     const [employees, setEmployees] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('All');
-    const initialMonthFilter = toLocalDateInputValue().slice(0, 7);
+    const currentMonthFilter = toLocalDateInputValue().slice(0, 7);
+    const initialMonthFilter = '';
     const [monthFilter, setMonthFilter] = useState(initialMonthFilter);
-    const [monthInput, setMonthInput] = useState(initialMonthFilter.slice(5, 7));
-    const [yearInput, setYearInput] = useState(initialMonthFilter.slice(0, 4));
+    const [monthInput, setMonthInput] = useState(currentMonthFilter.slice(5, 7));
+    const [yearInput, setYearInput] = useState(currentMonthFilter.slice(0, 4));
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalMode, setModalMode] = useState('add');
     const [formData, setFormData] = useState(emptyForm);
@@ -231,6 +240,11 @@ const EmployeeManagement = ({ currentAdmin }) => {
         resigned: employees.filter((employee) => employee.status === EMPLOYEE_STATUS.RESIGNED).length,
         transferred: employees.filter((employee) => employee.status === EMPLOYEE_STATUS.TRANSFERRED).length
     }), [employees]);
+
+    const departmentOptions = useMemo(
+        () => getDepartmentOptions(formData.department, formData.transfer_department),
+        [formData.department, formData.transfer_department]
+    );
 
     const updateMonthFilterPart = (part, value) => {
         const nextMonth = part === 'month' ? value : monthInput;
@@ -789,7 +803,7 @@ const EmployeeManagement = ({ currentAdmin }) => {
                                         <SelectValue placeholder="เลือกแผนก" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        {DEPARTMENTS.map((department) => (
+                                        {departmentOptions.map((department) => (
                                             <SelectItem key={department} value={department}>{department}</SelectItem>
                                         ))}
                                     </SelectContent>
@@ -874,7 +888,7 @@ const EmployeeManagement = ({ currentAdmin }) => {
                                                     <SelectValue placeholder="เลือกแผนกหลังโอนย้าย" />
                                                 </SelectTrigger>
                                                 <SelectContent>
-                                                    {DEPARTMENTS.map((department) => (
+                                                    {departmentOptions.map((department) => (
                                                         <SelectItem key={department} value={department}>{department}</SelectItem>
                                                     ))}
                                                 </SelectContent>
