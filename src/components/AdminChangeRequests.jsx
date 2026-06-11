@@ -94,6 +94,9 @@ const AdminChangeRequests = ({ currentAdmin }) => {
         if (status === 'Pending_IT') {
             return [{ value: 'Pending_IT_Manager', label: 'ส่งต่อผู้จัดการ' }];
         }
+        if (status === 'Pending_IT_Manager') {
+            return [{ value: 'In_Progress', label: 'อนุมัติและส่งดำเนินการ' }];
+        }
         if (status === 'In_Progress') {
             return [{ value: 'In_Development', label: 'บันทึกวันที่และเริ่มดำเนินการ' }];
         }
@@ -194,6 +197,19 @@ const AdminChangeRequests = ({ currentAdmin }) => {
             setItForm((form) => ({
                 ...form,
                 receivedDate: req.it_received_date ? toLocalDateInputValue(req.it_received_date) : toLocalDateInputValue(),
+            }));
+            return;
+        }
+
+        if (targetStatus === 'In_Progress') {
+            setActionType('it_manager');
+            setSelectedRequest(req);
+            setItForm((form) => ({
+                ...form,
+                receivedDate: req.it_received_date ? toLocalDateInputValue(req.it_received_date) : form.receivedDate,
+                targetDate: req.it_target_date ? toLocalDateInputValue(req.it_target_date) : form.targetDate,
+                managerName: currentAdmin?.name || currentAdmin?.username || form.managerName,
+                managerPosition: currentAdmin?.position || form.managerPosition,
             }));
             return;
         }

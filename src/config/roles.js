@@ -83,7 +83,9 @@ export const ACCESS_QUEUE_STATUS_BY_ROLE = {
 };
 
 export const CHANGE_QUEUE_STATUS_BY_ROLE = {
-    [ROLES.SUPERADMIN]: ['Pending_IT', 'In_Progress', 'In_Development'],
+    [ROLES.SUPERADMIN]: ['Pending_IT', 'Pending_IT_Manager', 'In_Progress', 'In_Development'],
+    [ROLES.IT_SUPPORT]: ['Pending_IT'],
+    [ROLES.IT_MANAGER]: ['Pending_IT_Manager'],
     [ROLES.IT_SOFTWARE]: ['Pending_IT', 'In_Progress', 'In_Development'],
     [ROLES.IT_MEDIA]: ['Pending_IT', 'In_Progress', 'In_Development'],
 };
@@ -99,11 +101,27 @@ export const visibleQueueStatuses = (role, queueMap) => {
     return queueMap[normalized] || [];
 };
 
+const CHANGE_REQUEST_CATEGORIES = {
+    SOFTWARE: 'พัฒนาโปรแกรม',
+    MEDIA: 'พัฒนาสื่อ',
+};
+
+export const normalizeChangeRequestCategory = (category) => {
+    const normalized = String(category || '').trim();
+    if (normalized === CHANGE_REQUEST_CATEGORIES.SOFTWARE || normalized.includes('โปรแกรม')) {
+        return CHANGE_REQUEST_CATEGORIES.SOFTWARE;
+    }
+    if (normalized === CHANGE_REQUEST_CATEGORIES.MEDIA || normalized.includes('สื่อ')) {
+        return CHANGE_REQUEST_CATEGORIES.MEDIA;
+    }
+    return normalized;
+};
+
 export const canHandleChangeRequestCategory = (role, item) => {
     const normalized = normalizeRoleValue(role);
-    const category = item?.request_category;
-    if (normalized === ROLES.IT_SOFTWARE) return category === 'พัฒนาโปรแกรม';
-    if (normalized === ROLES.IT_MEDIA) return category === 'พัฒนาสื่อ';
+    const category = normalizeChangeRequestCategory(item?.request_category);
+    if (normalized === ROLES.IT_SOFTWARE) return category === CHANGE_REQUEST_CATEGORIES.SOFTWARE;
+    if (normalized === ROLES.IT_MEDIA) return category === CHANGE_REQUEST_CATEGORIES.MEDIA;
     return true;
 };
 
