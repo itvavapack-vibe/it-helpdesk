@@ -108,29 +108,7 @@ npx vercel --prod
 
 ---
 
-## รันบน Ubuntu / Docker (เดิม)
-
-### โครงสร้างหลัก
-
-- `server.js` — API สำหรับ dev/local (พอร์ต 4000)
-- `api/` + `lib/` — logic เดียวกันสำหรับ Vercel
-- `src/mysqlClient.js` — client เรียก `/api`
-- `docker-compose.yml` — frontend + API + MySQL
-
-### Ubuntu
-
-```bash
-git clone <repository-url>
-cd it-helpdesk
-cp .env.example .env
-# แก้ DB_* และปล่อย VITE_API_URL ว่างได้ถ้าใช้ Vite proxy
-docker-compose up --build -d
-```
-
-- Frontend: `http://<server-ip>:5173`
-- API health: `http://<server-ip>:4000/api/health`
-
-### Local Windows
+## รันระบบแบบ Local Windows
 
 ```bash
 npm install
