@@ -61,12 +61,32 @@ const MaintenanceReportPdfPreview = ({ isOpen, onClose, formData }) => {
                         <title>Maintenance Report ${formData.id || ''}</title>
                         <style>
                             @page { size: A4 portrait; margin: 0; }
-                            html, body { margin: 0; padding: 0; background: #fff; }
-                            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                            #print-report { box-shadow: none !important; }
+                            html, body {
+                                width: 210mm;
+                                height: 297mm;
+                                margin: 0;
+                                padding: 0;
+                                overflow: hidden;
+                                background: #fff;
+                            }
+                            body {
+                                -webkit-print-color-adjust: exact;
+                                print-color-adjust: exact;
+                            }
+                            #print-page {
+                                width: 210mm;
+                                height: 297mm;
+                                overflow: hidden;
+                                page-break-after: avoid;
+                                break-after: avoid-page;
+                            }
+                            #print-report {
+                                box-shadow: none !important;
+                                transform-origin: top left;
+                            }
                         </style>
                     </head>
-                    <body>${previewRef.current.outerHTML}</body>
+                    <body><div id="print-page">${previewRef.current.outerHTML}</div></body>
                 </html>
             `);
             printDocument.close();
@@ -80,10 +100,19 @@ const MaintenanceReportPdfPreview = ({ isOpen, onClose, formData }) => {
                 });
             }));
 
-            const printReport = printDocument.body.firstElementChild;
-            if (printReport) {
-                printReport.id = 'print-report';
-            }
+            const printPage = printDocument.getElementById('print-page');
+            const printReport = printPage?.firstElementChild;
+            if (!printPage || !printReport) throw new Error('Print report is unavailable');
+
+            printReport.id = 'print-report';
+            const availableWidth = printPage.clientWidth;
+            const availableHeight = printPage.clientHeight - 4;
+            const printScale = Math.min(
+                1,
+                availableWidth / printReport.scrollWidth,
+                availableHeight / printReport.scrollHeight
+            );
+            printReport.style.transform = `scale(${printScale})`;
 
             const printWindow = printFrame.contentWindow;
             if (!printWindow) throw new Error('Print window is unavailable');
