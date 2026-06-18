@@ -381,9 +381,9 @@ const MaintenanceReportPdfPreview = ({ isOpen, onClose, formData }) => {
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', width: '42%' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', borderBottom: '1px dotted #000', height: '55px', margin: '0 auto 10px', width: '82%' }}>
-                                    {formData.inspectorSign && <img src={formData.inspectorSign} alt="ลายเซ็นผู้ตรวจสอบดำเนินการ" style={{ display: 'block', maxHeight: '52px', maxWidth: '100%', objectFit: 'contain', margin: '0 auto' }} />}
+                                    {formData.inspectorSign && <img src={formData.inspectorSign} alt="ลายเซ็นผู้ตรวจสอบ/ดำเนินการ" style={{ display: 'block', maxHeight: '52px', maxWidth: '100%', objectFit: 'contain', margin: '0 auto' }} />}
                                 </div>
-                                <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '5px' }}>ผู้ตรวจสอบดำเนินการ</div>
+                                <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '5px' }}>ผู้ตรวจสอบ/ดำเนินการ</div>
                                 <div style={{ fontSize: '13px', marginBottom: '3px' }}>({formData.inspectorName || '-'})</div>
                                 <div style={{ fontSize: '13px', marginBottom: '3px' }}>ตำแหน่ง {formData.inspectorPosition || '-'}</div>
                                 <div style={{ fontSize: '13px' }}>วันที่ {formatReportDate(formData.inspectorSignedAt)}</div>
@@ -403,8 +403,8 @@ const MaintenanceReportPdfPreview = ({ isOpen, onClose, formData }) => {
                             color: '#64748b' 
                         }}>
                             <div style={{ textAlign: 'left', color: '#0f172a' }}>
-                                <div>Revision No : 03</div>
-                                <div>Date of Issue : 03.04.26</div>
+                                <div>Revision No : 04</div>
+                                <div>Date of Issue : 08.06.26</div>
                             </div>
                         </div>
                     </div>
