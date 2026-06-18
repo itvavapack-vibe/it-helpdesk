@@ -34,6 +34,71 @@ const MaintenanceReportPdfPreview = ({ isOpen, onClose, formData }) => {
         }
     };
 
+    const handlePrint = async () => {
+        if (!previewRef.current) return;
+
+        const printFrame = document.createElement('iframe');
+        printFrame.setAttribute('title', 'พิมพ์รายงานใบแจ้งซ่อม');
+        printFrame.style.position = 'fixed';
+        printFrame.style.right = '0';
+        printFrame.style.bottom = '0';
+        printFrame.style.width = '0';
+        printFrame.style.height = '0';
+        printFrame.style.border = '0';
+        document.body.appendChild(printFrame);
+        const cleanupPrintFrame = () => printFrame.remove();
+
+        try {
+            const printDocument = printFrame.contentDocument;
+            if (!printDocument) throw new Error('Print document is unavailable');
+
+            printDocument.open();
+            printDocument.write(`
+                <!doctype html>
+                <html>
+                    <head>
+                        <base href="${document.baseURI}">
+                        <title>Maintenance Report ${formData.id || ''}</title>
+                        <style>
+                            @page { size: A4 portrait; margin: 0; }
+                            html, body { margin: 0; padding: 0; background: #fff; }
+                            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                            #print-report { box-shadow: none !important; }
+                        </style>
+                    </head>
+                    <body>${previewRef.current.outerHTML}</body>
+                </html>
+            `);
+            printDocument.close();
+
+            await printDocument.fonts?.ready;
+            await Promise.all(Array.from(printDocument.images).map((image) => {
+                if (image.complete) return Promise.resolve();
+                return new Promise((resolve) => {
+                    image.onload = resolve;
+                    image.onerror = resolve;
+                });
+            }));
+
+            const printReport = printDocument.body.firstElementChild;
+            if (printReport) {
+                printReport.id = 'print-report';
+            }
+
+            const printWindow = printFrame.contentWindow;
+            if (!printWindow) throw new Error('Print window is unavailable');
+
+            printWindow.onafterprint = cleanupPrintFrame;
+            printWindow.focus();
+            printWindow.print();
+            window.setTimeout(cleanupPrintFrame, 60000);
+        } catch (error) {
+            console.error('Error printing report', error);
+            cleanupPrintFrame();
+            Swal.fire('Error', 'ไม่สามารถเปิดหน้าต่างพิมพ์ได้', 'error');
+        }
+    };
+
     if (!isOpen || !formData) return null;
 
     const formatReportDate = (value) => {
@@ -78,6 +143,13 @@ const MaintenanceReportPdfPreview = ({ isOpen, onClose, formData }) => {
                         >
                             <Download className="w-4 h-4" />
                             <span className="hidden sm:inline">ดาวน์โหลด PDF</span>
+                        </button>
+                        <button
+                            onClick={handlePrint}
+                            className="py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-xl shadow-md flex items-center gap-2 transition-transform hover:-translate-y-0.5"
+                        >
+                            <Printer className="w-4 h-4" />
+                            <span className="hidden sm:inline">พิมพ์</span>
                         </button>
                         <button
                             onClick={onClose}
