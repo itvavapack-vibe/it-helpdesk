@@ -460,32 +460,32 @@ const AdminAccessRequests = ({ currentAdmin }) => {
                                         <td className="p-4 align-top whitespace-nowrap">
                                             {getStatusBadge(req.status || 'Pending')}
                                         </td>
-                                        <td className="p-4 align-top">
-                                            <div className="flex gap-2 justify-end">
+                                        <td className="p-4 align-top whitespace-nowrap">
+                                            <div className="flex min-w-max gap-2 justify-end">
                                                 {canActOnStatus(req.status || 'Pending') && getActionStatusOptions(req.status || 'Pending').length > 0 && (
-                                                    <button onClick={() => openStatusActionModal(req)} className="p-1.5 text-amber-600 hover:text-white hover:bg-amber-600 rounded-lg transition-colors" title="เปลี่ยนสถานะ">
-                                                        <Edit className="w-4 h-4" />
+                                                    <button onClick={() => openStatusActionModal(req)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-amber-600 transition-colors hover:bg-amber-600 hover:text-white" title="เปลี่ยนสถานะ" aria-label="เปลี่ยนสถานะ">
+                                                        <Edit className="h-5 w-5" />
                                                     </button>
                                                 )}
                                                 {req.status === 'Pending_User_Acknowledgement' && (
-                                                    <button onClick={() => showAcknowledgeAccessRequestLinkDialog(req)} className="p-1.5 text-teal-600 hover:text-white hover:bg-teal-600 rounded-lg transition-colors" title="ส่งลิงก์ให้ผู้แจ้งรับทราบ">
-                                                        <Link className="w-4 h-4" />
+                                                    <button onClick={() => showAcknowledgeAccessRequestLinkDialog(req)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-teal-600 transition-colors hover:bg-teal-600 hover:text-white" title="ส่งลิงก์ให้ผู้แจ้งรับทราบ" aria-label="ส่งลิงก์ให้ผู้แจ้งรับทราบ">
+                                                        <Link className="h-5 w-5" />
                                                     </button>
                                                 )}
-                                                <button onClick={() => openDetailModal(req)} className="p-1.5 text-sky-600 hover:text-white hover:bg-sky-600 rounded-lg transition-colors" title="ดูข้อมูลคำร้อง" aria-label="ดูข้อมูลคำร้อง">
-                                                    <Eye className="w-4 h-4" />
+                                                <button onClick={() => openDetailModal(req)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-sky-600 transition-colors hover:bg-sky-600 hover:text-white" title="ดูข้อมูลคำร้อง" aria-label="ดูข้อมูลคำร้อง">
+                                                    <Eye className="h-5 w-5" />
                                                 </button>
-                                                <button onClick={() => openPreview(req)} className="p-1.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors shadow-sm" title="ดูเอกสาร" aria-label="ดูเอกสาร">
-                                                    <Printer className="w-4 h-4" />
+                                                <button onClick={() => openPreview(req)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 shadow-sm transition-colors hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-400 dark:hover:bg-indigo-900/50" title="ดูเอกสาร" aria-label="ดูเอกสาร">
+                                                    <Printer className="h-5 w-5" />
                                                 </button>
                                                 {canDeleteRecord && (
-                                                    <button onClick={() => handleDelete(req.id)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors">
-                                                        <Trash2 className="w-4 h-4" />
+                                                    <button onClick={() => handleDelete(req.id)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20" title="ลบข้อมูล" aria-label="ลบข้อมูล">
+                                                        <Trash2 className="h-5 w-5" />
                                                     </button>
                                                 )}
                                                 {(!canDeleteRecord || canEditAllWork) && !['Cancelled', 'Completed', 'Rejected'].includes(req.status) && (
-                                                    <button onClick={() => handleCancelRequest(req)} className="p-1.5 text-rose-500 hover:text-white hover:bg-rose-600 rounded-lg transition-colors" title="ตั้งสถานะยกเลิก">
-                                                        <XCircle className="w-4 h-4" />
+                                                    <button onClick={() => handleCancelRequest(req)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-rose-500 transition-colors hover:bg-rose-600 hover:text-white" title="ตั้งสถานะยกเลิก" aria-label="ตั้งสถานะยกเลิก">
+                                                        <XCircle className="h-5 w-5" />
                                                     </button>
                                                 )}
                                             </div>
