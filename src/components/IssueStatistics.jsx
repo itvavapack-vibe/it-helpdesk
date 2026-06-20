@@ -31,6 +31,13 @@ const REQUEST_STATUS_GROUPS = [
     { name: 'ยกเลิก / ไม่อนุมัติ', statuses: ['Rejected', 'Cancelled'], color: '#f43f5e' }
 ];
 
+const CHANGE_REQUEST_STATUS_GROUPS = [
+    { name: 'รอดำเนินการ', statuses: ['Pending', 'Pending_IT', 'Pending_IT_Manager'], color: '#f59e0b' },
+    { name: 'กำลังดำเนินการ', statuses: ['In_Progress', 'In_Development', 'Pending_User_Acceptance'], color: '#6366f1' },
+    { name: 'ปิดจบ', statuses: ['Completed'], color: '#059669' },
+    { name: 'ยกเลิก / ไม่อนุมัติ', statuses: ['Rejected', 'Cancelled'], color: '#f43f5e' },
+];
+
 const MONTH_OPTIONS = [
     'มกราคม',
     'กุมภาพันธ์',
@@ -141,7 +148,7 @@ const AssetSourceCard = ({ title, total, items, iconColor, accentClass }) => (
     </div>
 );
 
-const groupRequestStatusData = (items, { excludeStatuses = [], excludeGroupNames = [] } = {}) => REQUEST_STATUS_GROUPS
+const groupRequestStatusData = (items, { excludeStatuses = [], excludeGroupNames = [], groups = REQUEST_STATUS_GROUPS } = {}) => groups
     .filter(group => !excludeGroupNames.includes(group.name))
     .map(group => ({
     name: group.name,
@@ -290,14 +297,18 @@ const IssueStatistics = ({ issues = [] }) => {
     );
 
     const statusData = useMemo(() => {
-        const counts = { Pending: 0, 'In Progress': 0, Resolved: 0 };
+        const counts = { Pending: 0, 'In Progress': 0, Resolved: 0, Closed: 0 };
         filteredIssues.forEach(issue => {
-            if (counts[issue.status] !== undefined) counts[issue.status]++;
+            const effectiveStatus = issue.status === 'Closed' || issue.userCloseSign || issue.userClosedAt
+                ? 'Closed'
+                : issue.status;
+            if (counts[effectiveStatus] !== undefined) counts[effectiveStatus]++;
         });
         return [
             { name: 'รอดำเนินการ', value: counts.Pending, color: '#f59e0b' },
             { name: 'กำลังแก้ไข', value: counts['In Progress'], color: '#6366f1' },
-            { name: 'เสร็จสิ้น', value: counts.Resolved, color: '#10b981' }
+            { name: 'เสร็จสิ้น', value: counts.Resolved, color: '#10b981' },
+            { name: 'ปิดจบ', value: counts.Closed, color: '#059669' },
         ].filter(item => item.value > 0);
     }, [filteredIssues]);
 
@@ -333,7 +344,7 @@ const IssueStatistics = ({ issues = [] }) => {
         [filteredAccessRequests],
     );
     const changeRequestStatusData = useMemo(
-        () => groupRequestStatusData(filteredChangeRequests, { excludeGroupNames: ['เสร็จสิ้น'] }),
+        () => groupRequestStatusData(filteredChangeRequests, { groups: CHANGE_REQUEST_STATUS_GROUPS }),
         [filteredChangeRequests],
     );
 
@@ -402,11 +413,13 @@ const IssueStatistics = ({ issues = [] }) => {
 
     const pendingIssueCount = filteredIssues.filter(issue => issue.status === 'Pending').length;
     const inProgressIssueCount = filteredIssues.filter(issue => issue.status === 'In Progress').length;
-    const resolvedIssueCount = filteredIssues.filter(issue => issue.status === 'Resolved').length;
-    const openIssueCount = filteredIssues.filter(issue => issue.status !== 'Resolved').length;
+    const closedIssueCount = filteredIssues.filter(issue => issue.status === 'Closed' || issue.userCloseSign || issue.userClosedAt).length;
+    const resolvedIssueCount = filteredIssues.filter(issue => issue.status === 'Resolved' && !issue.userCloseSign && !issue.userClosedAt).length;
+    const openIssueCount = filteredIssues.filter(issue => !['Resolved', 'Closed'].includes(issue.status) && !issue.userCloseSign && !issue.userClosedAt).length;
     const pendingAccessRequestCount = accessRequestStatusData[0]?.count || 0;
     const completedAccessRequestCount = accessRequestStatusData[2]?.count || 0;
     const pendingChangeRequestCount = changeRequestStatusData[0]?.count || 0;
+    const closedChangeRequestCount = changeRequestStatusData.find(item => item.name === 'ปิดจบ')?.count || 0;
     const softwareChangeRequestCount = requestCategoryData.find(item => item.name === 'พัฒนาโปรแกรม')?.count || 0;
     const mediaChangeRequestCount = requestCategoryData.find(item => item.name === 'พัฒนาสื่อ')?.count || 0;
     const pendingRequestCount = pendingAccessRequestCount + pendingChangeRequestCount;
@@ -508,11 +521,12 @@ const IssueStatistics = ({ issues = [] }) => {
                             <BarChart3 className="h-5 w-5 text-indigo-500" />
                             <h4 className="text-lg font-bold text-slate-800 dark:text-slate-100">สถานะงานแจ้งซ่อม</h4>
                         </div>
-                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
                             <MetricCard title="ทั้งหมด" value={filteredIssues.length} icon={AlertCircle} iconColor="text-orange-500" />
                             <MetricCard title="รอดำเนินการ" value={pendingIssueCount} icon={Clock3} iconColor="text-amber-500" />
                             <MetricCard title="กำลังแก้ไข" value={inProgressIssueCount} icon={RefreshCw} iconColor="text-indigo-500" />
                             <MetricCard title="เสร็จสิ้น" value={resolvedIssueCount} icon={CheckCircle2} iconColor="text-emerald-500" />
+                            <MetricCard title="ปิดจบ" value={closedIssueCount} icon={CheckCircle2} iconColor="text-teal-600" />
                         </div>
                         {statusData.length === 0 ? <EmptyChart message="ยังไม่มีรายการแจ้งซ่อม" /> : (
                             <div className="mt-6 h-72 w-full">
@@ -635,9 +649,10 @@ const IssueStatistics = ({ issues = [] }) => {
                             <ClipboardList className="h-5 w-5 text-violet-500" />
                             <h4 className="text-lg font-bold text-slate-800 dark:text-slate-100">คำร้องขอพัฒนาระบบ</h4>
                         </div>
-                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                             <MetricCard title="ทั้งหมด" value={filteredChangeRequests.length} icon={ClipboardList} iconColor="text-violet-500" />
                             <MetricCard title="รอดำเนินการ" value={pendingChangeRequestCount} icon={Clock3} iconColor="text-amber-500" />
+                            <MetricCard title="ปิดจบ" value={closedChangeRequestCount} icon={CheckCircle2} iconColor="text-teal-600" />
                             <MetricCard title="ยกเลิก / ไม่อนุมัติ" value={changeRequestStatusData.find(item => item.name === 'ยกเลิก / ไม่อนุมัติ')?.count || 0} icon={AlertCircle} iconColor="text-rose-500" />
                         </div>
                         <div className="mt-6 h-72 w-full">

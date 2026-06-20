@@ -62,6 +62,16 @@ const DEPARTMENTS = [
     'สำนักกรรมการ', 'อื่นๆ'
 ];
 
+const FILTER_STATUS_CARDS = [
+    { status: 'Pending', label: 'รอดำเนินการ', icon: Clock, iconClass: 'bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400' },
+    { status: 'In Progress', label: 'กำลังแก้ไข', icon: Edit, iconClass: 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-400' },
+    { status: 'External Repair', label: 'ส่งซ่อมภายนอก', icon: Settings, iconClass: 'bg-violet-100 text-violet-600 dark:bg-violet-900/40 dark:text-violet-400' },
+    { status: 'Waiting for Parts', label: 'รออะไหล่', icon: Paperclip, iconClass: 'bg-pink-100 text-pink-600 dark:bg-pink-900/40 dark:text-pink-400' },
+    { status: 'Resolved', label: 'เสร็จสิ้น', icon: CheckCircle2, iconClass: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400' },
+    { status: 'Closed', label: 'ปิดจบ', icon: FileSignature, iconClass: 'bg-teal-100 text-teal-600 dark:bg-teal-900/40 dark:text-teal-400' },
+    { status: 'Cancelled', label: 'ยกเลิก', icon: XCircle, iconClass: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300' },
+];
+
 const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRepairDetails, updateIssueFullDetails, deleteIssue, isLoading }) => {
     // Filter states
     const [searchTerm, setSearchTerm] = useState('');
@@ -195,8 +205,8 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
     const statsData = useMemo(() => ({
         pending: issues.filter(i => i.status === 'Pending').length,
         inProgress: issues.filter(i => i.status === 'In Progress').length,
-        resolved: issues.filter(i => i.status === 'Resolved').length,
-        mostUrgent: issues.filter(i => i.severity === 'Most Urgent').length,
+        resolved: issues.filter(i => i.status === 'Resolved' && !isIssueClosed(i)).length,
+        closed: issues.filter(isIssueClosed).length,
     }), [issues]);
 
     // Function to process data for the pie chart
@@ -276,6 +286,34 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
             return matchSearch && matchStatus && matchCategory && matchDateFrom && matchDateTo && matchAdmin;
         });
     }, [issues, searchTerm, filterStatus, filterCategory, filterDateFrom, filterDateTo, filterAdmin]);
+
+    const hasActiveFilters = Boolean(
+        searchTerm.trim() ||
+        filterStatus !== 'All' ||
+        filterCategory !== 'All' ||
+        filterDateFrom ||
+        filterDateTo ||
+        filterAdmin
+    );
+
+    const filteredStatusCounts = useMemo(() => {
+        const counts = {
+            Pending: 0,
+            'In Progress': 0,
+            'External Repair': 0,
+            'Waiting for Parts': 0,
+            Resolved: 0,
+            Closed: 0,
+            Cancelled: 0,
+        };
+
+        filteredIssues.forEach((issue) => {
+            const effectiveStatus = isIssueClosed(issue) ? 'Closed' : issue.status;
+            if (counts[effectiveStatus] !== undefined) counts[effectiveStatus] += 1;
+        });
+
+        return counts;
+    }, [filteredIssues]);
 
     // Pagination
     const totalPages = Math.ceil(filteredIssues.length / ITEMS_PER_PAGE);
@@ -624,16 +662,15 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                     </div>
                 </div>
                 <div className="glass-card rounded-2xl p-4 flex items-center gap-4">
-                    <div className="w-11 h-11 rounded-xl bg-red-100 dark:bg-red-900/40 flex items-center justify-center flex-shrink-0">
-                        <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
+                    <div className="w-11 h-11 rounded-xl bg-teal-100 dark:bg-teal-900/40 flex items-center justify-center flex-shrink-0">
+                        <FileSignature className="w-5 h-5 text-teal-600 dark:text-teal-400" />
                     </div>
                     <div>
-                        <p className="text-2xl font-bold text-slate-800 dark:text-white">{statsData.mostUrgent}</p>
-                        <p className="text-xs font-medium text-slate-500 dark:text-slate-400">ด่วนที่สุด</p>
+                        <p className="text-2xl font-bold text-slate-800 dark:text-white">{statsData.closed}</p>
+                        <p className="text-xs font-medium text-slate-500 dark:text-slate-400">ปิดจบ</p>
                     </div>
                 </div>
             </div>
-
 
             {/* Filter and Search Bar section */}
             <div className="glass-card p-4 sm:p-5 rounded-2xl flex flex-col gap-4 items-start shadow-md shadow-indigo-100/30">
@@ -728,6 +765,33 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                     )}
                 </div>
             </div>
+
+            {hasActiveFilters && (
+                <section className="space-y-3">
+                    <div className="flex flex-wrap items-end justify-between gap-3">
+                        <div>
+                            <h3 className="text-base font-bold text-slate-800 dark:text-white">สรุปผลตามการกรอง</h3>
+                            <p className="text-sm text-slate-500 dark:text-slate-400">แสดงจำนวนจากรายการที่ตรงกับเงื่อนไขปัจจุบัน</p>
+                        </div>
+                        <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-sm font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                            รวม {filteredIssues.length} รายการ
+                        </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-7">
+                        {FILTER_STATUS_CARDS.map(({ status, label, icon: Icon, iconClass }) => (
+                            <div key={status} className="glass-card flex min-h-[92px] items-center gap-3 rounded-2xl p-3">
+                                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${iconClass}`}>
+                                    <Icon className="h-5 w-5" />
+                                </div>
+                                <div className="min-w-0">
+                                    <p className="text-xl font-bold text-slate-800 dark:text-white">{filteredStatusCounts[status]}</p>
+                                    <p className="text-xs font-medium leading-tight text-slate-500 dark:text-slate-400">{label}</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </section>
+            )}
 
             {/* Main Table section */}
             <div className="glass-card rounded-3xl overflow-hidden border-t-0 shadow-xl shadow-indigo-100/50 dark:shadow-indigo-900/30">
