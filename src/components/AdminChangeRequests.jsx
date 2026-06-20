@@ -745,15 +745,15 @@ const AdminChangeRequests = ({ currentAdmin }) => {
             ) : (
                 <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                     <div className="overflow-x-auto">
-                        <table className="w-full table-fixed text-left border-collapse">
+                        <table className="w-full min-w-[1180px] table-fixed text-left border-collapse">
                             <thead>
-                                <tr className="bg-slate-50 border-b text-slate-500 text-xs uppercase">
-                                    <th className="w-[130px] p-3 whitespace-nowrap">วันที่ / เลขเอกสาร</th>
-                                    <th className="w-[130px] p-3 whitespace-nowrap">ประเภทการร้องขอ</th>
-                                    <th className="w-[170px] p-3 whitespace-nowrap">ผู้ร้องขอ / แผนก</th>
-                                    <th className="p-3">รายละเอียดการขอ (Requirement)</th>
-                                    <th className="w-[145px] p-3 whitespace-nowrap">สถานะ</th>
-                                    <th className="w-[210px] p-3 whitespace-nowrap text-right">จัดการ</th>
+                                <tr className="bg-slate-50 border-b text-center text-slate-500 text-xs uppercase">
+                                    <th className="w-[130px] p-3 whitespace-nowrap text-center">วันที่ / เลขเอกสาร</th>
+                                    <th className="w-[130px] p-3 whitespace-nowrap text-center">ประเภทการร้องขอ</th>
+                                    <th className="w-[170px] p-3 whitespace-nowrap text-center">ผู้ร้องขอ / แผนก</th>
+                                    <th className="w-[270px] p-3 text-center">รายละเอียดการขอ (Requirement)</th>
+                                    <th className="w-[145px] p-3 whitespace-nowrap text-center">สถานะ</th>
+                                    <th className="w-[300px] p-3 whitespace-nowrap text-center">จัดการ</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
@@ -785,11 +785,11 @@ const AdminChangeRequests = ({ currentAdmin }) => {
                                             {getStatusBadge(req.status)}
                                         </td>
                                         <td className="p-3 align-top text-right whitespace-nowrap">
-                                            <div className="flex items-center justify-end gap-1.5">
+                                            <div className="flex min-w-max items-center justify-end gap-1.5">
                                             <button
                                                 type="button"
                                                 onClick={() => openDetailModal(req)}
-                                                className="rounded-lg p-1.5 text-sky-600 transition-colors hover:bg-sky-600 hover:text-white"
+                                                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-sky-600 transition-colors hover:bg-sky-600 hover:text-white"
                                                 title="ดูข้อมูล"
                                                 aria-label="ดูข้อมูล"
                                             >
@@ -799,7 +799,7 @@ const AdminChangeRequests = ({ currentAdmin }) => {
                                                 <button
                                                     type="button"
                                                     onClick={() => openDetailModal(req, { edit: true })}
-                                                    className="rounded-lg p-1.5 text-amber-600 transition-colors hover:bg-amber-600 hover:text-white"
+                                                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-amber-600 transition-colors hover:bg-amber-600 hover:text-white"
                                                     title="แก้ไขข้อมูล"
                                                     aria-label="แก้ไขข้อมูล"
                                                 >
@@ -807,25 +807,25 @@ const AdminChangeRequests = ({ currentAdmin }) => {
                                                 </button>
                                             )}
                                             {req.status === 'Pending_User_Acceptance' && (
-                                                <button type="button" onClick={() => showAcceptChangeRequestLinkDialog(req)} className="p-2 text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg" title="สร้างลิงก์เซ็นรับมอบงาน">
+                                                <button type="button" onClick={() => showAcceptChangeRequestLinkDialog(req)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-indigo-500 transition-colors hover:bg-indigo-50 hover:text-indigo-700" title="สร้างลิงก์เซ็นรับมอบงาน" aria-label="สร้างลิงก์เซ็นรับมอบงาน">
                                                     <Link className="w-4 h-4" />
                                                 </button>
                                             )}
                                             {parseAttachments(req.attachments_json).length > 0 && (
-                                                <button type="button" onClick={() => showAttachmentsDialog(req)} className="p-2 text-emerald-600 hover:text-white hover:bg-emerald-600 rounded-lg" title="ดูไฟล์แนบเพิ่มเติม" aria-label="ดูไฟล์แนบเพิ่มเติม">
+                                                <button type="button" onClick={() => showAttachmentsDialog(req)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-emerald-600 transition-colors hover:bg-emerald-600 hover:text-white" title="ดูไฟล์แนบเพิ่มเติม" aria-label="ดูไฟล์แนบเพิ่มเติม">
                                                     <Paperclip className="w-4 h-4" />
                                                 </button>
                                             )}
-                                            <button type="button" onClick={() => setPreviewRequest(req)} className="p-2 rounded-lg bg-indigo-50 text-indigo-600 transition-colors hover:bg-indigo-100" title="ดูเอกสาร" aria-label="ดูเอกสาร">
+                                            <button type="button" onClick={() => setPreviewRequest(req)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 transition-colors hover:bg-indigo-100" title="ดูเอกสาร" aria-label="ดูเอกสาร">
                                                 <Printer className="w-4 h-4" />
                                             </button>
                                             {canDeleteRecord && (
-                                                <button onClick={() => handleDelete(req.id)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg">
+                                                <button onClick={() => handleDelete(req.id)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500" title="ลบข้อมูล" aria-label="ลบข้อมูล">
                                                     <Trash2 className="w-4 h-4" />
                                                 </button>
                                             )}
                                             {(!canDeleteRecord || canEditAllWork) && !['Cancelled', 'Completed', 'Rejected'].includes(req.status) && (
-                                                <button onClick={() => handleCancelRequest(req)} className="p-2 text-rose-500 hover:text-white hover:bg-rose-600 rounded-lg" title="ตั้งสถานะยกเลิก">
+                                                <button onClick={() => handleCancelRequest(req)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-rose-500 transition-colors hover:bg-rose-600 hover:text-white" title="ตั้งสถานะยกเลิก" aria-label="ตั้งสถานะยกเลิก">
                                                     <XCircle className="w-4 h-4" />
                                                 </button>
                                             )}
