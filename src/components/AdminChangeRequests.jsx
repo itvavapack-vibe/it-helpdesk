@@ -57,6 +57,7 @@ const AdminChangeRequests = ({ currentAdmin }) => {
     const [selectedActionStatus, setSelectedActionStatus] = useState('');
     const [detailRequest, setDetailRequest] = useState(null);
     const [detailForm, setDetailForm] = useState({});
+    const [isDetailEditing, setIsDetailEditing] = useState(false);
     const [isSavingDetails, setIsSavingDetails] = useState(false);
     
     // For IT Action Form 
@@ -508,10 +509,11 @@ const AdminChangeRequests = ({ currentAdmin }) => {
         }
     };
 
-    const openDetailModal = (req) => {
+    const openDetailModal = (req, { edit = false } = {}) => {
         setSelectedRequest(req);
         setSelectedActionStatus('');
         setActionFiles([]);
+        setIsDetailEditing(edit);
         setDetailRequest(req);
         setDetailForm({
             ticket_number: req.ticket_number || '',
@@ -540,7 +542,8 @@ const AdminChangeRequests = ({ currentAdmin }) => {
         });
     };
 
-    const canEditDetailRequest = Boolean(detailRequest && canEditAllWork && detailRequest.status !== 'Completed');
+    const canEditDetailRequest = Boolean(detailRequest && isDetailEditing && canEditAllWork);
+    const isDetailActionMode = Boolean(detailRequest && isDetailEditing && (canEditAllWork || canActOnRequest(detailRequest)));
 
     const handleDetailFormChange = (field, value) => {
         if (!canEditDetailRequest) return;
@@ -786,16 +789,23 @@ const AdminChangeRequests = ({ currentAdmin }) => {
                                             <button
                                                 type="button"
                                                 onClick={() => openDetailModal(req)}
-                                                className={`p-1.5 rounded-lg transition-colors ${
-                                                    (canEditAllWork || canActOnRequest(req)) && req.status !== 'Completed'
-                                                        ? 'text-amber-600 hover:text-white hover:bg-amber-600'
-                                                        : 'text-sky-600 hover:text-white hover:bg-sky-600'
-                                                }`}
-                                                title={(canEditAllWork || canActOnRequest(req)) && req.status !== 'Completed' ? 'แก้ไขข้อมูล' : 'ดูข้อมูล'}
-                                                aria-label={(canEditAllWork || canActOnRequest(req)) && req.status !== 'Completed' ? 'แก้ไขข้อมูล' : 'ดูข้อมูล'}
+                                                className="rounded-lg p-1.5 text-sky-600 transition-colors hover:bg-sky-600 hover:text-white"
+                                                title="ดูข้อมูล"
+                                                aria-label="ดูข้อมูล"
                                             >
-                                                {(canEditAllWork || canActOnRequest(req)) && req.status !== 'Completed' ? <Edit className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                                <Eye className="h-4 w-4" />
                                             </button>
+                                            {(canEditAllWork || canActOnRequest(req)) && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => openDetailModal(req, { edit: true })}
+                                                    className="rounded-lg p-1.5 text-amber-600 transition-colors hover:bg-amber-600 hover:text-white"
+                                                    title="แก้ไขข้อมูล"
+                                                    aria-label="แก้ไขข้อมูล"
+                                                >
+                                                    <Edit className="h-4 w-4" />
+                                                </button>
+                                            )}
                                             {req.status === 'Pending_User_Acceptance' && (
                                                 <button type="button" onClick={() => showAcceptChangeRequestLinkDialog(req)} className="p-2 text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg" title="สร้างลิงก์เซ็นรับมอบงาน">
                                                     <Link className="w-4 h-4" />
@@ -835,16 +845,14 @@ const AdminChangeRequests = ({ currentAdmin }) => {
                         <div className="mb-5 flex items-start justify-between gap-3">
                             <div>
                                 <h3 className="flex items-center gap-2 text-xl font-bold text-slate-800 dark:text-white">
-                                    {canEditDetailRequest ? <Edit className="h-5 w-5 text-sky-600" /> : <Eye className="h-5 w-5 text-slate-500" />}
-                                    {canEditDetailRequest ? 'แก้ไขข้อมูลคำร้องขอพัฒนา' : 'ดูข้อมูลคำร้องขอพัฒนา'}
+                                    {isDetailActionMode ? <Edit className="h-5 w-5 text-sky-600" /> : <Eye className="h-5 w-5 text-slate-500" />}
+                                    {isDetailActionMode ? 'แก้ไขข้อมูลคำร้องขอพัฒนา' : 'ดูข้อมูลคำร้องขอพัฒนา'}
                                 </h3>
                                 <p className="mt-1 text-sm text-slate-500">
-                                    {detailRequest.status === 'Completed'
-                                        ? 'คำร้องสถานะปิดจบ เปิดดูได้อย่างเดียว และไม่แสดงลายเซ็นในหน้านี้'
-                                        : 'แก้ไขเฉพาะข้อมูลคำร้องและผลดำเนินการ โดยไม่แก้ไขลายเซ็น'}
+                                    แก้ไขเฉพาะข้อมูลคำร้องและผลดำเนินการ โดยไม่แก้ไขลายเซ็น
                                 </p>
                             </div>
-                            <button onClick={() => setDetailRequest(null)} className="rounded-lg p-1 text-slate-400 transition hover:bg-slate-100 hover:text-rose-500 dark:hover:bg-slate-700">
+                            <button onClick={() => { setDetailRequest(null); setIsDetailEditing(false); }} className="rounded-lg p-1 text-slate-400 transition hover:bg-slate-100 hover:text-rose-500 dark:hover:bg-slate-700">
                                 <XCircle className="h-6 w-6" />
                             </button>
                         </div>
@@ -1017,7 +1025,7 @@ const AdminChangeRequests = ({ currentAdmin }) => {
                             </div>
                         </div>
 
-                        {canActOnRequest(detailRequest) && getActionStatusOptions(detailRequest.status).length > 0 && (
+                        {isDetailEditing && canActOnRequest(detailRequest) && getActionStatusOptions(detailRequest.status).length > 0 && (
                             <div className="mt-6 rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4 dark:border-emerald-800 dark:bg-emerald-900/20">
                                 <div className="mb-4 flex items-start justify-between gap-3">
                                     <div>
@@ -1147,8 +1155,8 @@ const AdminChangeRequests = ({ currentAdmin }) => {
                         )}
 
                         <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-                            <button onClick={() => setDetailRequest(null)} className="rounded-xl bg-slate-100 px-5 py-2.5 font-semibold text-slate-700 transition hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600">ปิด</button>
-                            {(canEditDetailRequest || canActOnRequest(detailRequest)) && (
+                            <button onClick={() => { setDetailRequest(null); setIsDetailEditing(false); }} className="rounded-xl bg-slate-100 px-5 py-2.5 font-semibold text-slate-700 transition hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600">ปิด</button>
+                            {isDetailEditing && (canEditDetailRequest || canActOnRequest(detailRequest)) && (
                                 <button
                                     onClick={handleSaveDetailAndStatus}
                                     disabled={isSavingDetails || (!canEditDetailRequest && canActOnRequest(detailRequest) && !selectedActionStatus)}
