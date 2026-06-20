@@ -3,7 +3,6 @@ import { mysql } from '../mysqlClient';
 import {
     Briefcase,
     Edit2,
-    Link as LinkIcon,
     MoveRight,
     Search,
     Trash2,
@@ -31,7 +30,7 @@ const DEPARTMENTS = [
     'เทคโนโลยีสารสนเทศ และ ERP',
     'วางแผน',
     'ฝ่ายผลิต',
-    'ตรวจสอบคุณภาพ',
+    'ประกันคุณภาพ',
     'ควบคุมคุณภาพ',
     'บริหารระบบ และ จป.',
     'ออกแบบ',
@@ -518,11 +517,9 @@ const EmployeeManagement = ({ currentAdmin }) => {
         return <span className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${meta.tone}`}>{meta.label}</span>;
     };
 
-    const renderStatusDate = (employee) => {
-        if (employee.status === EMPLOYEE_STATUS.RESIGNED) return formatDate(employee.end_date);
-        if (employee.status === EMPLOYEE_STATUS.TRANSFERRED) return formatDate(employee.transfer_date);
-        return '-';
-    };
+    const renderResignationDate = (employee) => (
+        employee.status === EMPLOYEE_STATUS.RESIGNED ? formatDate(employee.end_date) : '-'
+    );
 
     const statusMeta = getStatusMeta(formData.status);
 
@@ -611,14 +608,27 @@ const EmployeeManagement = ({ currentAdmin }) => {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
                 {[
-                    { label: 'พนักงานทั้งหมด', value: overallStats.total, icon: Users, className: 'bg-slate-100 text-slate-700 dark:bg-slate-700/60 dark:text-slate-200' },
-                    { label: 'ทำงาน', value: overallStats.active, icon: Briefcase, className: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-300' },
-                    { label: 'ลาออก', value: overallStats.resigned, icon: UserMinus, className: 'bg-rose-100 text-rose-600 dark:bg-rose-900/40 dark:text-rose-300' },
-                    { label: 'โอนย้าย', value: overallStats.transferred, icon: MoveRight, className: 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300' }
+                    { label: 'พนักงานทั้งหมด', value: overallStats.total, status: 'All', icon: Users, className: 'bg-slate-100 text-slate-700 dark:bg-slate-700/60 dark:text-slate-200' },
+                    { label: 'ทำงาน', value: overallStats.active, status: EMPLOYEE_STATUS.ACTIVE, icon: Briefcase, className: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-300' },
+                    { label: 'ลาออก', value: overallStats.resigned, status: EMPLOYEE_STATUS.RESIGNED, icon: UserMinus, className: 'bg-rose-100 text-rose-600 dark:bg-rose-900/40 dark:text-rose-300' },
+                    { label: 'โอนย้าย', value: overallStats.transferred, status: EMPLOYEE_STATUS.TRANSFERRED, icon: MoveRight, className: 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300' }
                 ].map((item) => {
                     const Icon = item.icon;
+                    const isSelected = statusFilter === item.status;
                     return (
-                        <div key={item.label} className="glass-card rounded-2xl p-5 flex items-center gap-4">
+                        <button
+                            key={item.label}
+                            type="button"
+                            onClick={() => setStatusFilter((currentStatus) => (
+                                item.status !== 'All' && currentStatus === item.status ? 'All' : item.status
+                            ))}
+                            aria-pressed={isSelected}
+                            className={`glass-card rounded-2xl p-5 flex items-center gap-4 text-left transition-all hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900 ${
+                                isSelected
+                                    ? 'border-blue-400 ring-2 ring-blue-200 dark:border-blue-500 dark:ring-blue-900/60'
+                                    : ''
+                            }`}
+                        >
                             <div className={`p-3 rounded-xl ${item.className}`}>
                                 <Icon className="w-6 h-6" />
                             </div>
@@ -626,31 +636,33 @@ const EmployeeManagement = ({ currentAdmin }) => {
                                 <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">{item.label}</p>
                                 <p className="text-3xl font-extrabold text-slate-800 dark:text-white">{item.value}</p>
                             </div>
-                        </div>
+                        </button>
                     );
                 })}
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                {[
-                    { label: 'เข้าใหม่เดือนนี้', value: monthlyStats.newJoiners.length, icon: UserPlus, className: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-300' },
-                    { label: 'ลาออกเดือนนี้', value: monthlyStats.exits.length, icon: UserMinus, className: 'bg-rose-100 text-rose-600 dark:bg-rose-900/40 dark:text-rose-300' },
-                    { label: 'โอนย้ายเดือนนี้', value: monthlyStats.transfers.length, icon: MoveRight, className: 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300' }
-                ].map((item) => {
-                    const Icon = item.icon;
-                    return (
-                        <div key={item.label} className="glass-card rounded-2xl p-5 flex items-center gap-4">
-                            <div className={`p-3 rounded-xl ${item.className}`}>
-                                <Icon className="w-6 h-6" />
+            {monthFilter && (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {[
+                        { label: 'เข้าใหม่เดือนนี้', value: monthlyStats.newJoiners.length, icon: UserPlus, className: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-300' },
+                        { label: 'ลาออกเดือนนี้', value: monthlyStats.exits.length, icon: UserMinus, className: 'bg-rose-100 text-rose-600 dark:bg-rose-900/40 dark:text-rose-300' },
+                        { label: 'โอนย้ายเดือนนี้', value: monthlyStats.transfers.length, icon: MoveRight, className: 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300' }
+                    ].map((item) => {
+                        const Icon = item.icon;
+                        return (
+                            <div key={item.label} className="glass-card rounded-2xl p-5 flex items-center gap-4">
+                                <div className={`p-3 rounded-xl ${item.className}`}>
+                                    <Icon className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">{item.label}</p>
+                                    <p className="text-2xl font-extrabold text-slate-800 dark:text-white">{item.value}</p>
+                                </div>
                             </div>
-                            <div>
-                                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">{item.label}</p>
-                                <p className="text-2xl font-extrabold text-slate-800 dark:text-white">{item.value}</p>
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
+                        );
+                    })}
+                </div>
+            )}
 
             {isLoading ? (
                 <div className="flex justify-center items-center py-20">
@@ -673,8 +685,7 @@ const EmployeeManagement = ({ currentAdmin }) => {
                                     <th className="p-4 whitespace-nowrap">แผนก</th>
                                     <th className="p-4 whitespace-nowrap">ตำแหน่ง</th>
                                     <th className="p-4 whitespace-nowrap">เริ่มงาน</th>
-                                    <th className="p-4 whitespace-nowrap">วันที่สถานะ</th>
-                                    <th className="p-4 whitespace-nowrap">ใบลาออก</th>
+                                    <th className="p-4 whitespace-nowrap">วันที่ลาออก</th>
                                     <th className="p-4 whitespace-nowrap">สถานะ</th>
                                     <th className="p-4 text-right whitespace-nowrap">จัดการ</th>
                                 </tr>
@@ -694,15 +705,7 @@ const EmployeeManagement = ({ currentAdmin }) => {
                                         <td className="p-4 align-middle text-slate-700 dark:text-slate-300">{employee.department}</td>
                                         <td className="p-4 align-middle text-slate-700 dark:text-slate-300">{employee.position || '-'}</td>
                                         <td className="p-4 align-middle whitespace-nowrap text-slate-600 dark:text-slate-400 text-sm">{formatDate(employee.start_date)}</td>
-                                        <td className="p-4 align-middle whitespace-nowrap text-slate-600 dark:text-slate-400 text-sm">{renderStatusDate(employee)}</td>
-                                        <td className="p-4 align-middle whitespace-nowrap text-sm">
-                                            {employee.resignation_link ? (
-                                                <a href={employee.resignation_link} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-800 font-semibold">
-                                                    <LinkIcon className="w-4 h-4" />
-                                                    เปิดลิงก์
-                                                </a>
-                                            ) : '-'}
-                                        </td>
+                                        <td className="p-4 align-middle whitespace-nowrap text-slate-600 dark:text-slate-400 text-sm">{renderResignationDate(employee)}</td>
                                         <td className="p-4 align-middle whitespace-nowrap">{renderStatusBadge(employee.status)}</td>
                                         <td className="p-4 align-middle">
                                             <div className="flex gap-2 justify-end">

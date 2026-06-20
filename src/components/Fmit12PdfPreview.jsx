@@ -405,7 +405,7 @@ const Fmit12PdfPreview = ({ isOpen, onClose, formData }) => {
                                 <div style={{ marginTop: '4px', fontSize: '9.5px', color: '#b91c1c' }}>เหตุผลการยกเลิก: {formData.cancelReason}</div>
                             )}
 
-                            <div style={{ position: 'absolute', bottom: '18mm', left: '17mm', right: '17mm', display: 'flex', justifyContent: 'space-between', fontSize: '9.5px' }}>
+                            <div style={{ position: 'absolute', bottom: '18mm', left: '17mm', fontSize: '9.5px', lineHeight: 1.45 }}>
                                 <div>Revision NO : 04</div>
                                 <div>Date of Issue : 03.04.26</div>
                             </div>
