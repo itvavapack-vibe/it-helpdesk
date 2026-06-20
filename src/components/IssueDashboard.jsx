@@ -267,13 +267,12 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
         setCurrentPage(1);
     }, [searchTerm, filterStatus, filterCategory, filterDateFrom, filterDateTo, filterAdmin]);
 
-    // Derived filtered issues based on search and filters
-    const filteredIssues = useMemo(() => {
+    // Apply the non-status filters first so status cards keep showing useful counts.
+    const issuesMatchingBaseFilters = useMemo(() => {
         if (!issues) return [];
         return issues.filter(issue => {
             const matchSearch = issue.id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 issue.name?.toLowerCase().includes(searchTerm.toLowerCase());
-            const matchStatus = filterStatus === 'All' || issue.status === filterStatus;
             const matchCategory = filterCategory === 'All' || issue.category === filterCategory;
 
             const issueDate = issue.createdAt ? new Date(issue.createdAt) : null;
@@ -283,9 +282,17 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
             const matchAdmin = !filterAdmin ||
                 (issue.assignedAdmin?.toLowerCase().includes(filterAdmin.toLowerCase()));
 
-            return matchSearch && matchStatus && matchCategory && matchDateFrom && matchDateTo && matchAdmin;
+            return matchSearch && matchCategory && matchDateFrom && matchDateTo && matchAdmin;
         });
-    }, [issues, searchTerm, filterStatus, filterCategory, filterDateFrom, filterDateTo, filterAdmin]);
+    }, [issues, searchTerm, filterCategory, filterDateFrom, filterDateTo, filterAdmin]);
+
+    const filteredIssues = useMemo(() => {
+        if (filterStatus === 'All') return issuesMatchingBaseFilters;
+        return issuesMatchingBaseFilters.filter((issue) => {
+            const effectiveStatus = isIssueClosed(issue) ? 'Closed' : issue.status;
+            return effectiveStatus === filterStatus;
+        });
+    }, [filterStatus, issuesMatchingBaseFilters]);
 
     const hasActiveFilters = Boolean(
         searchTerm.trim() ||
@@ -307,13 +314,13 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
             Cancelled: 0,
         };
 
-        filteredIssues.forEach((issue) => {
+        issuesMatchingBaseFilters.forEach((issue) => {
             const effectiveStatus = isIssueClosed(issue) ? 'Closed' : issue.status;
             if (counts[effectiveStatus] !== undefined) counts[effectiveStatus] += 1;
         });
 
         return counts;
-    }, [filteredIssues]);
+    }, [issuesMatchingBaseFilters]);
 
     // Pagination
     const totalPages = Math.ceil(filteredIssues.length / ITEMS_PER_PAGE);
@@ -779,7 +786,18 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                     </div>
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-7">
                         {FILTER_STATUS_CARDS.map(({ status, label, icon: Icon, iconClass }) => (
-                            <div key={status} className="glass-card flex min-h-[92px] items-center gap-3 rounded-2xl p-3">
+                            <button
+                                key={status}
+                                type="button"
+                                onClick={() => setFilterStatus((current) => current === status ? 'All' : status)}
+                                className={`glass-card flex min-h-[92px] items-center gap-3 rounded-2xl p-3 text-left transition-all hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-lg dark:hover:border-indigo-700 ${
+                                    filterStatus === status
+                                        ? 'border-indigo-400 bg-indigo-50/80 ring-2 ring-indigo-500/20 dark:border-indigo-600 dark:bg-indigo-950/30'
+                                        : ''
+                                }`}
+                                aria-pressed={filterStatus === status}
+                                title={`กรองสถานะ${label}`}
+                            >
                                 <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${iconClass}`}>
                                     <Icon className="h-5 w-5" />
                                 </div>
@@ -787,7 +805,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                     <p className="text-xl font-bold text-slate-800 dark:text-white">{filteredStatusCounts[status]}</p>
                                     <p className="text-xs font-medium leading-tight text-slate-500 dark:text-slate-400">{label}</p>
                                 </div>
-                            </div>
+                            </button>
                         ))}
                     </div>
                 </section>

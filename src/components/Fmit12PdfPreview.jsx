@@ -2,7 +2,7 @@ import React, { useRef } from 'react';
 import { createPortal } from 'react-dom';
 import html2canvas from 'html2canvas-pro';
 import jsPDF from 'jspdf';
-import { Download, X } from 'lucide-react';
+import { Download, Printer, X } from 'lucide-react';
 import Swal from 'sweetalert2';
 
 const Fmit12PdfPreview = ({ isOpen, onClose, formData }) => {
@@ -28,6 +28,84 @@ const Fmit12PdfPreview = ({ isOpen, onClose, formData }) => {
         } catch (error) {
             console.error('Error generating PDF', error);
             Swal.fire('Error', 'ไม่สามารถสร้างไฟล์ PDF ได้', 'error');
+        }
+    };
+
+    const handlePrint = async () => {
+        if (!previewRef.current) return;
+
+        const printFrame = document.createElement('iframe');
+        printFrame.setAttribute('title', 'พิมพ์แบบฟอร์ม FMIT 12');
+        printFrame.style.position = 'fixed';
+        printFrame.style.right = '0';
+        printFrame.style.bottom = '0';
+        printFrame.style.width = '0';
+        printFrame.style.height = '0';
+        printFrame.style.border = '0';
+        document.body.appendChild(printFrame);
+
+        const cleanupPrintFrame = () => printFrame.remove();
+
+        try {
+            const printDocument = printFrame.contentDocument;
+            if (!printDocument) throw new Error('Print document is unavailable');
+
+            printDocument.open();
+            printDocument.write(`
+                <!doctype html>
+                <html>
+                    <head>
+                        <base href="${document.baseURI}">
+                        <title>FMIT12 ${formData?.ticketNumber || ''}</title>
+                        <style>
+                            @page { size: A4 portrait; margin: 0; }
+                            html, body {
+                                width: 210mm;
+                                height: 297mm;
+                                margin: 0;
+                                padding: 0;
+                                overflow: hidden;
+                                background: #fff;
+                            }
+                            body {
+                                -webkit-print-color-adjust: exact;
+                                print-color-adjust: exact;
+                            }
+                            #print-report {
+                                width: 210mm !important;
+                                height: 297mm !important;
+                                box-shadow: none !important;
+                            }
+                        </style>
+                    </head>
+                    <body>${previewRef.current.outerHTML}</body>
+                </html>
+            `);
+            printDocument.close();
+
+            await printDocument.fonts?.ready;
+            await Promise.all(Array.from(printDocument.images).map((image) => {
+                if (image.complete) return Promise.resolve();
+                return new Promise((resolve) => {
+                    image.onload = resolve;
+                    image.onerror = resolve;
+                });
+            }));
+
+            const printReport = printDocument.body.firstElementChild;
+            if (printReport) printReport.id = 'print-report';
+
+            const printWindow = printFrame.contentWindow;
+            if (!printWindow) throw new Error('Print window is unavailable');
+
+            printWindow.onafterprint = cleanupPrintFrame;
+            printWindow.focus();
+            printWindow.print();
+            window.setTimeout(cleanupPrintFrame, 60000);
+        } catch (error) {
+            console.error('Error printing FMIT 12', error);
+            cleanupPrintFrame();
+            Swal.fire('Error', 'ไม่สามารถเปิดหน้าต่างพิมพ์ได้', 'error');
         }
     };
 
@@ -138,6 +216,10 @@ const Fmit12PdfPreview = ({ isOpen, onClose, formData }) => {
                         <button onClick={handleDownloadPdf} className="py-2 px-3 sm:px-4 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl shadow-md flex items-center gap-2 transition-transform hover:-translate-y-0.5">
                             <Download className="w-4 h-4" />
                             <span className="hidden sm:inline">ดาวน์โหลด PDF</span>
+                        </button>
+                        <button onClick={handlePrint} className="py-2 px-3 sm:px-4 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-xl shadow-md flex items-center gap-2 transition-transform hover:-translate-y-0.5">
+                            <Printer className="w-4 h-4" />
+                            <span className="hidden sm:inline">พิมพ์</span>
                         </button>
                         <button onClick={onClose} className="p-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 rounded-xl transition-colors shadow-sm">
                             <X className="w-5 h-5" />
