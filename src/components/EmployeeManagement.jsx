@@ -196,7 +196,7 @@ const EmployeeManagement = ({ currentAdmin }) => {
 
     const isSameMonth = (dateValue) => {
         if (!dateValue || !monthFilter) return false;
-        return String(dateValue).slice(0, 7) === monthFilter;
+        return toDateInputValue(dateValue).slice(0, 7) === monthFilter;
     };
 
     const isEmployeeInSelectedMonth = (employee) => {
