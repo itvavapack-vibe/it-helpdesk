@@ -1,5 +1,7 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import * as XLSX from 'xlsx';
+import html2canvas from 'html2canvas-pro';
+import jsPDF from 'jspdf';
 import SignatureCanvas from 'react-signature-canvas';
 import { Clock, Edit, CheckCircle2, FileSpreadsheet, Trash2, Search, Filter, AlertTriangle, Eye, Printer, FileSignature, MessageSquare, Monitor, ChevronDown, X, XCircle, Copy, ChevronLeft, ChevronRight, Settings, Save, ImagePlus, Paperclip, Link2, Ticket, Eraser } from 'lucide-react';
 import { showCloseIssueLinkDialog } from '../utils/closeIssueLink';
@@ -81,6 +83,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
     const [filterDateTo, setFilterDateTo] = useState('');
     const [filterAdmin, setFilterAdmin] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
+    const [isExportingPdf, setIsExportingPdf] = useState(false);
 
     // Page state for repair details
     const [isRepairModalOpen, setIsRepairModalOpen] = useState(false);
@@ -261,6 +264,144 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, "Issues Report");
         XLSX.writeFile(workbook, `IT_Helpdesk_Report_${new Date().toISOString().split('T')[0]}.xlsx`);
+    };
+
+    const exportToPdf = async () => {
+        if (!filteredIssues.length || isExportingPdf) {
+            if (!filteredIssues.length) Swal.fire('ไม่มีข้อมูล', 'ไม่พบรายการสำหรับสร้างไฟล์ PDF', 'info');
+            return;
+        }
+
+        setIsExportingPdf(true);
+        const printRoot = document.createElement('div');
+        printRoot.style.cssText = 'position:fixed;left:-100000px;top:0;width:1123px;background:#fff;z-index:-1;';
+        document.body.appendChild(printRoot);
+
+        const pageSize = 12;
+        const pages = Array.from(
+            { length: Math.ceil(filteredIssues.length / pageSize) },
+            (_, index) => filteredIssues.slice(index * pageSize, (index + 1) * pageSize)
+        );
+
+        const createCell = (text, width, { header = false, align = 'left' } = {}) => {
+            const cell = document.createElement(header ? 'th' : 'td');
+            cell.style.cssText = [
+                `width:${width}%`,
+                'border:1px solid #cbd5e1',
+                'padding:6px 7px',
+                `text-align:${align}`,
+                'vertical-align:top',
+                header ? 'background:#e2e8f0;font-weight:700;color:#1e293b;' : 'color:#334155;',
+            ].join(';');
+            const content = document.createElement('div');
+            content.textContent = text || '-';
+            content.style.cssText = header
+                ? 'line-height:1.2;'
+                : 'line-height:1.25;max-height:32px;overflow:hidden;word-break:break-word;';
+            cell.appendChild(content);
+            return cell;
+        };
+
+        try {
+            await document.fonts?.ready;
+            const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+
+            for (let pageIndex = 0; pageIndex < pages.length; pageIndex += 1) {
+                const page = document.createElement('section');
+                page.style.cssText = [
+                    'width:1123px',
+                    'height:794px',
+                    'box-sizing:border-box',
+                    'padding:34px 38px 28px',
+                    'background:#fff',
+                    'font-family:Sarabun,Tahoma,"Segoe UI",sans-serif',
+                    'position:relative',
+                    'overflow:hidden',
+                ].join(';');
+
+                const heading = document.createElement('div');
+                heading.style.cssText = 'display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;';
+                const titleGroup = document.createElement('div');
+                const title = document.createElement('div');
+                title.textContent = 'รายงานตารางรายการแจ้งซ่อม/ปัญหา/ขอติดตั้ง';
+                title.style.cssText = 'font-size:22px;font-weight:700;color:#0f172a;';
+                const subtitle = document.createElement('div');
+                subtitle.textContent = `จำนวนทั้งหมด ${filteredIssues.length} รายการ${hasActiveFilters ? ' (ตามเงื่อนไขการกรอง)' : ''}`;
+                subtitle.style.cssText = 'font-size:12px;color:#64748b;margin-top:3px;';
+                titleGroup.append(title, subtitle);
+
+                const generated = document.createElement('div');
+                generated.textContent = `วันที่พิมพ์ ${new Date().toLocaleDateString('th-TH')}`;
+                generated.style.cssText = 'font-size:12px;color:#475569;text-align:right;';
+                heading.append(titleGroup, generated);
+                page.appendChild(heading);
+
+                const table = document.createElement('table');
+                table.style.cssText = 'width:100%;border-collapse:collapse;table-layout:fixed;font-size:11px;';
+                const thead = document.createElement('thead');
+                const headerRow = document.createElement('tr');
+                [
+                    ['รหัส / วันที่', 10],
+                    ['ผู้แจ้ง', 12],
+                    ['แผนก', 12],
+                    ['หมวดหมู่', 15],
+                    ['ระดับ', 8],
+                    ['รายละเอียดปัญหา', 25],
+                    ['ผู้รับงาน', 10],
+                    ['สถานะ', 8],
+                ].forEach(([label, width]) => headerRow.appendChild(createCell(label, width, { header: true, align: 'center' })));
+                thead.appendChild(headerRow);
+                table.appendChild(thead);
+
+                const tbody = document.createElement('tbody');
+                pages[pageIndex].forEach((issue) => {
+                    const row = document.createElement('tr');
+                    row.style.height = '45px';
+                    const effectiveStatus = isIssueClosed(issue) ? 'Closed' : issue.status;
+                    const values = [
+                        [`${issue.id || '-'}\n${formatDate(issue.createdAt)}`, 10],
+                        [issue.name, 12],
+                        [issue.department, 12],
+                        [issue.category, 15],
+                        [getSeverityText(issue.severity), 8],
+                        [issue.description, 25],
+                        [issue.assignedAdmin || 'ยังไม่มีผู้รับงาน', 10],
+                        [getPdfStatusText(effectiveStatus), 8],
+                    ];
+                    values.forEach(([value, width], index) => {
+                        const cell = createCell(value, width, { align: index === 0 || index >= 6 ? 'center' : 'left' });
+                        cell.firstChild.style.whiteSpace = 'pre-line';
+                        row.appendChild(cell);
+                    });
+                    tbody.appendChild(row);
+                });
+                table.appendChild(tbody);
+                page.appendChild(table);
+
+                const footer = document.createElement('div');
+                footer.textContent = `หน้า ${pageIndex + 1} / ${pages.length}`;
+                footer.style.cssText = 'position:absolute;left:38px;right:38px;bottom:14px;text-align:center;font-size:11px;color:#64748b;';
+                page.appendChild(footer);
+                printRoot.replaceChildren(page);
+
+                const canvas = await html2canvas(page, {
+                    scale: 1.5,
+                    useCORS: true,
+                    backgroundColor: '#ffffff',
+                    logging: false,
+                });
+                if (pageIndex > 0) pdf.addPage('a4', 'landscape');
+                pdf.addImage(canvas.toDataURL('image/jpeg', 0.94), 'JPEG', 0, 0, 297, 210);
+            }
+
+            pdf.save(`IT_Helpdesk_Issues_${new Date().toISOString().slice(0, 10)}.pdf`);
+        } catch (error) {
+            console.error('Error exporting issues PDF:', error);
+            Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถสร้างไฟล์ PDF ได้', 'error');
+        } finally {
+            printRoot.remove();
+            setIsExportingPdf(false);
+        }
     };
 
     useEffect(() => {
@@ -818,6 +959,14 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                         <div className="w-2 h-6 bg-indigo-500 rounded-full"></div> รายการแจ้งซ่อมทั้งหมด <span className="text-sm font-medium text-slate-500 dark:text-slate-300 bg-white dark:bg-slate-700 px-2 py-0.5 rounded-full border border-slate-200 dark:border-slate-600">{filteredIssues.length} รายการ</span>
                     </h3>
                     <div className="flex gap-3">
+                        <button
+                            onClick={exportToPdf}
+                            disabled={isExportingPdf || filteredIssues.length === 0}
+                            className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-white dark:bg-slate-800 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-700/50 rounded-full hover:bg-rose-50 dark:hover:bg-rose-900/40 hover:shadow-md transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-50"
+                            title="ส่งออกตารางเป็นไฟล์ PDF"
+                        >
+                            <Printer className="w-4 h-4" /> {isExportingPdf ? 'กำลังสร้าง...' : 'PDF'}
+                        </button>
                         <button
                             onClick={exportToExcel}
                             className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-white dark:bg-slate-800 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-700/50 rounded-full hover:bg-emerald-50 dark:hover:bg-emerald-900/40 hover:shadow-md transition-all duration-200"
