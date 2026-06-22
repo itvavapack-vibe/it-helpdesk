@@ -1362,7 +1362,8 @@ const AdminChangeRequests = ({ currentAdmin }) => {
                         itStaffPosition: previewRequest.it_staff_position || '',
                         userAcceptance: previewRequest.user_acceptance || '',
                         userRejectReason: previewRequest.user_reject_reason || '',
-                        userAcceptSign: previewRequest.user_accept_sign || null,
+                        userAcceptSign: previewRequest.user_accept_sign
+                            || (previewRequest.status === 'Completed' ? previewRequest.requester_sign : null),
                         userAcceptDate: previewRequest.user_accept_date || null,
                         status: previewRequest.status || '',
                         cancelledAt: previewRequest.cancelled_at || null,
