@@ -394,7 +394,7 @@ const Fmit12PdfPreview = ({ isOpen, onClose, formData }) => {
                                             title="ลงนามผู้ปฏิบัติงาน ผู้ยกเลิกการใช้งาน"
                                             sign={formData.cancelItSign}
                                             name={formData.cancelItName}
-                                            date={formData.cancelledAt ? new Date(formData.cancelledAt).toLocaleDateString('th-TH') : undefined}
+                                            date={formData.cancelledAt}
                                             height={52}
                                         />
                                     </tr>
