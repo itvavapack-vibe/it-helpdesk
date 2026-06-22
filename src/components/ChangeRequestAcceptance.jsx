@@ -5,7 +5,6 @@ import Swal from 'sweetalert2';
 import { mysql } from '../mysqlClient';
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Label } from '@/components/ui';
 import { toMysqlDateTime } from '../utils/dateTime';
-import { loadSignatureIntoCanvas } from '../utils/signatureCanvas';
 
 const ChangeRequestAcceptance = ({ requestId }) => {
     const signatureRef = useRef(null);
@@ -39,11 +38,6 @@ const ChangeRequestAcceptance = ({ requestId }) => {
 
         fetchRequest();
     }, [requestId]);
-
-    useEffect(() => {
-        if (!request?.requester_sign || request.status === 'Completed') return;
-        loadSignatureIntoCanvas(signatureRef, request.requester_sign);
-    }, [request]);
 
     const handleSubmit = async (event) => {
         event.preventDefault();

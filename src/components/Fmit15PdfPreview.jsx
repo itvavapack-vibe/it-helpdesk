@@ -327,6 +327,7 @@ const Fmit15PdfPreview = ({ isOpen, onClose, formData }) => {
                                         <div style={{ fontSize: '12px', fontWeight: 500 }}>Operated by : (ชื่อผู้ดำเนินการ)</div>
                                         <div style={{ height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                             {formData.itStaffSign && <img src={formData.itStaffSign} alt="sign" style={{ height: '30px', maxWidth: '100%', objectFit: 'contain' }} />}
+                                            {!formData.itStaffSign && <span style={{ fontSize: '14px', textAlign: 'center' }}>{formData.itStaffName}</span>}
                                         </div>
                                     </td>
                                     <td style={{ border: '1px solid #000', padding: '5px', width: '33.33%', verticalAlign: 'top' }}>
