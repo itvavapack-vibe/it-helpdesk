@@ -357,6 +357,7 @@ const AdminAccessRequests = ({ currentAdmin }) => {
         const effectiveStatus = req.status === 'Pending' || !req.status ? 'Pending_Manager' : req.status;
         const matchesSearch =
             !keyword ||
+            req.employee_id?.toLowerCase().includes(keyword) ||
             req.name_th?.toLowerCase().includes(keyword) ||
             req.department?.toLowerCase().includes(keyword) ||
             req.ticket_number?.toLowerCase().includes(keyword) ||
@@ -387,7 +388,7 @@ const AdminAccessRequests = ({ currentAdmin }) => {
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
                         <input
                             type="text"
-                            placeholder="ค้นหาชื่อ แผนก เลขที่ หรือรายละเอียด..."
+                            placeholder="ค้นหารหัสพนักงาน ชื่อ แผนก เลขที่ หรือรายละเอียด..."
                             value={searchTerm}
                             onChange={(event) => setSearchTerm(event.target.value)}
                             className="input-modern !pl-9 !py-2 !text-sm w-full"
@@ -436,6 +437,7 @@ const AdminAccessRequests = ({ currentAdmin }) => {
                             <thead>
                                 <tr className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider">
                                     <th className="p-4 font-semibold whitespace-nowrap">วันที่ / เลขที่</th>
+                                    <th className="p-4 font-semibold whitespace-nowrap">รหัสพนักงาน</th>
                                     <th className="p-4 font-semibold whitespace-nowrap">ชื่อ / แผนก</th>
                                     <th className="p-4 font-semibold">ระบบที่ขอสิทธิ์</th>
                                     <th className="p-4 font-semibold whitespace-nowrap">สถานะ</th>
@@ -448,6 +450,9 @@ const AdminAccessRequests = ({ currentAdmin }) => {
                                         <td className="p-4 align-top whitespace-nowrap">
                                             <div className="text-sm font-semibold text-slate-800 dark:text-slate-200">{new Date(req.created_at).toLocaleDateString('th-TH')}</div>
                                             <div className="text-xs text-slate-500 font-mono mt-1">{req.ticket_number || 'ไม่มีเลขที่'}</div>
+                                        </td>
+                                        <td className="p-4 align-top whitespace-nowrap">
+                                            <span className="font-mono text-sm font-semibold text-slate-700 dark:text-slate-300">{req.employee_id || '-'}</span>
                                         </td>
                                         <td className="p-4 align-top whitespace-nowrap">
                                             <div className="text-sm font-bold text-slate-800 dark:text-white">{req.name_th}</div>
