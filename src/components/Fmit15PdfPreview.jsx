@@ -214,7 +214,7 @@ const Fmit15PdfPreview = ({ isOpen, onClose, formData }) => {
                                     <td style={{ border: '1px solid #000', padding: '5px', width: '33.33%', verticalAlign: 'top' }}>
                                         <div style={{ fontSize: '12px', fontWeight: 500 }}>Requested by : (ชื่อผู้ร้องขอ)</div>
                                         <div style={{ height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                            {formData.requesterSign && <img src={formData.requesterSign} alt="sign" style={{ height: '30px', objectFit: 'contain' }} />}
+                                            {formData.requesterSign && <img src={formData.requesterSign} alt="sign" style={{ height: '30px', maxWidth: '100%', objectFit: 'contain' }} />}
                                             {!formData.requesterSign && <span style={{ fontSize: '14px', textAlign: 'center' }}>{formData.requesterName}</span>}
                                         </div>
                                     </td>
@@ -235,7 +235,7 @@ const Fmit15PdfPreview = ({ isOpen, onClose, formData }) => {
                                     <td style={{ border: '1px solid #000', padding: '5px', width: '33.33%', verticalAlign: 'top' }}>
                                         <div style={{ fontSize: '12px', fontWeight: 500 }}>Approve by : (ชื่อผู้อนุมัติ)</div>
                                         <div style={{ height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                            {formData.managerSign && <img src={formData.managerSign} alt="sign" style={{ height: '30px', objectFit: 'contain' }} />}
+                                            {formData.managerSign && <img src={formData.managerSign} alt="sign" style={{ height: '30px', maxWidth: '100%', objectFit: 'contain' }} />}
                                         </div>
                                     </td>
                                     <td style={{ border: '1px solid #000', padding: '5px', width: '33.33%', verticalAlign: 'top' }}>
@@ -293,7 +293,7 @@ const Fmit15PdfPreview = ({ isOpen, onClose, formData }) => {
                                     <td style={{ border: '1px solid #000', padding: '5px', width: '33.33%', verticalAlign: 'top' }}>
                                         <div style={{ fontSize: '12px', fontWeight: 500 }}>Approve by : (ชื่อผู้อนุมัติ)</div>
                                         <div style={{ height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                            {formData.itManagerSign && <img src={formData.itManagerSign} alt="sign" style={{ height: '30px', objectFit: 'contain' }} />}
+                                            {formData.itManagerSign && <img src={formData.itManagerSign} alt="sign" style={{ height: '30px', maxWidth: '100%', objectFit: 'contain' }} />}
                                         </div>
                                     </td>
                                     <td style={{ border: '1px solid #000', padding: '5px', width: '33.33%', verticalAlign: 'top' }}>
@@ -326,7 +326,7 @@ const Fmit15PdfPreview = ({ isOpen, onClose, formData }) => {
                                     <td style={{ border: '1px solid #000', padding: '5px', width: '33.33%', verticalAlign: 'top' }}>
                                         <div style={{ fontSize: '12px', fontWeight: 500 }}>Operated by : (ชื่อผู้ดำเนินการ)</div>
                                         <div style={{ height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                            {formData.itStaffSign && <img src={formData.itStaffSign} alt="sign" style={{ height: '30px', objectFit: 'contain' }} />}
+                                            {formData.itStaffSign && <img src={formData.itStaffSign} alt="sign" style={{ height: '30px', maxWidth: '100%', objectFit: 'contain' }} />}
                                         </div>
                                     </td>
                                     <td style={{ border: '1px solid #000', padding: '5px', width: '33.33%', verticalAlign: 'top' }}>
@@ -370,7 +370,7 @@ const Fmit15PdfPreview = ({ isOpen, onClose, formData }) => {
                                     <td style={{ border: '1px solid #000', padding: '5px', width: '33.33%', verticalAlign: 'top' }}>
                                         <div style={{ fontSize: '12px', fontWeight: 500 }}>Receive Project (ลงชื่อผู้รับงานรับทราบ)</div>
                                         <div style={{ height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                            {formData.userAcceptSign && <img src={formData.userAcceptSign} alt="sign" style={{ height: '30px', objectFit: 'contain' }} />}
+                                            {formData.userAcceptSign && <img src={formData.userAcceptSign} alt="sign" style={{ height: '30px', maxWidth: '100%', objectFit: 'contain' }} />}
                                         </div>
                                     </td>
                                     <td style={{ border: '1px solid #000', padding: '5px', width: '33.33%', verticalAlign: 'top' }}>

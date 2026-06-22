@@ -365,6 +365,9 @@ const AdminChangeRequests = ({ currentAdmin }) => {
                     return Swal.fire('ข้อมูลไม่ครบ', 'ระบุชื่อและตำแหน่ง IT Manager ให้ครบ', 'warning');
                 }
                 const signData = getActionSignature(itManagerSignatureRef);
+                if (!signData) {
+                    return Swal.fire('ยังไม่ได้ลงนาม', 'กรุณาลงลายเซ็น IT Manager ก่อนยืนยันรายการ', 'warning');
+                }
                 const updateData = {
                     it_received_date: itForm.receivedDate || null,
                     it_target_date: itForm.targetDate || null,
@@ -398,6 +401,9 @@ const AdminChangeRequests = ({ currentAdmin }) => {
                     return Swal.fire('ข้อมูลไม่ครบ', 'ระบุวิธีแก้ไข ผู้ดำเนินการ และตำแหน่งให้ครบ', 'warning');
                 }
                 const signData = getActionSignature(staffSignatureRef);
+                if (!signData) {
+                    return Swal.fire('ยังไม่ได้ลงนาม', 'กรุณาลงลายเซ็นผู้ดำเนินการก่อนยืนยันรายการ', 'warning');
+                }
                 const existingAttachments = parseAttachments(selectedRequest.attachments_json);
                 const newAttachments = await uploadAttachmentFiles(
                     actionFiles.map(({ file }) => file),
