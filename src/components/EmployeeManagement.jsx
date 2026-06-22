@@ -199,11 +199,15 @@ const EmployeeManagement = ({ currentAdmin }) => {
         return String(dateValue).slice(0, 7) === monthFilter;
     };
 
-    const isEmployeeInSelectedMonth = (employee) => (
-        isSameMonth(employee.start_date) ||
-        (employee.status === EMPLOYEE_STATUS.RESIGNED && isSameMonth(employee.end_date)) ||
-        (employee.status === EMPLOYEE_STATUS.TRANSFERRED && isSameMonth(employee.transfer_date || employee.updated_at))
-    );
+    const isEmployeeInSelectedMonth = (employee) => {
+        if (employee.status === EMPLOYEE_STATUS.RESIGNED) {
+            return isSameMonth(employee.end_date);
+        }
+        if (employee.status === EMPLOYEE_STATUS.TRANSFERRED) {
+            return isSameMonth(employee.transfer_date || employee.updated_at);
+        }
+        return isSameMonth(employee.start_date);
+    };
 
     const monthlyStats = useMemo(() => {
         if (!monthFilter) return { newJoiners: [], exits: [], transfers: [] };
