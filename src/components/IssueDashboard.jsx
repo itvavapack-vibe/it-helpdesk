@@ -329,7 +329,10 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                 const subtitle = document.createElement('div');
                 subtitle.textContent = `จำนวนทั้งหมด ${filteredIssues.length} รายการ${hasActiveFilters ? ' (ตามเงื่อนไขการกรอง)' : ''}`;
                 subtitle.style.cssText = 'font-size:12px;color:#64748b;margin-top:3px;';
-                titleGroup.append(title, subtitle);
+                const filterDetails = document.createElement('div');
+                filterDetails.textContent = filterSummaryText;
+                filterDetails.style.cssText = 'font-size:11px;color:#475569;margin-top:3px;max-width:800px;line-height:1.35;';
+                titleGroup.append(title, subtitle, filterDetails);
 
                 const generated = document.createElement('div');
                 generated.textContent = `วันที่พิมพ์ ${new Date().toLocaleDateString('th-TH')}`;
@@ -444,6 +447,27 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
         filterDateTo ||
         filterAdmin
     );
+
+    const filterSummaryText = useMemo(() => {
+        const details = [];
+        const formatFilterDate = (value) => (
+            value ? new Date(`${value}T00:00:00`).toLocaleDateString('th-TH') : ''
+        );
+
+        if (filterDateFrom && filterDateTo) {
+            details.push(`ช่วงวันที่ ${formatFilterDate(filterDateFrom)} ถึง ${formatFilterDate(filterDateTo)}`);
+        } else if (filterDateFrom) {
+            details.push(`ตั้งแต่วันที่ ${formatFilterDate(filterDateFrom)}`);
+        } else if (filterDateTo) {
+            details.push(`ถึงวันที่ ${formatFilterDate(filterDateTo)}`);
+        }
+        if (filterStatus !== 'All') details.push(`สถานะ: ${getStatusLabel(filterStatus)}`);
+        if (filterCategory !== 'All') details.push(`หมวดหมู่: ${filterCategory}`);
+        if (filterAdmin.trim()) details.push(`ผู้รับงาน: ${filterAdmin.trim()}`);
+        if (searchTerm.trim()) details.push(`คำค้น: ${searchTerm.trim()}`);
+
+        return details.length ? `เงื่อนไข: ${details.join(' | ')}` : 'เงื่อนไข: แสดงข้อมูลทั้งหมด';
+    }, [filterAdmin, filterCategory, filterDateFrom, filterDateTo, filterStatus, searchTerm]);
 
     const filteredStatusCounts = useMemo(() => {
         const counts = {
@@ -1757,6 +1781,9 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                                     <h3 className="text-[22px] font-bold text-slate-900">รายงานตารางรายการแจ้งซ่อม/ปัญหา/ขอติดตั้ง</h3>
                                                     <p className="mt-1 text-xs text-slate-500">
                                                         จำนวนทั้งหมด {filteredIssues.length} รายการ{hasActiveFilters ? ' (ตามเงื่อนไขการกรอง)' : ''}
+                                                    </p>
+                                                    <p className="mt-1 max-w-[800px] text-[11px] leading-snug text-slate-600">
+                                                        {filterSummaryText}
                                                     </p>
                                                 </div>
                                                 <p className="text-right text-xs text-slate-600">วันที่พิมพ์ {new Date().toLocaleDateString('th-TH')}</p>
