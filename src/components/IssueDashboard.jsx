@@ -17,7 +17,7 @@ import { canDeleteRecords, canManageAllWork } from '../config/roles';
 import { loadSignatureIntoCanvas } from '../utils/signatureCanvas';
 
 const ITEMS_PER_PAGE = 10;
-const PDF_ITEMS_PER_PAGE = 12;
+const PDF_ITEMS_PER_PAGE = 6;
 const STATUS_FLOW = ['Pending', 'In Progress', 'External Repair', 'Waiting for Parts', 'Resolved', 'Cancelled'];
 const ASSIGNABLE_STATUSES = ['In Progress', 'External Repair', 'Waiting for Parts', 'Resolved'];
 
@@ -298,7 +298,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
             content.textContent = text || '-';
             content.style.cssText = header
                 ? 'line-height:1.2;'
-                : 'line-height:1.25;max-height:32px;overflow:hidden;word-break:break-word;';
+                : 'line-height:1.35;word-break:break-word;white-space:pre-wrap;';
             cell.appendChild(content);
             return cell;
         };
@@ -329,10 +329,13 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                 const subtitle = document.createElement('div');
                 subtitle.textContent = `จำนวนทั้งหมด ${filteredIssues.length} รายการ${hasActiveFilters ? ' (ตามเงื่อนไขการกรอง)' : ''}`;
                 subtitle.style.cssText = 'font-size:12px;color:#64748b;margin-top:3px;';
+                const dateRangeDetails = document.createElement('div');
+                dateRangeDetails.textContent = reportDateRangeText;
+                dateRangeDetails.style.cssText = 'font-size:12px;font-weight:700;color:#334155;margin-top:4px;line-height:1.35;';
                 const filterDetails = document.createElement('div');
                 filterDetails.textContent = filterSummaryText;
                 filterDetails.style.cssText = 'font-size:11px;color:#475569;margin-top:3px;max-width:800px;line-height:1.35;';
-                titleGroup.append(title, subtitle, filterDetails);
+                titleGroup.append(title, subtitle, dateRangeDetails, filterDetails);
 
                 const generated = document.createElement('div');
                 generated.textContent = `วันที่พิมพ์ ${new Date().toLocaleDateString('th-TH')}`;
@@ -360,7 +363,6 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                 const tbody = document.createElement('tbody');
                 pages[pageIndex].forEach((issue) => {
                     const row = document.createElement('tr');
-                    row.style.height = '45px';
                     const effectiveStatus = isIssueClosed(issue) ? 'Closed' : issue.status;
                     const values = [
                         [`${issue.id || '-'}\n${formatDate(issue.createdAt)}`, 10],
@@ -448,26 +450,23 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
         filterAdmin
     );
 
-    const filterSummaryText = useMemo(() => {
-        const details = [];
+    const reportDateRangeText = useMemo(() => {
         const formatFilterDate = (value) => (
-            value ? new Date(`${value}T00:00:00`).toLocaleDateString('th-TH') : ''
+            value ? new Date(`${value}T00:00:00`).toLocaleDateString('th-TH') : 'ไม่ระบุ'
         );
 
-        if (filterDateFrom && filterDateTo) {
-            details.push(`ช่วงวันที่ ${formatFilterDate(filterDateFrom)} ถึง ${formatFilterDate(filterDateTo)}`);
-        } else if (filterDateFrom) {
-            details.push(`ตั้งแต่วันที่ ${formatFilterDate(filterDateFrom)}`);
-        } else if (filterDateTo) {
-            details.push(`ถึงวันที่ ${formatFilterDate(filterDateTo)}`);
-        }
+        return `วันที่เริ่มต้น: ${formatFilterDate(filterDateFrom)}    วันที่สิ้นสุด: ${formatFilterDate(filterDateTo)}`;
+    }, [filterDateFrom, filterDateTo]);
+
+    const filterSummaryText = useMemo(() => {
+        const details = [];
         if (filterStatus !== 'All') details.push(`สถานะ: ${getStatusLabel(filterStatus)}`);
         if (filterCategory !== 'All') details.push(`หมวดหมู่: ${filterCategory}`);
         if (filterAdmin.trim()) details.push(`ผู้รับงาน: ${filterAdmin.trim()}`);
         if (searchTerm.trim()) details.push(`คำค้น: ${searchTerm.trim()}`);
 
-        return details.length ? `เงื่อนไข: ${details.join(' | ')}` : 'เงื่อนไข: แสดงข้อมูลทั้งหมด';
-    }, [filterAdmin, filterCategory, filterDateFrom, filterDateTo, filterStatus, searchTerm]);
+        return details.length ? `เงื่อนไขอื่น: ${details.join(' | ')}` : 'เงื่อนไขอื่น: ไม่มี';
+    }, [filterAdmin, filterCategory, filterStatus, searchTerm]);
 
     const filteredStatusCounts = useMemo(() => {
         const counts = {
@@ -1782,6 +1781,9 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                                     <p className="mt-1 text-xs text-slate-500">
                                                         จำนวนทั้งหมด {filteredIssues.length} รายการ{hasActiveFilters ? ' (ตามเงื่อนไขการกรอง)' : ''}
                                                     </p>
+                                                    <p className="mt-1 text-xs font-bold text-slate-700">
+                                                        {reportDateRangeText}
+                                                    </p>
                                                     <p className="mt-1 max-w-[800px] text-[11px] leading-snug text-slate-600">
                                                         {filterSummaryText}
                                                     </p>
@@ -1804,7 +1806,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                                 </thead>
                                                 <tbody>
                                                     {pageRows.map((issue) => (
-                                                        <tr key={issue.id} className="h-[45px]">
+                                                        <tr key={issue.id}>
                                                             <td className="border border-slate-300 p-1.5 text-center align-top">
                                                                 <div className="max-h-8 overflow-hidden whitespace-pre-line leading-tight">{issue.id || '-'}{'\n'}{formatDate(issue.createdAt)}</div>
                                                             </td>
@@ -1812,7 +1814,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                                             <td className="border border-slate-300 p-1.5 align-top"><div className="max-h-8 overflow-hidden leading-tight">{issue.department || '-'}</div></td>
                                                             <td className="border border-slate-300 p-1.5 align-top"><div className="max-h-8 overflow-hidden leading-tight">{issue.category || '-'}</div></td>
                                                             <td className="border border-slate-300 p-1.5 text-center align-top"><div className="max-h-8 overflow-hidden leading-tight">{getSeverityText(issue.severity)}</div></td>
-                                                            <td className="border border-slate-300 p-1.5 align-top"><div className="max-h-8 overflow-hidden break-words leading-tight">{issue.description || '-'}</div></td>
+                                                            <td className="border border-slate-300 p-1.5 align-top"><div className="whitespace-pre-wrap break-words leading-relaxed">{issue.description || '-'}</div></td>
                                                             <td className="border border-slate-300 p-1.5 text-center align-top"><div className="max-h-8 overflow-hidden leading-tight">{issue.assignedAdmin || 'ยังไม่มีผู้รับงาน'}</div></td>
                                                             <td className="border border-slate-300 p-1.5 text-center align-top">
                                                                 <div className="max-h-8 overflow-hidden leading-tight">{getPdfStatusText(isIssueClosed(issue) ? 'Closed' : issue.status)}</div>
