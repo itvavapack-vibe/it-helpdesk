@@ -3,7 +3,7 @@ import * as XLSX from 'xlsx';
 import html2canvas from 'html2canvas-pro';
 import jsPDF from 'jspdf';
 import SignatureCanvas from 'react-signature-canvas';
-import { Clock, Edit, CheckCircle2, FileSpreadsheet, Trash2, Search, Filter, AlertTriangle, Eye, Printer, FileSignature, MessageSquare, Monitor, ChevronDown, X, XCircle, Copy, ChevronLeft, ChevronRight, Settings, Save, ImagePlus, Paperclip, Link2, Ticket, Eraser } from 'lucide-react';
+import { Clock, Edit, CheckCircle2, Download, FileSpreadsheet, Trash2, Search, Filter, AlertTriangle, Eye, Printer, FileSignature, MessageSquare, Monitor, ChevronDown, X, XCircle, Copy, ChevronLeft, ChevronRight, Settings, Save, ImagePlus, Paperclip, Link2, Ticket, Eraser } from 'lucide-react';
 import { showCloseIssueLinkDialog } from '../utils/closeIssueLink';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Combobox } from './ui/combobox';
@@ -17,6 +17,7 @@ import { canDeleteRecords, canManageAllWork } from '../config/roles';
 import { loadSignatureIntoCanvas } from '../utils/signatureCanvas';
 
 const ITEMS_PER_PAGE = 10;
+const PDF_ITEMS_PER_PAGE = 12;
 const STATUS_FLOW = ['Pending', 'In Progress', 'External Repair', 'Waiting for Parts', 'Resolved', 'Cancelled'];
 const ASSIGNABLE_STATUSES = ['In Progress', 'External Repair', 'Waiting for Parts', 'Resolved'];
 
@@ -84,6 +85,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
     const [filterAdmin, setFilterAdmin] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const [isExportingPdf, setIsExportingPdf] = useState(false);
+    const [isIssueListPdfPreviewOpen, setIsIssueListPdfPreviewOpen] = useState(false);
 
     // Page state for repair details
     const [isRepairModalOpen, setIsRepairModalOpen] = useState(false);
@@ -277,10 +279,9 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
         printRoot.style.cssText = 'position:fixed;left:-100000px;top:0;width:1123px;background:#fff;z-index:-1;';
         document.body.appendChild(printRoot);
 
-        const pageSize = 12;
         const pages = Array.from(
-            { length: Math.ceil(filteredIssues.length / pageSize) },
-            (_, index) => filteredIssues.slice(index * pageSize, (index + 1) * pageSize)
+            { length: Math.ceil(filteredIssues.length / PDF_ITEMS_PER_PAGE) },
+            (_, index) => filteredIssues.slice(index * PDF_ITEMS_PER_PAGE, (index + 1) * PDF_ITEMS_PER_PAGE)
         );
 
         const createCell = (text, width, { header = false, align = 'left' } = {}) => {
@@ -960,12 +961,12 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                     </h3>
                     <div className="flex gap-3">
                         <button
-                            onClick={exportToPdf}
-                            disabled={isExportingPdf || filteredIssues.length === 0}
+                            onClick={() => setIsIssueListPdfPreviewOpen(true)}
+                            disabled={filteredIssues.length === 0}
                             className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-white dark:bg-slate-800 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-700/50 rounded-full hover:bg-rose-50 dark:hover:bg-rose-900/40 hover:shadow-md transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-50"
-                            title="ส่งออกตารางเป็นไฟล์ PDF"
+                            title="ดูตัวอย่างตาราง PDF"
                         >
-                            <Printer className="w-4 h-4" /> {isExportingPdf ? 'กำลังสร้าง...' : 'PDF'}
+                            <Printer className="w-4 h-4" /> PDF
                         </button>
                         <button
                             onClick={exportToExcel}
@@ -1697,6 +1698,111 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                 </button>
                             </div>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {isIssueListPdfPreviewOpen && (
+                <div className="fixed inset-0 z-[130] flex flex-col bg-slate-900/80 backdrop-blur-sm animate-fade-in">
+                    <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-slate-700 bg-slate-900 px-4 py-3 sm:px-6">
+                        <div>
+                            <h2 className="text-base font-bold text-white sm:text-lg">ตัวอย่างรายงานรายการแจ้งซ่อม</h2>
+                            <p className="text-xs text-slate-400">{filteredIssues.length} รายการ</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={exportToPdf}
+                                disabled={isExportingPdf}
+                                className="inline-flex h-10 items-center gap-2 rounded-lg bg-rose-600 px-4 text-sm font-semibold text-white transition hover:bg-rose-700 disabled:cursor-wait disabled:opacity-60"
+                            >
+                                <Download className="h-4 w-4" />
+                                {isExportingPdf ? 'กำลังสร้าง...' : 'ดาวน์โหลด PDF'}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setIsIssueListPdfPreviewOpen(false)}
+                                className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-800 text-slate-300 transition hover:bg-slate-700 hover:text-white"
+                                title="ปิดตัวอย่าง"
+                                aria-label="ปิดตัวอย่าง"
+                            >
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="flex-1 overflow-auto bg-slate-200 p-3 sm:p-6">
+                        <div className="mx-auto flex min-w-[1000px] max-w-[1123px] flex-col gap-6">
+                            {Array.from(
+                                { length: Math.ceil(filteredIssues.length / PDF_ITEMS_PER_PAGE) },
+                                (_, pageIndex) => {
+                                    const pageRows = filteredIssues.slice(
+                                        pageIndex * PDF_ITEMS_PER_PAGE,
+                                        (pageIndex + 1) * PDF_ITEMS_PER_PAGE
+                                    );
+                                    const totalPdfPages = Math.ceil(filteredIssues.length / PDF_ITEMS_PER_PAGE);
+
+                                    return (
+                                        <section
+                                            key={pageIndex}
+                                            className="relative overflow-hidden bg-white px-[38px] pb-[28px] pt-[34px] text-slate-700 shadow-2xl"
+                                            style={{
+                                                width: '1123px',
+                                                height: '794px',
+                                                fontFamily: 'Sarabun, Tahoma, "Segoe UI", sans-serif',
+                                            }}
+                                        >
+                                            <div className="mb-3 flex items-start justify-between">
+                                                <div>
+                                                    <h3 className="text-[22px] font-bold text-slate-900">รายงานตารางรายการแจ้งซ่อม/ปัญหา/ขอติดตั้ง</h3>
+                                                    <p className="mt-1 text-xs text-slate-500">
+                                                        จำนวนทั้งหมด {filteredIssues.length} รายการ{hasActiveFilters ? ' (ตามเงื่อนไขการกรอง)' : ''}
+                                                    </p>
+                                                </div>
+                                                <p className="text-right text-xs text-slate-600">วันที่พิมพ์ {new Date().toLocaleDateString('th-TH')}</p>
+                                            </div>
+
+                                            <table className="w-full table-fixed border-collapse text-[11px]">
+                                                <thead>
+                                                    <tr className="bg-slate-200 text-center font-bold text-slate-800">
+                                                        <th className="w-[10%] border border-slate-300 p-1.5">รหัส / วันที่</th>
+                                                        <th className="w-[12%] border border-slate-300 p-1.5">ผู้แจ้ง</th>
+                                                        <th className="w-[12%] border border-slate-300 p-1.5">แผนก</th>
+                                                        <th className="w-[15%] border border-slate-300 p-1.5">หมวดหมู่</th>
+                                                        <th className="w-[8%] border border-slate-300 p-1.5">ระดับ</th>
+                                                        <th className="w-[25%] border border-slate-300 p-1.5">รายละเอียดปัญหา</th>
+                                                        <th className="w-[10%] border border-slate-300 p-1.5">ผู้รับงาน</th>
+                                                        <th className="w-[8%] border border-slate-300 p-1.5">สถานะ</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {pageRows.map((issue) => (
+                                                        <tr key={issue.id} className="h-[45px]">
+                                                            <td className="border border-slate-300 p-1.5 text-center align-top">
+                                                                <div className="max-h-8 overflow-hidden whitespace-pre-line leading-tight">{issue.id || '-'}{'\n'}{formatDate(issue.createdAt)}</div>
+                                                            </td>
+                                                            <td className="border border-slate-300 p-1.5 align-top"><div className="max-h-8 overflow-hidden leading-tight">{issue.name || '-'}</div></td>
+                                                            <td className="border border-slate-300 p-1.5 align-top"><div className="max-h-8 overflow-hidden leading-tight">{issue.department || '-'}</div></td>
+                                                            <td className="border border-slate-300 p-1.5 align-top"><div className="max-h-8 overflow-hidden leading-tight">{issue.category || '-'}</div></td>
+                                                            <td className="border border-slate-300 p-1.5 text-center align-top"><div className="max-h-8 overflow-hidden leading-tight">{getSeverityText(issue.severity)}</div></td>
+                                                            <td className="border border-slate-300 p-1.5 align-top"><div className="max-h-8 overflow-hidden break-words leading-tight">{issue.description || '-'}</div></td>
+                                                            <td className="border border-slate-300 p-1.5 text-center align-top"><div className="max-h-8 overflow-hidden leading-tight">{issue.assignedAdmin || 'ยังไม่มีผู้รับงาน'}</div></td>
+                                                            <td className="border border-slate-300 p-1.5 text-center align-top">
+                                                                <div className="max-h-8 overflow-hidden leading-tight">{getPdfStatusText(isIssueClosed(issue) ? 'Closed' : issue.status)}</div>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+
+                                            <div className="absolute bottom-[14px] left-[38px] right-[38px] text-center text-[11px] text-slate-500">
+                                                หน้า {pageIndex + 1} / {totalPdfPages}
+                                            </div>
+                                        </section>
+                                    );
+                                }
+                            )}
+                        </div>
                     </div>
                 </div>
             )}
