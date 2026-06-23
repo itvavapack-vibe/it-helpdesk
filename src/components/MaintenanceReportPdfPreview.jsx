@@ -144,6 +144,7 @@ const MaintenanceReportPdfPreview = ({ isOpen, onClose, formData }) => {
     const printDate = formatReportDate(formData.createdAt);
     const isAutoClosed = formData.userCloseNote === AUTO_CLOSE_NOTE && !formData.userCloseSign;
     const autoCloseSignatureName = formData.userCloseName || formData.name || '-';
+    const isCancelled = ['cancelled', 'canceled'].includes(String(formData.status || '').trim().toLowerCase());
 
     const getSeverityText = (severity) => {
         switch (severity) {
@@ -210,7 +211,32 @@ const MaintenanceReportPdfPreview = ({ isOpen, onClose, formData }) => {
                         }}
                     >
                         {/* Header Section */}
-                        <div style={{ textAlign: 'center', marginBottom: '20px', borderBottom: '3px solid #1e293b', paddingBottom: '15px' }}>
+                        <div style={{ position: 'relative', textAlign: 'center', marginBottom: '20px', borderBottom: '3px solid #1e293b', paddingBottom: '15px' }}>
+                            {isCancelled && (
+                                <div
+                                    aria-label="เอกสารถูกยกเลิก"
+                                    style={{
+                                        position: 'absolute',
+                                        top: '2px',
+                                        right: '0',
+                                        width: '112px',
+                                        padding: '5px 4px 4px',
+                                        border: '4px double #b91c1c',
+                                        color: '#b91c1c',
+                                        backgroundColor: 'rgba(255,255,255,0.9)',
+                                        fontWeight: '800',
+                                        lineHeight: 1,
+                                        letterSpacing: '0',
+                                        textAlign: 'center',
+                                        transform: 'rotate(-6deg)',
+                                        transformOrigin: 'center',
+                                        zIndex: 2
+                                    }}
+                                >
+                                    <div style={{ fontSize: '22px' }}>ยกเลิก</div>
+                                    <div style={{ fontSize: '10px', marginTop: '4px' }}>CANCELLED</div>
+                                </div>
+                            )}
                             {/* Logo */}
                             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: '8px' }}>
                                 <img 
