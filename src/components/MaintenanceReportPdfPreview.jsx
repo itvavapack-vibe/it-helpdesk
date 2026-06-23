@@ -363,9 +363,9 @@ const MaintenanceReportPdfPreview = ({ isOpen, onClose, formData }) => {
                         <div style={{ border: '1px solid #cbd5e1', padding: '12px', marginBottom: '20px', minHeight: '54px', fontSize: '13px', lineHeight: '1.6', whiteSpace: 'pre-wrap', wordBreak: 'break-word', backgroundColor: '#f8fafc' }}>
                             {formData.repairDetails || '-'}
                         </div>
-                        <div style={{ display: 'flex', justifyContent: 'center', gap: '44px', marginTop: '20px', minHeight: '145px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'center', gap: '44px', marginTop: '20px', minHeight: '155px' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', width: '42%' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', borderBottom: '1px dotted #000', height: '68px', margin: '0 auto 8px', width: '90%' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', borderBottom: '1px dotted #000', height: '78px', margin: '0 auto 8px', width: '90%' }}>
                                     {formData.userCloseSign && <img src={formData.userCloseSign} alt="ลายเซ็นผู้แจ้ง" style={{ display: 'block', maxHeight: '68px', maxWidth: '112%', objectFit: 'contain', margin: '0 auto', transform: 'scale(1.18)', transformOrigin: 'center' }} />}
                                     {isAutoClosed && (
                                         <div style={{ fontSize: '13px', lineHeight: 1.35 }}>
@@ -380,8 +380,8 @@ const MaintenanceReportPdfPreview = ({ isOpen, onClose, formData }) => {
                                 <div style={{ fontSize: '13px' }}>วันที่ {formatReportDate(formData.userClosedAt)}</div>
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', width: '42%' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', borderBottom: '1px dotted #000', height: '68px', margin: '0 auto 8px', width: '90%' }}>
-                                    {formData.inspectorSign && <img src={formData.inspectorSign} alt="ลายเซ็นผู้ตรวจสอบ/ดำเนินการ" style={{ display: 'block', maxHeight: '68px', maxWidth: '112%', objectFit: 'contain', margin: '0 auto', transform: 'scale(1.18)', transformOrigin: 'center' }} />}
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', borderBottom: '1px dotted #000', height: '78px', margin: '0 auto 8px', width: '90%' }}>
+                                    {formData.inspectorSign && <img src={formData.inspectorSign} alt="ลายเซ็นผู้ตรวจสอบ/ดำเนินการ" style={{ display: 'block', maxHeight: '78px', maxWidth: '120%', objectFit: 'contain', margin: '0 auto', transform: 'scale(1.32)', transformOrigin: 'center' }} />}
                                 </div>
                                 <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '5px' }}>ผู้ตรวจสอบ/ดำเนินการ</div>
                                 <div style={{ fontSize: '13px', marginBottom: '3px' }}>({formData.inspectorName || '-'})</div>
