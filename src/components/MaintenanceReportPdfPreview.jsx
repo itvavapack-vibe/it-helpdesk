@@ -210,33 +210,36 @@ const MaintenanceReportPdfPreview = ({ isOpen, onClose, formData }) => {
                             boxSizing: 'border-box'
                         }}
                     >
+                        {isCancelled && (
+                            <div
+                                aria-label="เอกสารถูกยกเลิก"
+                                style={{
+                                    position: 'absolute',
+                                    top: '50%',
+                                    left: '50%',
+                                    width: '220px',
+                                    padding: '10px 8px 8px',
+                                    border: '6px double #b91c1c',
+                                    color: '#b91c1c',
+                                    backgroundColor: 'rgba(255,255,255,0.72)',
+                                    fontWeight: '800',
+                                    lineHeight: 1,
+                                    letterSpacing: '0',
+                                    textAlign: 'center',
+                                    opacity: 0.82,
+                                    transform: 'translate(-50%, -50%) rotate(-10deg)',
+                                    transformOrigin: 'center',
+                                    pointerEvents: 'none',
+                                    zIndex: 5
+                                }}
+                            >
+                                <div style={{ fontSize: '42px' }}>ยกเลิก</div>
+                                <div style={{ fontSize: '16px', marginTop: '7px' }}>CANCELLED</div>
+                            </div>
+                        )}
+
                         {/* Header Section */}
-                        <div style={{ position: 'relative', textAlign: 'center', marginBottom: '20px', borderBottom: '3px solid #1e293b', paddingBottom: '15px' }}>
-                            {isCancelled && (
-                                <div
-                                    aria-label="เอกสารถูกยกเลิก"
-                                    style={{
-                                        position: 'absolute',
-                                        top: '2px',
-                                        right: '0',
-                                        width: '112px',
-                                        padding: '5px 4px 4px',
-                                        border: '4px double #b91c1c',
-                                        color: '#b91c1c',
-                                        backgroundColor: 'rgba(255,255,255,0.9)',
-                                        fontWeight: '800',
-                                        lineHeight: 1,
-                                        letterSpacing: '0',
-                                        textAlign: 'center',
-                                        transform: 'rotate(-6deg)',
-                                        transformOrigin: 'center',
-                                        zIndex: 2
-                                    }}
-                                >
-                                    <div style={{ fontSize: '22px' }}>ยกเลิก</div>
-                                    <div style={{ fontSize: '10px', marginTop: '4px' }}>CANCELLED</div>
-                                </div>
-                            )}
+                        <div style={{ textAlign: 'center', marginBottom: '20px', borderBottom: '3px solid #1e293b', paddingBottom: '15px' }}>
                             {/* Logo */}
                             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: '8px' }}>
                                 <img 
