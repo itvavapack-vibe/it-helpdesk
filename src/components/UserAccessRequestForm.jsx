@@ -73,6 +73,8 @@ const toDateInputValue = (value = new Date()) => {
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 };
 
+const escapeAttribute = (value) => String(value || '').replace(/"/g, '&quot;');
+
 const UserAccessRequestForm = ({ onCancel }) => {
     const signatureRef = useRef(null);
     const [signatureData, setSignatureData] = useState(null);
@@ -127,6 +129,38 @@ const UserAccessRequestForm = ({ onCancel }) => {
         return true;
     };
 
+    const syncEmployeeRecord = async () => {
+        const { data: existingEmployees } = await mysql
+            .from('employees')
+            .select('id, status')
+            .eq('emp_id', formData.employeeId)
+            .limit(1);
+
+        const employeePayload = {
+            name_th: formData.nameTh,
+            name_en: formData.nameEn,
+            department: formData.department,
+            position: formData.position,
+        };
+
+        if (existingEmployees?.length) {
+            const { error } = await mysql
+                .from('employees')
+                .update(employeePayload)
+                .eq('emp_id', formData.employeeId);
+            if (error) throw error;
+            return;
+        }
+
+        const { error } = await mysql.from('employees').insert([{
+            emp_id: formData.employeeId,
+            ...employeePayload,
+            start_date: toDateInputValue(),
+            status: 'ทำงาน',
+        }]);
+        if (error) throw error;
+    };
+
     const handleSubmit = async (event) => {
         event.preventDefault();
         if (!validateForm()) return;
@@ -156,36 +190,20 @@ const UserAccessRequestForm = ({ onCancel }) => {
                 }),
             });
 
-            const { data: existingEmployees } = await mysql
-                .from('employees')
-                .select('id, status')
-                .eq('emp_id', formData.employeeId)
-                .limit(1);
+            if (!insertedData?.[0]?.id) {
+                throw new Error('บันทึกคำร้องแล้ว แต่ไม่พบเลขอ้างอิงรายการที่สร้าง');
+            }
 
-            if (existingEmployees?.length) {
-                const { error } = await mysql
-                    .from('employees')
-                    .update({
-                        name_th: formData.nameTh,
-                        department: formData.department,
-                    })
-                    .eq('emp_id', formData.employeeId);
-                if (error) throw error;
-            } else {
-                const { error } = await mysql.from('employees').insert([{
-                    emp_id: formData.employeeId,
-                    name_th: formData.nameTh,
-                    department: formData.department,
-                    start_date: toDateInputValue(),
-                    status: 'ทำงาน',
-                }]);
-                if (error) throw error;
+            try {
+                await syncEmployeeRecord();
+            } catch (employeeError) {
+                console.warn('Access request was saved, but employee sync failed:', employeeError);
             }
 
             const reqId = insertedData[0].id;
             const approvalLink = buildManagerApprovalLink(reqId);
 
-            await Swal.fire({
+            const successResult = await Swal.fire({
                 icon: 'success',
                 title: 'สร้างคำร้องสำเร็จ!',
                 html: `
@@ -195,7 +213,7 @@ const UserAccessRequestForm = ({ onCancel }) => {
                         <p style="color:#4b5563;line-height:1.5;">กรุณาคัดลอกลิงก์ด้านล่างนี้ ส่งให้ <b>ผู้จัดการ/หัวหน้างาน</b> ของคุณเพื่อทำการอนุมัติ</p>
                     </div>
                     <div style="display:flex;gap:5px;">
-                        <input type="text" id="approval-link" value="${approvalLink}" readonly style="flex:1;padding:10px;border:1px solid #cbd5e1;border-radius:8px;font-size:12px;background:#f8fafc;" />
+                        <input type="text" id="approval-link" value="${escapeAttribute(approvalLink)}" readonly style="flex:1;padding:10px;border:1px solid #cbd5e1;border-radius:8px;font-size:12px;background:#f8fafc;" />
                     </div>
                 `,
                 confirmButtonColor: '#10b981',
@@ -207,10 +225,39 @@ const UserAccessRequestForm = ({ onCancel }) => {
                     const input = document.getElementById('approval-link');
                     input?.addEventListener('click', () => input.select());
                 },
-                preConfirm: async () => {
-                    await copyText(approvalLink);
-                },
             });
+
+            if (successResult.isConfirmed) {
+                try {
+                    await copyText(approvalLink);
+                    await Swal.fire({
+                        toast: true,
+                        position: 'top-end',
+                        icon: 'success',
+                        title: 'คัดลอกลิงก์แล้ว',
+                        showConfirmButton: false,
+                        timer: 1800,
+                    });
+                } catch (copyError) {
+                    console.warn('Access request was saved, but approval link copy failed:', copyError);
+                    await Swal.fire({
+                        icon: 'warning',
+                        title: 'บันทึกสำเร็จ',
+                        html: `
+                            <div style="text-align:left;font-size:14px;margin-bottom:10px;">
+                                <p>สร้างคำร้องเรียบร้อยแล้ว แต่คัดลอกลิงก์อัตโนมัติไม่ได้</p>
+                                <p style="margin-top:8px;color:#4b5563;">กรุณาคัดลอกลิงก์นี้ส่งให้ผู้จัดการ/หัวหน้างาน:</p>
+                            </div>
+                            <input type="text" id="approval-link-fallback" value="${escapeAttribute(approvalLink)}" readonly style="width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:8px;font-size:12px;background:#f8fafc;" />
+                        `,
+                        confirmButtonText: 'ปิด',
+                        didOpen: () => {
+                            const input = document.getElementById('approval-link-fallback');
+                            input?.select();
+                        },
+                    });
+                }
+            }
 
             if (onCancel) {
                 onCancel();
@@ -221,7 +268,7 @@ const UserAccessRequestForm = ({ onCancel }) => {
             signatureRef.current?.clear();
         } catch (error) {
             console.error('Error submitting access request:', error);
-            Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถส่งคำร้องได้ กรุณาติดต่อผู้ดูแลระบบ', 'error');
+            Swal.fire('เกิดข้อผิดพลาด', error?.message || 'ไม่สามารถส่งคำร้องได้ กรุณาติดต่อผู้ดูแลระบบ', 'error');
         } finally {
             setIsSubmitting(false);
         }
