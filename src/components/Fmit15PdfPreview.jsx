@@ -393,8 +393,6 @@ const Fmit15PdfPreview = ({ isOpen, onClose, formData }) => {
                         {/* Footer */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 500, marginTop: 'auto', borderTop: '2px solid #1e3a8a', paddingTop: '5px' }}>
                             <div>Revision NO : 03&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Date of Issue : 02.02.26</div>
-                            <div>Page 1 of 1</div>
-                            <div>Prepared by: IT VAVA PACK Team</div>
                         </div>
 
                     </div>
