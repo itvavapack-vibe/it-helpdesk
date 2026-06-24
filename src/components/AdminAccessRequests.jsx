@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { CheckCircle, Clock, Edit, Eye, Filter, Key, Link, Printer, Search, Trash2, XCircle } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowDown, ArrowUp, ArrowUpDown, CheckCircle, Clock, Edit, Eye, Filter, Key, Link, Printer, Search, Trash2, XCircle } from 'lucide-react';
 import SignatureCanvas from 'react-signature-canvas';
 import Swal from 'sweetalert2';
 import { mysql } from '../mysqlClient';
@@ -55,13 +55,20 @@ const formatSystems = (systemsMap, otherDetails) => {
     return requested.length ? requested.join(', ') : '-';
 };
 
+const getTimeValue = (value) => {
+    const time = new Date(value || 0).getTime();
+    return Number.isNaN(time) ? 0 : time;
+};
+
 const AdminAccessRequests = ({ currentAdmin }) => {
     const [requests, setRequests] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const [ticketFilter, setTicketFilter] = useState('');
     const [statusFilter, setStatusFilter] = useState('All');
     const [dateRangeStart, setDateRangeStart] = useState('');
     const [dateRangeEnd, setDateRangeEnd] = useState('');
+    const [sortConfig, setSortConfig] = useState({ key: 'created_at', direction: 'desc' });
     const [selectedRequest, setSelectedRequest] = useState(null);
     const [detailRequest, setDetailRequest] = useState(null);
     const [detailForm, setDetailForm] = useState({});
@@ -81,6 +88,22 @@ const AdminAccessRequests = ({ currentAdmin }) => {
     const canActOnStatus = (status) => {
         const normalizedStatus = status === 'Pending' || !status ? 'Pending_Manager' : status;
         return (visibleStatuses || []).includes(normalizedStatus);
+    };
+
+    const toggleSort = (key) => {
+        setSortConfig((current) => {
+            if (current.key === key) {
+                return { key, direction: current.direction === 'asc' ? 'desc' : 'asc' };
+            }
+            return { key, direction: key === 'created_at' ? 'desc' : 'asc' };
+        });
+    };
+
+    const renderSortIcon = (key) => {
+        if (sortConfig.key !== key) return <ArrowUpDown className="h-3.5 w-3.5 text-slate-400" />;
+        return sortConfig.direction === 'asc'
+            ? <ArrowUp className="h-3.5 w-3.5 text-amber-600 dark:text-amber-300" />
+            : <ArrowDown className="h-3.5 w-3.5 text-amber-600 dark:text-amber-300" />;
     };
 
     const fetchRequests = async ({ silent = false } = {}) => {
@@ -352,8 +375,9 @@ const AdminAccessRequests = ({ currentAdmin }) => {
         return <span className={`px-2.5 py-1 rounded-full text-xs font-semibold inline-flex items-center gap-1 ${tone}`}><Icon className="w-3 h-3" /> {STATUS_LABELS[normalizedStatus] || normalizedStatus}</span>;
     };
 
-    const filteredRequests = requests.filter((req) => {
+    const filteredRequests = useMemo(() => requests.filter((req) => {
         const keyword = searchTerm.trim().toLowerCase();
+        const ticketKeyword = ticketFilter.trim().toLowerCase();
         const effectiveStatus = req.status === 'Pending' || !req.status ? 'Pending_Manager' : req.status;
         const matchesSearch =
             !keyword ||
@@ -363,12 +387,27 @@ const AdminAccessRequests = ({ currentAdmin }) => {
             req.ticket_number?.toLowerCase().includes(keyword) ||
             req.request_details?.toLowerCase().includes(keyword) ||
             req.other_system_details?.toLowerCase().includes(keyword);
+        const matchesTicket = !ticketKeyword || req.ticket_number?.toLowerCase().includes(ticketKeyword);
         const matchesStatus = statusFilter === 'All' || effectiveStatus === statusFilter;
         const reqDate = new Date(req.created_at);
         const matchesStart = !dateRangeStart || reqDate >= new Date(dateRangeStart);
         const matchesEnd = !dateRangeEnd || reqDate <= new Date(`${dateRangeEnd}T23:59:59`);
-        return matchesSearch && matchesStatus && matchesStart && matchesEnd;
-    });
+        return matchesSearch && matchesTicket && matchesStatus && matchesStart && matchesEnd;
+    }), [dateRangeEnd, dateRangeStart, requests, searchTerm, statusFilter, ticketFilter]);
+
+    const sortedRequests = useMemo(() => {
+        const direction = sortConfig.direction === 'asc' ? 1 : -1;
+        return [...filteredRequests].sort((a, b) => {
+            let compareValue = 0;
+            if (sortConfig.key === 'ticket_number') {
+                compareValue = String(a.ticket_number || '').localeCompare(String(b.ticket_number || ''), 'th-TH', { numeric: true, sensitivity: 'base' });
+            } else {
+                compareValue = getTimeValue(a.created_at) - getTimeValue(b.created_at);
+            }
+            if (compareValue === 0) compareValue = Number(a.id || 0) - Number(b.id || 0);
+            return compareValue * direction;
+        });
+    }, [filteredRequests, sortConfig]);
 
     return (
         <div className="space-y-6 animate-fade-in pb-10">
@@ -388,9 +427,19 @@ const AdminAccessRequests = ({ currentAdmin }) => {
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
                         <input
                             type="text"
-                            placeholder="ค้นหารหัสพนักงาน ชื่อ แผนก เลขที่ หรือรายละเอียด..."
+                            placeholder="ค้นหารหัสพนักงาน ชื่อ แผนก หรือรายละเอียด..."
                             value={searchTerm}
                             onChange={(event) => setSearchTerm(event.target.value)}
+                            className="input-modern !pl-9 !py-2 !text-sm w-full"
+                        />
+                    </div>
+                    <div className="relative w-full sm:w-56">
+                        <Key className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                        <input
+                            type="text"
+                            placeholder="กรองเลขที่เอกสาร..."
+                            value={ticketFilter}
+                            onChange={(event) => setTicketFilter(event.target.value)}
                             className="input-modern !pl-9 !py-2 !text-sm w-full"
                         />
                     </div>
@@ -436,7 +485,18 @@ const AdminAccessRequests = ({ currentAdmin }) => {
                         <table className="w-full text-left border-collapse">
                             <thead>
                                 <tr className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider">
-                                    <th className="p-4 font-semibold whitespace-nowrap">วันที่ / เลขที่</th>
+                                    <th className="p-4 font-semibold whitespace-nowrap">
+                                        <button type="button" onClick={() => toggleSort('created_at')} className="inline-flex items-center gap-1.5 rounded-lg px-1 py-0.5 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200">
+                                            วันที่
+                                            {renderSortIcon('created_at')}
+                                        </button>
+                                    </th>
+                                    <th className="p-4 font-semibold whitespace-nowrap">
+                                        <button type="button" onClick={() => toggleSort('ticket_number')} className="inline-flex items-center gap-1.5 rounded-lg px-1 py-0.5 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200">
+                                            เลขที่
+                                            {renderSortIcon('ticket_number')}
+                                        </button>
+                                    </th>
                                     <th className="p-4 font-semibold whitespace-nowrap">รหัสพนักงาน</th>
                                     <th className="p-4 font-semibold whitespace-nowrap">ชื่อ / แผนก</th>
                                     <th className="p-4 font-semibold">ระบบที่ขอสิทธิ์</th>
@@ -445,11 +505,13 @@ const AdminAccessRequests = ({ currentAdmin }) => {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
-                                {filteredRequests.map((req) => (
+                                {sortedRequests.map((req) => (
                                     <tr key={req.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                                         <td className="p-4 align-top whitespace-nowrap">
                                             <div className="text-sm font-semibold text-slate-800 dark:text-slate-200">{new Date(req.created_at).toLocaleDateString('th-TH')}</div>
-                                            <div className="text-xs text-slate-500 font-mono mt-1">{req.ticket_number || 'ไม่มีเลขที่'}</div>
+                                        </td>
+                                        <td className="p-4 align-top whitespace-nowrap">
+                                            <div className="font-mono text-sm font-semibold text-slate-700 dark:text-slate-300">{req.ticket_number || 'ไม่มีเลขที่'}</div>
                                         </td>
                                         <td className="p-4 align-top whitespace-nowrap">
                                             <span className="font-mono text-sm font-semibold text-slate-700 dark:text-slate-300">{req.employee_id || '-'}</span>
