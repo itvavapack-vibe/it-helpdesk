@@ -884,15 +884,9 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="All">ทุกหมวดหมู่</SelectItem>
-                            <SelectItem value="แก้ไขปัญหาด้าน Software D365">แก้ไขปัญหาด้าน Software D365</SelectItem>
-                            <SelectItem value="ติดตั้งและแก้ไขปัญหาด้าน Hardware">ติดตั้งและแก้ไขปัญหาด้าน Hardware</SelectItem>
-                            <SelectItem value="ซ่อมบำรุงอุปกรณ์ต่อพ่วง Hardware & Network">ซ่อมบำรุงอุปกรณ์ต่อพ่วง Hardware & Network</SelectItem>
-                            <SelectItem value="ประชุม/อบรม/สัมนา">ประชุม/อบรม/สัมนา</SelectItem>
-                            <SelectItem value="งานอื่น ๆ">งานอื่น ๆ</SelectItem>
-                            <SelectItem value="กล้องวงจรปิด">กล้องวงจรปิด</SelectItem>
-                            <SelectItem value="แก้ไขปัญหาด้าน Printer">แก้ไขปัญหาด้าน Printer</SelectItem>
-                            <SelectItem value="ติดตั้งและแก้ปัญหาด้าน Software ทั่วไป">ติดตั้งและแก้ปัญหาด้าน Software ทั่วไป</SelectItem>
-                            <SelectItem value="แก้ไขปัญหาด้านอีเมล">แก้ไขปัญหาด้านอีเมล</SelectItem>
+                            {ISSUE_CATEGORIES.map(category => (
+                                <SelectItem key={category} value={category}>{category}</SelectItem>
+                            ))}
                         </SelectContent>
                     </Select>
                     
