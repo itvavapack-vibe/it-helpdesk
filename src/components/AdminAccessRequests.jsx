@@ -5,7 +5,7 @@ import Swal from 'sweetalert2';
 import { mysql } from '../mysqlClient';
 import Fmit12PdfPreview from './Fmit12PdfPreview';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { ACCESS_QUEUE_STATUS_BY_ROLE, canDeleteRecords, canManageAllWork, normalizeRoleValue, visibleQueueStatuses } from '../config/roles';
+import { ACCESS_QUEUE_STATUS_BY_ROLE, ROLES, canDeleteRecords, canManageAllWork, normalizeRoleValue, visibleQueueStatuses } from '../config/roles';
 import { toMysqlDateTime } from '../utils/dateTime';
 import { showAcknowledgeAccessRequestLinkDialog } from '../utils/closeIssueLink';
 import { loadSignatureIntoCanvas } from '../utils/signatureCanvas';
@@ -125,6 +125,7 @@ const AdminAccessRequests = ({ currentAdmin }) => {
         const normalizedStatus = getEffectiveStatus(status);
         return (visibleStatuses || []).includes(normalizedStatus);
     };
+    const canEditEmployeeMovementRequests = [ROLES.IT_SUPPORT, ROLES.IT_SOFTWARE].includes(currentRole);
 
     const toggleSort = (key) => {
         setSortConfig((current) => {
@@ -219,8 +220,8 @@ const AdminAccessRequests = ({ currentAdmin }) => {
         const employeeId = normalizeEmployeeId(req?.employee_id);
         if (handledTransferEmployeeIds.has(employeeId)) return false;
         if (canEditAllWork) return true;
-        if (!isTransferredAccessRequest(req)) return false;
-        return true;
+        if (!canEditEmployeeMovementRequests) return false;
+        return isTransferredAccessRequest(req) || isResignedAccessRequest(req);
     };
 
     const getEmployeeMovementInfo = (req) => {
