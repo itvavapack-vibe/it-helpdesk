@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDown, ArrowUp, ArrowUpDown, CheckCircle, Clock, Edit, Eye, Filter, Key, Link, Printer, Search, Trash2, XCircle } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, CheckCircle, Clock, Edit, Eye, Filter, Key, Link, MoveRight, Printer, Search, Trash2, UserMinus, XCircle } from 'lucide-react';
 import SignatureCanvas from 'react-signature-canvas';
 import Swal from 'sweetalert2';
 import { mysql } from '../mysqlClient';
@@ -22,6 +22,29 @@ const STATUS_LABELS = {
     Rejected: 'ไม่อนุมัติ',
     Cancelled: 'ยกเลิก',
 };
+
+const EMPLOYEE_STATUS = {
+    ACTIVE: 'ทำงาน',
+    TRANSFERRED: 'โอนย้าย',
+    RESIGNED: 'ลาออก',
+};
+
+const EMPLOYEE_EVENT_FILTERS = {
+    ALL: 'All',
+    RESIGNED: 'resigned',
+    TRANSFERRED: 'transferred',
+};
+
+const STATUS_CARD_ORDER = [
+    'Pending_Manager',
+    'Pending_IT',
+    'Pending_IT_Supervisor',
+    'Pending_IT_Manager',
+    'Pending_User_Acknowledgement',
+    'Completed',
+    'Rejected',
+    'Cancelled',
+];
 
 const SYSTEM_OPTIONS = [
     { id: 'userComputer', label: 'User Computer' },
@@ -60,12 +83,24 @@ const getTimeValue = (value) => {
     return Number.isNaN(time) ? 0 : time;
 };
 
+const getEffectiveStatus = (status) => (status === 'Pending' || !status ? 'Pending_Manager' : status);
+const normalizeEmployeeId = (value) => String(value || '').trim();
+
+const formatDisplayDate = (value) => {
+    if (!value) return '-';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '-';
+    return date.toLocaleDateString('th-TH');
+};
+
 const AdminAccessRequests = ({ currentAdmin }) => {
     const [requests, setRequests] = useState([]);
+    const [employees, setEmployees] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [ticketFilter, setTicketFilter] = useState('');
     const [statusFilter, setStatusFilter] = useState('All');
+    const [employeeEventFilter, setEmployeeEventFilter] = useState(EMPLOYEE_EVENT_FILTERS.ALL);
     const [dateRangeStart, setDateRangeStart] = useState('');
     const [dateRangeEnd, setDateRangeEnd] = useState('');
     const [sortConfig, setSortConfig] = useState({ key: 'created_at', direction: 'desc' });
@@ -73,6 +108,7 @@ const AdminAccessRequests = ({ currentAdmin }) => {
     const [detailRequest, setDetailRequest] = useState(null);
     const [detailForm, setDetailForm] = useState({});
     const [isSavingDetails, setIsSavingDetails] = useState(false);
+    const [handledTransferEmployeeIds, setHandledTransferEmployeeIds] = useState(() => new Set());
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
     const [isSignModalOpen, setIsSignModalOpen] = useState(false);
     const [signingRequestId, setSigningRequestId] = useState(null);
@@ -86,7 +122,7 @@ const AdminAccessRequests = ({ currentAdmin }) => {
     const canEditAllWork = canManageAllWork(currentAdmin?.role);
     const visibleStatuses = visibleQueueStatuses(currentRole, ACCESS_QUEUE_STATUS_BY_ROLE);
     const canActOnStatus = (status) => {
-        const normalizedStatus = status === 'Pending' || !status ? 'Pending_Manager' : status;
+        const normalizedStatus = getEffectiveStatus(status);
         return (visibleStatuses || []).includes(normalizedStatus);
     };
 
@@ -126,10 +162,28 @@ const AdminAccessRequests = ({ currentAdmin }) => {
         }
     };
 
+    const fetchEmployees = async () => {
+        try {
+            const { data, error } = await mysql
+                .from('employees')
+                .select('emp_id, status, end_date, transfer_date, transfer_department, transfer_position')
+                .order('emp_id', { ascending: true });
+
+            if (error) throw error;
+            setEmployees(data || []);
+        } catch (error) {
+            console.error('Error fetching employees for access request alerts:', error);
+        }
+    };
+
     useEffect(() => {
         fetchRequests();
+        fetchEmployees();
         const intervalId = setInterval(() => {
-            if (document.visibilityState === 'visible') fetchRequests({ silent: true });
+            if (document.visibilityState === 'visible') {
+                fetchRequests({ silent: true });
+                fetchEmployees();
+            }
         }, 7000);
         return () => clearInterval(intervalId);
     }, []);
@@ -139,8 +193,65 @@ const AdminAccessRequests = ({ currentAdmin }) => {
         loadSignatureIntoCanvas(adminSignatureRef, currentAdmin?.signature);
     }, [isSignModalOpen, selectedActionStatus]);
 
+    const employeesById = useMemo(() => {
+        const map = new Map();
+        employees.forEach((employee) => {
+            const employeeId = normalizeEmployeeId(employee.emp_id);
+            if (employeeId) map.set(employeeId, employee);
+        });
+        return map;
+    }, [employees]);
+
+    const getRequestEmployee = (req) => employeesById.get(normalizeEmployeeId(req?.employee_id));
+
+    const isResignedAccessRequest = (req) => {
+        const employee = getRequestEmployee(req);
+        return employee?.status === EMPLOYEE_STATUS.RESIGNED && getEffectiveStatus(req?.status) !== 'Cancelled';
+    };
+
+    const isTransferredAccessRequest = (req) => {
+        const employee = getRequestEmployee(req);
+        const employeeId = normalizeEmployeeId(req?.employee_id);
+        return employee?.status === EMPLOYEE_STATUS.TRANSFERRED && !handledTransferEmployeeIds.has(employeeId);
+    };
+
+    const canEditAccessRequest = (req) => {
+        const employeeId = normalizeEmployeeId(req?.employee_id);
+        if (handledTransferEmployeeIds.has(employeeId)) return false;
+        if (canEditAllWork) return true;
+        if (!isTransferredAccessRequest(req)) return false;
+        return true;
+    };
+
+    const getEmployeeMovementInfo = (req) => {
+        const employee = getRequestEmployee(req);
+        if (!employee) return null;
+        if (employee.status === EMPLOYEE_STATUS.RESIGNED && getEffectiveStatus(req?.status) !== 'Cancelled') {
+            return {
+                type: EMPLOYEE_EVENT_FILTERS.RESIGNED,
+                label: 'ลาออก',
+                detail: `วันที่ลาออก ${formatDisplayDate(employee.end_date)}`,
+                className: 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-300',
+            };
+        }
+        if (isTransferredAccessRequest(req)) {
+            const transferDetail = [
+                employee.transfer_date ? `วันที่โอนย้าย ${formatDisplayDate(employee.transfer_date)}` : '',
+                employee.transfer_department ? `ไป ${employee.transfer_department}` : '',
+                employee.transfer_position ? `ตำแหน่ง ${employee.transfer_position}` : '',
+            ].filter(Boolean).join(' · ');
+            return {
+                type: EMPLOYEE_EVENT_FILTERS.TRANSFERRED,
+                label: 'โอนย้าย',
+                detail: transferDetail || 'มีข้อมูลโอนย้ายจากหน้าพนักงาน',
+                className: 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-300',
+            };
+        }
+        return null;
+    };
+
     const getActionStatusOptions = (status) => {
-        const effectiveStatus = status === 'Pending' || !status ? 'Pending_Manager' : status;
+        const effectiveStatus = getEffectiveStatus(status);
         if (effectiveStatus === 'Pending_IT') {
             return [{ value: 'Pending_IT_Supervisor', label: 'ส่งต่อ IT Supervisor' }];
         }
@@ -148,7 +259,7 @@ const AdminAccessRequests = ({ currentAdmin }) => {
     };
 
     const openStatusActionModal = (req) => {
-        const effectiveStatus = req.status === 'Pending' || !req.status ? 'Pending_Manager' : req.status;
+        const effectiveStatus = getEffectiveStatus(req.status);
         if (!canActOnStatus(effectiveStatus)) return;
         const options = getActionStatusOptions(effectiveStatus);
         if (!options.length) return;
@@ -309,12 +420,12 @@ const AdminAccessRequests = ({ currentAdmin }) => {
     };
 
     const handleDetailFormChange = (field, value) => {
-        if (!canEditAllWork) return;
+        if (!canEditAccessRequest(detailRequest)) return;
         setDetailForm((current) => ({ ...current, [field]: value }));
     };
 
     const handleDetailSystemChange = (systemId) => {
-        if (!canEditAllWork) return;
+        if (!canEditAccessRequest(detailRequest)) return;
         setDetailForm((current) => ({
             ...current,
             systems: {
@@ -325,7 +436,7 @@ const AdminAccessRequests = ({ currentAdmin }) => {
     };
 
     const handleSaveDetails = async () => {
-        if (!detailRequest || !canEditAllWork) return;
+        if (!detailRequest || !canEditAccessRequest(detailRequest)) return;
         setIsSavingDetails(true);
         const normalizedSystems = normalizeSystems(detailForm.systems);
         const updatePayload = {
@@ -346,9 +457,34 @@ const AdminAccessRequests = ({ currentAdmin }) => {
         try {
             const { error } = await mysql.from('access_requests').update(updatePayload).eq('id', detailRequest.id);
             if (error) throw error;
+            const wasTransferUpdate = isTransferredAccessRequest(detailRequest);
+            const transferEmployeeId = normalizeEmployeeId(detailRequest.employee_id);
             const nextRequest = { ...detailRequest, ...updatePayload, systems: normalizedSystems };
+
+            if (wasTransferUpdate && transferEmployeeId) {
+                const { error: employeeError } = await mysql
+                    .from('employees')
+                    .update({ status: EMPLOYEE_STATUS.ACTIVE })
+                    .eq('emp_id', transferEmployeeId);
+
+                if (employeeError) throw employeeError;
+
+                setEmployees((prev) => prev.map((employee) => (
+                    normalizeEmployeeId(employee.emp_id) === transferEmployeeId
+                        ? { ...employee, status: EMPLOYEE_STATUS.ACTIVE }
+                        : employee
+                )));
+            }
+
             setRequests((prev) => prev.map((req) => (req.id === detailRequest.id ? { ...req, ...updatePayload, systems: normalizedSystems } : req)));
-            setDetailRequest(nextRequest);
+            if (wasTransferUpdate) {
+                setHandledTransferEmployeeIds((current) => {
+                    const next = new Set(current);
+                    if (transferEmployeeId) next.add(transferEmployeeId);
+                    return next;
+                });
+            }
+            setDetailRequest(wasTransferUpdate ? null : nextRequest);
             window.dispatchEvent(new Event('approval-queues:refresh'));
             Swal.fire('บันทึกแล้ว', 'อัปเดตข้อมูลคำร้องขอสิทธิ์เรียบร้อยแล้ว', 'success');
         } catch (error) {
@@ -360,7 +496,7 @@ const AdminAccessRequests = ({ currentAdmin }) => {
     };
 
     const getStatusBadge = (status) => {
-        const normalizedStatus = status === 'Pending' || !status ? 'Pending_Manager' : status;
+        const normalizedStatus = getEffectiveStatus(status);
         const tone = {
             Pending_Manager: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
             Pending_IT: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
@@ -375,10 +511,83 @@ const AdminAccessRequests = ({ currentAdmin }) => {
         return <span className={`px-2.5 py-1 rounded-full text-xs font-semibold inline-flex items-center gap-1 ${tone}`}><Icon className="w-3 h-3" /> {STATUS_LABELS[normalizedStatus] || normalizedStatus}</span>;
     };
 
+    const statusCounts = useMemo(() => {
+        const counts = { All: requests.length };
+        STATUS_CARD_ORDER.forEach((status) => {
+            counts[status] = 0;
+        });
+        requests.forEach((req) => {
+            const effectiveStatus = getEffectiveStatus(req.status);
+            counts[effectiveStatus] = (counts[effectiveStatus] || 0) + 1;
+        });
+        return counts;
+    }, [requests]);
+
+    const employeeEventIds = useMemo(() => {
+        const resigned = new Set();
+        const transferred = new Set();
+
+        requests.forEach((req) => {
+            const employeeId = normalizeEmployeeId(req.employee_id);
+            if (!employeeId) return;
+            if (isResignedAccessRequest(req)) resigned.add(employeeId);
+            if (isTransferredAccessRequest(req)) transferred.add(employeeId);
+        });
+
+        return {
+            [EMPLOYEE_EVENT_FILTERS.RESIGNED]: resigned,
+            [EMPLOYEE_EVENT_FILTERS.TRANSFERRED]: transferred,
+        };
+    }, [employeesById, handledTransferEmployeeIds, requests]);
+
+    const employeeEventCounts = useMemo(() => ({
+        [EMPLOYEE_EVENT_FILTERS.RESIGNED]: employeeEventIds[EMPLOYEE_EVENT_FILTERS.RESIGNED].size,
+        [EMPLOYEE_EVENT_FILTERS.TRANSFERRED]: employeeEventIds[EMPLOYEE_EVENT_FILTERS.TRANSFERRED].size,
+    }), [employeeEventIds]);
+
+    const statusSummaryCards = useMemo(() => ([
+        { status: 'All', label: 'ทั้งหมด', value: statusCounts.All || 0, icon: Key, className: 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200' },
+        ...STATUS_CARD_ORDER.map((status) => ({
+            status,
+            label: STATUS_LABELS[status] || status,
+            value: statusCounts[status] || 0,
+            icon: ['Completed', 'Approved'].includes(status) ? CheckCircle : status === 'Rejected' || status === 'Cancelled' ? XCircle : Clock,
+            className: {
+                Pending_Manager: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300',
+                Pending_IT: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+                Pending_IT_Supervisor: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300',
+                Pending_IT_Manager: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
+                Pending_User_Acknowledgement: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300',
+                Completed: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
+                Rejected: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
+                Cancelled: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',
+            }[status] || 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200',
+        })),
+    ]), [statusCounts]);
+
+    const employeeEventCards = useMemo(() => ([
+        {
+            filter: EMPLOYEE_EVENT_FILTERS.RESIGNED,
+            label: 'พนักงานลาออก',
+            description: 'แสดงจนกว่าคำร้องจะยกเลิก',
+            value: employeeEventCounts[EMPLOYEE_EVENT_FILTERS.RESIGNED] || 0,
+            icon: UserMinus,
+            className: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',
+        },
+        {
+            filter: EMPLOYEE_EVENT_FILTERS.TRANSFERRED,
+            label: 'พนักงานโอนย้าย',
+            description: 'แก้ไขข้อมูลจากรายการได้',
+            value: employeeEventCounts[EMPLOYEE_EVENT_FILTERS.TRANSFERRED] || 0,
+            icon: MoveRight,
+            className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+        },
+    ]), [employeeEventCounts]);
+
     const filteredRequests = useMemo(() => requests.filter((req) => {
         const keyword = searchTerm.trim().toLowerCase();
         const ticketKeyword = ticketFilter.trim().toLowerCase();
-        const effectiveStatus = req.status === 'Pending' || !req.status ? 'Pending_Manager' : req.status;
+        const effectiveStatus = getEffectiveStatus(req.status);
         const matchesSearch =
             !keyword ||
             req.employee_id?.toLowerCase().includes(keyword) ||
@@ -389,11 +598,16 @@ const AdminAccessRequests = ({ currentAdmin }) => {
             req.other_system_details?.toLowerCase().includes(keyword);
         const matchesTicket = !ticketKeyword || req.ticket_number?.toLowerCase().includes(ticketKeyword);
         const matchesStatus = statusFilter === 'All' || effectiveStatus === statusFilter;
+        const employeeId = normalizeEmployeeId(req.employee_id);
+        const matchesEmployeeEvent =
+            employeeEventFilter === EMPLOYEE_EVENT_FILTERS.ALL ||
+            (employeeEventFilter === EMPLOYEE_EVENT_FILTERS.RESIGNED && isResignedAccessRequest(req) && employeeEventIds[EMPLOYEE_EVENT_FILTERS.RESIGNED].has(employeeId)) ||
+            (employeeEventFilter === EMPLOYEE_EVENT_FILTERS.TRANSFERRED && isTransferredAccessRequest(req) && employeeEventIds[EMPLOYEE_EVENT_FILTERS.TRANSFERRED].has(employeeId));
         const reqDate = new Date(req.created_at);
         const matchesStart = !dateRangeStart || reqDate >= new Date(dateRangeStart);
         const matchesEnd = !dateRangeEnd || reqDate <= new Date(`${dateRangeEnd}T23:59:59`);
-        return matchesSearch && matchesTicket && matchesStatus && matchesStart && matchesEnd;
-    }), [dateRangeEnd, dateRangeStart, requests, searchTerm, statusFilter, ticketFilter]);
+        return matchesSearch && matchesTicket && matchesStatus && matchesEmployeeEvent && matchesStart && matchesEnd;
+    }), [dateRangeEnd, dateRangeStart, employeeEventFilter, employeeEventIds, employeesById, requests, searchTerm, statusFilter, ticketFilter]);
 
     const sortedRequests = useMemo(() => {
         const direction = sortConfig.direction === 'asc' ? 1 : -1;
@@ -408,6 +622,26 @@ const AdminAccessRequests = ({ currentAdmin }) => {
             return compareValue * direction;
         });
     }, [filteredRequests, sortConfig]);
+
+    const canEditDetailRequest = detailRequest ? canEditAccessRequest(detailRequest) : canEditAllWork;
+    const isTransferDetailUpdate = detailRequest ? isTransferredAccessRequest(detailRequest) : false;
+
+    const applyStatusCardFilter = (status) => {
+        setEmployeeEventFilter(EMPLOYEE_EVENT_FILTERS.ALL);
+        setStatusFilter((currentStatus) => (status !== 'All' && currentStatus === status ? 'All' : status));
+    };
+
+    const applyEmployeeEventFilter = (filter) => {
+        setStatusFilter('All');
+        setEmployeeEventFilter((currentFilter) => (
+            currentFilter === filter ? EMPLOYEE_EVENT_FILTERS.ALL : filter
+        ));
+    };
+
+    const handleStatusSelectFilter = (value) => {
+        setEmployeeEventFilter(EMPLOYEE_EVENT_FILTERS.ALL);
+        setStatusFilter(value);
+    };
 
     return (
         <div className="space-y-6 animate-fade-in pb-10">
@@ -445,7 +679,7 @@ const AdminAccessRequests = ({ currentAdmin }) => {
                     </div>
                     <div className="relative w-full sm:w-56">
                         <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-                        <Select value={statusFilter} onValueChange={setStatusFilter}>
+                        <Select value={statusFilter} onValueChange={handleStatusSelectFilter}>
                             <SelectTrigger className="input-modern !pl-9 !py-2 !text-sm w-full bg-white dark:bg-slate-800">
                                 <SelectValue placeholder="สถานะทั้งหมด" />
                             </SelectTrigger>
@@ -465,6 +699,68 @@ const AdminAccessRequests = ({ currentAdmin }) => {
                     <input type="date" value={dateRangeStart} onChange={(event) => setDateRangeStart(event.target.value)} className="input-modern !py-2 !text-sm w-full sm:w-40" title="วันที่เริ่มต้น" />
                     <input type="date" value={dateRangeEnd} onChange={(event) => setDateRangeEnd(event.target.value)} className="input-modern !py-2 !text-sm w-full sm:w-40" title="วันที่สิ้นสุด" />
                 </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+                {statusSummaryCards.map((card) => {
+                    const Icon = card.icon;
+                    const isActive = statusFilter === card.status && employeeEventFilter === EMPLOYEE_EVENT_FILTERS.ALL;
+                    return (
+                        <button
+                            key={card.status}
+                            type="button"
+                            onClick={() => applyStatusCardFilter(card.status)}
+                            aria-pressed={isActive}
+                            className={`group flex min-h-[104px] flex-col justify-between rounded-2xl border bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-amber-300 hover:shadow-md dark:bg-slate-800 ${
+                                isActive
+                                    ? 'border-amber-400 ring-2 ring-amber-200 dark:border-amber-500 dark:ring-amber-900/50'
+                                    : 'border-slate-100 dark:border-slate-700'
+                            }`}
+                        >
+                            <div className="flex items-center justify-between gap-3">
+                                <span className={`rounded-xl p-2 ${card.className}`}>
+                                    <Icon className="h-4 w-4" />
+                                </span>
+                                <span className="text-2xl font-extrabold text-slate-900 dark:text-white">{card.value}</span>
+                            </div>
+                            <span className="mt-3 text-sm font-semibold leading-tight text-slate-600 dark:text-slate-300">{card.label}</span>
+                        </button>
+                    );
+                })}
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                {employeeEventCards.map((card) => {
+                    const Icon = card.icon;
+                    const isActive = employeeEventFilter === card.filter;
+                    return (
+                        <button
+                            key={card.filter}
+                            type="button"
+                            onClick={() => applyEmployeeEventFilter(card.filter)}
+                            aria-pressed={isActive}
+                            className={`flex min-h-[112px] items-center justify-between gap-4 rounded-2xl border bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md dark:bg-slate-800 ${
+                                isActive
+                                    ? 'border-blue-400 ring-2 ring-blue-200 dark:border-blue-500 dark:ring-blue-900/50'
+                                    : 'border-slate-100 dark:border-slate-700'
+                            }`}
+                        >
+                            <div className="flex min-w-0 items-center gap-4">
+                                <span className={`shrink-0 rounded-xl p-3 ${card.className}`}>
+                                    <Icon className="h-5 w-5" />
+                                </span>
+                                <div className="min-w-0">
+                                    <div className="font-bold text-slate-800 dark:text-white">{card.label}</div>
+                                    <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">{card.description}</div>
+                                </div>
+                            </div>
+                            <div className="shrink-0 text-right">
+                                <div className="text-3xl font-extrabold text-slate-900 dark:text-white">{card.value}</div>
+                                <div className="text-xs font-semibold text-slate-400">พนักงาน</div>
+                            </div>
+                        </button>
+                    );
+                })}
             </div>
 
             {isLoading ? (
@@ -505,7 +801,11 @@ const AdminAccessRequests = ({ currentAdmin }) => {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
-                                {sortedRequests.map((req) => (
+                                {sortedRequests.map((req) => {
+                                    const movementInfo = getEmployeeMovementInfo(req);
+                                    const canEditThisRequest = canEditAccessRequest(req);
+                                    const isTransferUpdateRequest = isTransferredAccessRequest(req);
+                                    return (
                                     <tr key={req.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                                         <td className="p-4 align-top whitespace-nowrap">
                                             <div className="text-sm font-semibold text-slate-800 dark:text-slate-200">{new Date(req.created_at).toLocaleDateString('th-TH')}</div>
@@ -519,6 +819,13 @@ const AdminAccessRequests = ({ currentAdmin }) => {
                                         <td className="p-4 align-top whitespace-nowrap">
                                             <div className="text-sm font-bold text-slate-800 dark:text-white">{req.name_th}</div>
                                             <div className="text-xs text-slate-500 mt-1">{req.department}</div>
+                                            {movementInfo && (
+                                                <div className={`mt-2 inline-flex max-w-[240px] items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${movementInfo.className}`} title={movementInfo.detail}>
+                                                    {movementInfo.type === EMPLOYEE_EVENT_FILTERS.RESIGNED ? <UserMinus className="h-3.5 w-3.5 shrink-0" /> : <MoveRight className="h-3.5 w-3.5 shrink-0" />}
+                                                    <span className="shrink-0">{movementInfo.label}</span>
+                                                    <span className="truncate font-medium opacity-80">{movementInfo.detail}</span>
+                                                </div>
+                                            )}
                                         </td>
                                         <td className="p-4 align-top min-w-[220px]">
                                             <div className="text-sm text-slate-700 dark:text-slate-300 font-medium leading-relaxed">{formatSystems(req.systems, req.other_system_details)}</div>
@@ -539,8 +846,8 @@ const AdminAccessRequests = ({ currentAdmin }) => {
                                                         <Link className="h-5 w-5" />
                                                     </button>
                                                 )}
-                                                <button onClick={() => openDetailModal(req)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-sky-600 transition-colors hover:bg-sky-600 hover:text-white" title="ดูข้อมูลคำร้อง" aria-label="ดูข้อมูลคำร้อง">
-                                                    <Eye className="h-5 w-5" />
+                                                <button onClick={() => openDetailModal(req)} className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-colors ${canEditThisRequest ? 'text-amber-600 hover:bg-amber-600 hover:text-white' : 'text-sky-600 hover:bg-sky-600 hover:text-white'}`} title={canEditThisRequest && isTransferUpdateRequest ? 'อัพเดทข้อมูล' : canEditThisRequest ? 'แก้ไขข้อมูลคำร้อง' : 'ดูข้อมูลคำร้อง'} aria-label={canEditThisRequest && isTransferUpdateRequest ? 'อัพเดทข้อมูล' : canEditThisRequest ? 'แก้ไขข้อมูลคำร้อง' : 'ดูข้อมูลคำร้อง'}>
+                                                    {canEditThisRequest ? <Edit className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                                                 </button>
                                                 <button onClick={() => openPreview(req)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 shadow-sm transition-colors hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-400 dark:hover:bg-indigo-900/50" title="ดูเอกสาร" aria-label="ดูเอกสาร">
                                                     <Printer className="h-5 w-5" />
@@ -558,7 +865,8 @@ const AdminAccessRequests = ({ currentAdmin }) => {
                                             </div>
                                         </td>
                                     </tr>
-                                ))}
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>
@@ -574,7 +882,7 @@ const AdminAccessRequests = ({ currentAdmin }) => {
                                     <Eye className="h-5 w-5 text-sky-500" /> ข้อมูลคำร้องขอสิทธิ์
                                 </h3>
                                 <p className="mt-1 text-sm font-medium text-slate-500 dark:text-slate-400">
-                                    {canEditAllWork ? 'Super Admin สามารถแก้ไขข้อมูลได้' : 'สิทธิ์ปัจจุบันอ่านข้อมูลได้อย่างเดียว'}
+                                    {canEditDetailRequest ? 'สามารถแก้ไขข้อมูลคำร้องนี้ได้' : 'สิทธิ์ปัจจุบันอ่านข้อมูลได้อย่างเดียว'}
                                 </p>
                             </div>
                             <button onClick={() => setDetailRequest(null)} className="rounded-xl p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700 dark:hover:text-slate-200">
@@ -585,11 +893,11 @@ const AdminAccessRequests = ({ currentAdmin }) => {
                         <div className="grid max-h-[calc(100dvh-13rem)] grid-cols-1 gap-4 overflow-y-auto pr-1 md:grid-cols-2">
                             <div>
                                 <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-slate-400">เลขที่เอกสาร</label>
-                                <input className="input-modern w-full" value={detailForm.ticket_number || ''} disabled={!canEditAllWork} onChange={(event) => handleDetailFormChange('ticket_number', event.target.value)} />
+                                <input className="input-modern w-full" value={detailForm.ticket_number || ''} disabled={!canEditDetailRequest} onChange={(event) => handleDetailFormChange('ticket_number', event.target.value)} />
                             </div>
                             <div>
                                 <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-slate-400">สถานะ</label>
-                                <Select value={detailForm.status || 'Pending_Manager'} onValueChange={(value) => handleDetailFormChange('status', value)} disabled={!canEditAllWork}>
+                                <Select value={detailForm.status || 'Pending_Manager'} onValueChange={(value) => handleDetailFormChange('status', value)} disabled={!canEditDetailRequest}>
                                     <SelectTrigger className="input-modern w-full">
                                         <SelectValue placeholder="เลือกสถานะ" />
                                     </SelectTrigger>
@@ -602,23 +910,23 @@ const AdminAccessRequests = ({ currentAdmin }) => {
                             </div>
                             <div>
                                 <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-slate-400">ชื่อ-สกุล ภาษาไทย</label>
-                                <input className="input-modern w-full" value={detailForm.name_th || ''} disabled={!canEditAllWork} onChange={(event) => handleDetailFormChange('name_th', event.target.value)} />
+                                <input className="input-modern w-full" value={detailForm.name_th || ''} disabled={!canEditDetailRequest} onChange={(event) => handleDetailFormChange('name_th', event.target.value)} />
                             </div>
                             <div>
                                 <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-slate-400">ชื่อ-สกุล ภาษาอังกฤษ</label>
-                                <input className="input-modern w-full" value={detailForm.name_en || ''} disabled={!canEditAllWork} onChange={(event) => handleDetailFormChange('name_en', event.target.value)} />
+                                <input className="input-modern w-full" value={detailForm.name_en || ''} disabled={!canEditDetailRequest} onChange={(event) => handleDetailFormChange('name_en', event.target.value)} />
                             </div>
                             <div>
                                 <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-slate-400">แผนก</label>
-                                <input className="input-modern w-full" value={detailForm.department || ''} disabled={!canEditAllWork} onChange={(event) => handleDetailFormChange('department', event.target.value)} />
+                                <input className="input-modern w-full" value={detailForm.department || ''} disabled={!canEditDetailRequest} onChange={(event) => handleDetailFormChange('department', event.target.value)} />
                             </div>
                             <div>
                                 <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-slate-400">ตำแหน่ง</label>
-                                <input className="input-modern w-full" value={detailForm.position || ''} disabled={!canEditAllWork} onChange={(event) => handleDetailFormChange('position', event.target.value)} />
+                                <input className="input-modern w-full" value={detailForm.position || ''} disabled={!canEditDetailRequest} onChange={(event) => handleDetailFormChange('position', event.target.value)} />
                             </div>
                             <div>
                                 <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-slate-400">เบอร์ภายใน</label>
-                                <input className="input-modern w-full" value={detailForm.internal_phone || ''} disabled={!canEditAllWork} onChange={(event) => handleDetailFormChange('internal_phone', event.target.value)} />
+                                <input className="input-modern w-full" value={detailForm.internal_phone || ''} disabled={!canEditDetailRequest} onChange={(event) => handleDetailFormChange('internal_phone', event.target.value)} />
                             </div>
                             <div className="md:col-span-2">
                                 <label className="mb-2 block text-xs font-bold text-slate-500 dark:text-slate-400">ระบบที่ขอสิทธิ์</label>
@@ -626,12 +934,12 @@ const AdminAccessRequests = ({ currentAdmin }) => {
                                     {SYSTEM_OPTIONS.map((system) => {
                                         const checked = Boolean(normalizeSystems(detailForm.systems)[system.id]);
                                         return (
-                                            <label key={system.id} className={`flex items-start gap-3 rounded-xl border p-3 transition-all ${checked ? 'border-indigo-200 bg-indigo-50 dark:border-indigo-700 dark:bg-indigo-900/30' : 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800'} ${canEditAllWork ? 'cursor-pointer hover:border-indigo-300 dark:hover:border-indigo-600' : 'cursor-default opacity-90'}`}>
+                                            <label key={system.id} className={`flex items-start gap-3 rounded-xl border p-3 transition-all ${checked ? 'border-indigo-200 bg-indigo-50 dark:border-indigo-700 dark:bg-indigo-900/30' : 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800'} ${canEditDetailRequest ? 'cursor-pointer hover:border-indigo-300 dark:hover:border-indigo-600' : 'cursor-default opacity-90'}`}>
                                                 <input
                                                     type="checkbox"
                                                     className="mt-0.5 h-4 w-4 rounded text-indigo-600 focus:ring-indigo-500 disabled:cursor-not-allowed"
                                                     checked={checked}
-                                                    disabled={!canEditAllWork}
+                                                    disabled={!canEditDetailRequest}
                                                     onChange={() => handleDetailSystemChange(system.id)}
                                                 />
                                                 <span className={`text-sm font-medium ${checked ? 'text-indigo-800 dark:text-indigo-300' : 'text-slate-600 dark:text-slate-300'}`}>
@@ -640,19 +948,19 @@ const AdminAccessRequests = ({ currentAdmin }) => {
                                             </label>
                                         );
                                     })}
-                                    <label className={`flex flex-col gap-3 rounded-xl border p-3 transition-all sm:col-span-2 xl:col-span-4 ${normalizeSystems(detailForm.systems).other ? 'border-indigo-200 bg-indigo-50 dark:border-indigo-700 dark:bg-indigo-900/30' : 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800'} ${canEditAllWork ? 'cursor-pointer hover:border-indigo-300 dark:hover:border-indigo-600' : 'cursor-default opacity-90'} sm:flex-row sm:items-center`}>
+                                    <label className={`flex flex-col gap-3 rounded-xl border p-3 transition-all sm:col-span-2 xl:col-span-4 ${normalizeSystems(detailForm.systems).other ? 'border-indigo-200 bg-indigo-50 dark:border-indigo-700 dark:bg-indigo-900/30' : 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800'} ${canEditDetailRequest ? 'cursor-pointer hover:border-indigo-300 dark:hover:border-indigo-600' : 'cursor-default opacity-90'} sm:flex-row sm:items-center`}>
                                         <input
                                             type="checkbox"
                                             className="h-4 w-4 rounded text-indigo-600 focus:ring-indigo-500 disabled:cursor-not-allowed"
                                             checked={Boolean(normalizeSystems(detailForm.systems).other)}
-                                            disabled={!canEditAllWork}
+                                            disabled={!canEditDetailRequest}
                                             onChange={() => handleDetailSystemChange('other')}
                                         />
                                         <span className="text-sm font-medium text-slate-600 dark:text-slate-300 sm:whitespace-nowrap">อื่น ๆ ระบุ:</span>
                                         <input
                                             className="flex-1 border-b border-slate-300 bg-transparent text-sm outline-none transition-all focus:border-indigo-500 disabled:cursor-not-allowed disabled:text-slate-400"
                                             value={detailForm.other_system_details || ''}
-                                            disabled={!canEditAllWork || !normalizeSystems(detailForm.systems).other}
+                                            disabled={!canEditDetailRequest || !normalizeSystems(detailForm.systems).other}
                                             onChange={(event) => handleDetailFormChange('other_system_details', event.target.value)}
                                             placeholder="โปรดระบุระบบ..."
                                         />
@@ -661,11 +969,11 @@ const AdminAccessRequests = ({ currentAdmin }) => {
                             </div>
                             <div className="md:col-span-2">
                                 <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-slate-400">รายละเอียดคำร้อง</label>
-                                <textarea className="input-modern w-full" rows="3" value={detailForm.request_details || ''} disabled={!canEditAllWork} onChange={(event) => handleDetailFormChange('request_details', event.target.value)} />
+                                <textarea className="input-modern w-full" rows="3" value={detailForm.request_details || ''} disabled={!canEditDetailRequest} onChange={(event) => handleDetailFormChange('request_details', event.target.value)} />
                             </div>
                             <div>
                                 <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-slate-400">ผู้รับแจ้ง / ผู้ดำเนินการ</label>
-                                <input className="input-modern w-full" value={detailForm.it_staff_name || ''} disabled={!canEditAllWork} onChange={(event) => handleDetailFormChange('it_staff_name', event.target.value)} />
+                                <input className="input-modern w-full" value={detailForm.it_staff_name || ''} disabled={!canEditDetailRequest} onChange={(event) => handleDetailFormChange('it_staff_name', event.target.value)} />
                             </div>
                             <div>
                                 <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-slate-400">วันที่สร้างคำร้อง</label>
@@ -675,19 +983,19 @@ const AdminAccessRequests = ({ currentAdmin }) => {
                             </div>
                             <div className="md:col-span-2">
                                 <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-slate-400">ผลการดำเนินการ</label>
-                                <textarea className="input-modern w-full" rows="3" value={detailForm.action_result || ''} disabled={!canEditAllWork} onChange={(event) => handleDetailFormChange('action_result', event.target.value)} />
+                                <textarea className="input-modern w-full" rows="3" value={detailForm.action_result || ''} disabled={!canEditDetailRequest} onChange={(event) => handleDetailFormChange('action_result', event.target.value)} />
                             </div>
                             <div className="md:col-span-2">
                                 <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-slate-400">เหตุผลยกเลิก</label>
-                                <textarea className="input-modern w-full" rows="2" value={detailForm.cancel_reason || ''} disabled={!canEditAllWork} onChange={(event) => handleDetailFormChange('cancel_reason', event.target.value)} />
+                                <textarea className="input-modern w-full" rows="2" value={detailForm.cancel_reason || ''} disabled={!canEditDetailRequest} onChange={(event) => handleDetailFormChange('cancel_reason', event.target.value)} />
                             </div>
                         </div>
 
                         <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
                             <button onClick={() => setDetailRequest(null)} className="rounded-xl bg-slate-100 px-5 py-2.5 font-semibold text-slate-700 transition hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600">ปิด</button>
-                            {canEditAllWork && (
+                            {canEditDetailRequest && (
                                 <button onClick={handleSaveDetails} disabled={isSavingDetails} className="rounded-xl bg-sky-600 px-5 py-2.5 font-semibold text-white shadow-md transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60">
-                                    {isSavingDetails ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}
+                                    {isSavingDetails ? 'กำลังบันทึก...' : isTransferDetailUpdate ? 'อัพเดทข้อมูล' : 'บันทึกข้อมูล'}
                                 </button>
                             )}
                         </div>

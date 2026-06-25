@@ -163,6 +163,21 @@ CREATE INDEX idx_employees_emp_id ON employees(emp_id);
 CREATE INDEX idx_employees_department ON employees(department);
 CREATE INDEX idx_employees_status ON employees(status);
 
+-- Employee Transfer History
+CREATE TABLE IF NOT EXISTS employee_transfers (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  emp_id VARCHAR(6) NOT NULL,
+  transfer_date DATE NOT NULL,
+  from_department VARCHAR(255),
+  from_position VARCHAR(255),
+  to_department VARCHAR(255) NOT NULL,
+  to_position VARCHAR(255) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_employee_transfers_emp_id ON employee_transfers(emp_id);
+CREATE INDEX idx_employee_transfers_transfer_date ON employee_transfers(transfer_date);
+
 -- Assets (synced from GLPI)
 CREATE TABLE IF NOT EXISTS assets (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,

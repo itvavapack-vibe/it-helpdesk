@@ -18,6 +18,7 @@
     "migrate:admin-security": "node scripts/run-migrate-admin-security.mjs",
     "migrate:access-request-acknowledgement": "node scripts/run-migrate-access-request-acknowledgement.mjs",
     "migrate:employee-position": "node scripts/run-migrate-employee-position.mjs",
+    "migrate:employee-transfer-history": "node scripts/run-migrate-employee-transfer-history.mjs",
     "migrate:employee-name-en": "node scripts/run-migrate-employee-name-en.mjs",
     "import:employees": "node scripts/import-employees-xlsx.mjs",
     "import:access-requests": "node scripts/import-access-requests-xlsx.mjs",

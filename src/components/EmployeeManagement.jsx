@@ -123,6 +123,7 @@ const getDepartmentOptions = (...currentDepartments) => {
 
 const EmployeeManagement = ({ currentAdmin }) => {
     const [employees, setEmployees] = useState([]);
+    const [transferHistories, setTransferHistories] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('All');
@@ -138,6 +139,7 @@ const EmployeeManagement = ({ currentAdmin }) => {
 
     useEffect(() => {
         fetchEmployees();
+        fetchTransferHistories();
 
         const subscription = mysql
             .channel('employees_changes')
@@ -153,12 +155,14 @@ const EmployeeManagement = ({ currentAdmin }) => {
         const intervalId = setInterval(() => {
             if (document.visibilityState === 'visible') {
                 fetchEmployees({ silent: true });
+                fetchTransferHistories({ silent: true });
             }
         }, 10000);
 
         const handleVisibilityChange = () => {
             if (document.visibilityState === 'visible') {
                 fetchEmployees({ silent: true });
+                fetchTransferHistories({ silent: true });
             }
         };
 
@@ -191,6 +195,23 @@ const EmployeeManagement = ({ currentAdmin }) => {
             }
         } finally {
             if (!silent) setIsLoading(false);
+        }
+    };
+
+    const fetchTransferHistories = async ({ silent = true } = {}) => {
+        try {
+            const { data, error } = await mysql
+                .from('employee_transfers')
+                .select('*')
+                .order('transfer_date', { ascending: false });
+
+            if (error) throw error;
+            setTransferHistories(data || []);
+        } catch (error) {
+            console.error('Error fetching employee transfer history:', error);
+            if (!silent) {
+                Swal.fire('ไม่พบตารางประวัติโอนย้าย', 'กรุณารัน migration employee transfer history ก่อน', 'warning');
+            }
         }
     };
 
@@ -248,6 +269,17 @@ const EmployeeManagement = ({ currentAdmin }) => {
         () => getDepartmentOptions(formData.department, formData.transfer_department),
         [formData.department, formData.transfer_department]
     );
+
+    const transferHistoriesByEmployee = useMemo(() => {
+        const map = new Map();
+        transferHistories.forEach((transfer) => {
+            const employeeId = String(transfer.emp_id || '').trim();
+            if (!employeeId) return;
+            if (!map.has(employeeId)) map.set(employeeId, []);
+            map.get(employeeId).push(transfer);
+        });
+        return map;
+    }, [transferHistories]);
 
     const updateMonthFilterPart = (part, value) => {
         const nextMonth = part === 'month' ? value : monthInput;
@@ -348,6 +380,19 @@ const EmployeeManagement = ({ currentAdmin }) => {
         }
     };
 
+    const addTransferHistory = async (employeeId, originalEmployee, transferData) => {
+        const { error } = await mysql.from('employee_transfers').insert([{
+            emp_id: employeeId,
+            transfer_date: toDateInputValue(transferData.transferDate),
+            from_department: originalEmployee?.department || null,
+            from_position: originalEmployee?.position || null,
+            to_department: transferData.toDepartment,
+            to_position: transferData.toPosition
+        }]);
+
+        if (error) throw error;
+    };
+
     const cancelEmployeeRequests = async (employeeId, cancelData = {}) => {
         const cancelPayload = {
             status: 'Cancelled',
@@ -422,12 +467,16 @@ const EmployeeManagement = ({ currentAdmin }) => {
             return;
         }
 
+        const isTransferUpdate = modalMode === 'edit' && formData.status === EMPLOYEE_STATUS.TRANSFERRED;
+        const nextDepartment = isTransferUpdate ? formData.transfer_department : formData.department;
+        const nextPosition = isTransferUpdate ? formData.transfer_position.trim() : formData.position.trim();
+
         const payload = {
             emp_id: formData.emp_id,
             name_th: formData.name_th.trim(),
             name_en: formData.name_en.trim() || null,
-            department: formData.department,
-            position: formData.position.trim(),
+            department: nextDepartment,
+            position: nextPosition,
             start_date: toDateInputValue(formData.start_date),
             status: modalMode === 'add' ? EMPLOYEE_STATUS.ACTIVE : formData.status,
             end_date: modalMode === 'edit' && formData.status === EMPLOYEE_STATUS.RESIGNED ? toDateInputValue(formData.end_date) || null : null,
@@ -446,8 +495,8 @@ const EmployeeManagement = ({ currentAdmin }) => {
                 const original = employees.find((employee) => employee.id === formData.id);
                 const wasResigned = original?.status === EMPLOYEE_STATUS.RESIGNED;
                 const becomesResigned = formData.status === EMPLOYEE_STATUS.RESIGNED;
-                const departmentChanged = original?.department !== formData.department;
-                const positionChanged = (original?.position || '') !== formData.position.trim();
+                const departmentChanged = original?.department !== payload.department;
+                const positionChanged = (original?.position || '') !== payload.position;
                 const cancelItSign = becomesResigned && !wasResigned
                     ? cancelSignatureRef.current.getCanvas().toDataURL('image/png')
                     : null;
@@ -455,8 +504,16 @@ const EmployeeManagement = ({ currentAdmin }) => {
                 const { error } = await mysql.from('employees').update(payload).eq('id', formData.id);
                 if (error) throw error;
 
+                if (isTransferUpdate) {
+                    await addTransferHistory(formData.emp_id, original, {
+                        transferDate: formData.transfer_date,
+                        toDepartment: payload.department,
+                        toPosition: payload.position
+                    });
+                }
+
                 if (departmentChanged || positionChanged || formData.status === EMPLOYEE_STATUS.TRANSFERRED) {
-                    await syncEmployeeProfileToReports(formData.emp_id, formData.department, formData.position.trim());
+                    await syncEmployeeProfileToReports(formData.emp_id, payload.department, payload.position);
                 }
 
                 if (becomesResigned && !wasResigned) {
@@ -472,6 +529,7 @@ const EmployeeManagement = ({ currentAdmin }) => {
 
             closeModal();
             fetchEmployees();
+            fetchTransferHistories();
         } catch (error) {
             console.error('Error saving employee:', error);
             const message = String(error?.message || error);
@@ -526,6 +584,26 @@ const EmployeeManagement = ({ currentAdmin }) => {
     );
 
     const statusMeta = getStatusMeta(formData.status);
+    const savedTransferHistory = transferHistoriesByEmployee.get(String(formData.emp_id || '').trim()) || [];
+    const fallbackTransferHistory = savedTransferHistory.length === 0 && (
+        formData.transfer_date ||
+        formData.transfer_department ||
+        formData.transfer_position
+    )
+        ? [{
+            id: 'current-transfer',
+            transfer_date: formData.transfer_date,
+            from_department: '',
+            from_position: '',
+            to_department: formData.transfer_department,
+            to_position: formData.transfer_position
+        }]
+        : [];
+    const currentTransferHistory = savedTransferHistory.length ? savedTransferHistory : fallbackTransferHistory;
+    const hasTransferHistory = modalMode === 'edit' && (
+        formData.status === EMPLOYEE_STATUS.TRANSFERRED ||
+        currentTransferHistory.length > 0
+    );
 
     return (
         <div className="space-y-6 animate-fade-in pb-10">
@@ -873,6 +951,37 @@ const EmployeeManagement = ({ currentAdmin }) => {
                                     ))}
                                 </div>
 
+                                {hasTransferHistory && (
+                                    <div className="rounded-2xl border border-blue-200 bg-blue-50/80 p-4 dark:border-blue-900/50 dark:bg-blue-950/20">
+                                        <div className="mb-3 flex items-center gap-2">
+                                            <div className="rounded-xl bg-blue-100 p-2 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+                                                <MoveRight className="h-4 w-4" />
+                                            </div>
+                                            <h5 className="font-bold text-slate-800 dark:text-white">ประวัติการแจ้งโอนย้าย</h5>
+                                        </div>
+                                        <div className="space-y-2">
+                                            {[...currentTransferHistory]
+                                                .sort((a, b) => new Date(a.transfer_date || 0) - new Date(b.transfer_date || 0))
+                                                .map((transfer, index) => (
+                                                <div key={transfer.id || `${transfer.transfer_date}-${index}`} className="grid grid-cols-1 gap-3 rounded-xl border border-blue-100 bg-white p-3 text-sm dark:border-blue-900/40 dark:bg-slate-800 sm:grid-cols-3">
+                                                    <div>
+                                                        <span className="block text-xs font-semibold text-slate-500 dark:text-slate-400">ตำแหน่ง</span>
+                                                        <span className="font-semibold text-slate-800 dark:text-slate-100">{transfer.to_position || '-'}</span>
+                                                    </div>
+                                                    <div>
+                                                        <span className="block text-xs font-semibold text-slate-500 dark:text-slate-400">แผนก</span>
+                                                        <span className="font-semibold text-slate-800 dark:text-slate-100">{transfer.to_department || '-'}</span>
+                                                    </div>
+                                                    <div>
+                                                        <span className="block text-xs font-semibold text-slate-500 dark:text-slate-400">วันที่โอนย้าย</span>
+                                                        <span className="font-semibold text-blue-700 dark:text-blue-300">{formatDate(transfer.transfer_date)}</span>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
                                 {formData.status === EMPLOYEE_STATUS.TRANSFERRED && (
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         <div>
@@ -974,9 +1083,6 @@ const EmployeeManagement = ({ currentAdmin }) => {
                                                 />
                                                 <div className="absolute bottom-2 right-3 text-slate-400 text-xs pointer-events-none opacity-50">เซ็นชื่อผู้ยกเลิกสิทธิ์ที่นี่</div>
                                             </div>
-                                        </div>
-                                        <div className="sm:col-span-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700 dark:bg-rose-900/20 dark:border-rose-900/40 dark:text-rose-300">
-                                            เมื่อบันทึกสถานะลาออก ระบบจะยกเลิกคำร้องขอสิทธิ์และคำร้องขอพัฒนาโปรแกรมที่ยังค้างของพนักงานรหัสนี้โดยอัตโนมัติ
                                         </div>
                                     </div>
                                 )}

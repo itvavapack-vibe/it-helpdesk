@@ -80,6 +80,7 @@ export const canDeleteRecords = (role) => {
 export const ACCESS_QUEUE_STATUS_BY_ROLE = {
     [ROLES.SUPERADMIN]: ['Pending_IT'],
     [ROLES.IT_SUPPORT]: ['Pending_IT'],
+    [ROLES.IT_SOFTWARE]: ['Pending_IT'],
 };
 
 export const CHANGE_QUEUE_STATUS_BY_ROLE = {
