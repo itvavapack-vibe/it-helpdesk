@@ -221,6 +221,14 @@ CREATE TABLE IF NOT EXISTS issues (
   inspector_position VARCHAR(255),
   inspector_sign MEDIUMTEXT,
   inspector_signed_at DATETIME,
+  borrow_returner_name VARCHAR(255),
+  borrow_returner_position VARCHAR(255),
+  borrow_returner_sign MEDIUMTEXT,
+  borrow_returned_at DATETIME,
+  borrow_receiver_name VARCHAR(255),
+  borrow_receiver_position VARCHAR(255),
+  borrow_receiver_sign MEDIUMTEXT,
+  borrow_received_at DATETIME,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

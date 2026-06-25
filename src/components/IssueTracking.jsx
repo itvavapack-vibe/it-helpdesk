@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { CheckCircle2, Clock, Edit, Search, XCircle } from 'lucide-react';
+import { CheckCircle2, Clock, Edit, FileSignature, Link2, Search, XCircle } from 'lucide-react';
+import { buildBorrowReturnIssueLink } from '../utils/closeIssueLink';
 
 const STATUS_LABELS = {
     Pending: 'รอดำเนินการ',
@@ -12,6 +13,10 @@ const STATUS_LABELS = {
 };
 
 const getStatusLabel = (status) => STATUS_LABELS[status] || status || '-';
+const BORROW_IT_CATEGORY = 'ยืมคอมพิวเตอร์/อุปกรณ์IT';
+const normalizeBorrowCategory = (value) => String(value || '').replace(/\s+/g, '');
+const isBorrowIssue = (issue) => normalizeBorrowCategory(issue?.category) === normalizeBorrowCategory(BORROW_IT_CATEGORY);
+const isIssueClosed = (issue) => issue?.status === 'Closed' || Boolean(issue?.userCloseSign || issue?.userClosedAt);
 
 const getStatusBadge = (status) => {
     switch (status) {
@@ -37,6 +42,17 @@ const getStatusBadge = (status) => {
 const formatDate = (dateString) => {
     if (!dateString) return '-';
     return new Date(dateString).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
+};
+
+const formatDateTime = (dateString) => {
+    if (!dateString) return '-';
+    return new Date(dateString).toLocaleString('th-TH', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+    });
 };
 
 const IssueTracking = ({ issues = [], isLoading = false }) => {
@@ -108,11 +124,43 @@ const IssueTracking = ({ issues = [], isLoading = false }) => {
                                         ผู้รับงาน: {issue.assignedAdmin}
                                     </p>
                                 )}
+                                {isBorrowIssue(issue) && (issue.borrowReturnerSign || issue.borrowReturnedAt) && (
+                                    <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/80 p-3 dark:border-amber-900/60 dark:bg-amber-950/20">
+                                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                            <div className="min-w-0 text-xs text-amber-900 dark:text-amber-100">
+                                                <div className="flex items-center gap-1.5 font-bold">
+                                                    <FileSignature className="h-4 w-4" />
+                                                    ลงนามส่งคืนอุปกรณ์แล้ว
+                                                </div>
+                                                <div className="mt-1 text-amber-800/80 dark:text-amber-200/80">
+                                                    ผู้ส่งคืน: {issue.borrowReturnerName || issue.name || '-'}
+                                                </div>
+                                                <div className="mt-0.5 text-amber-800/80 dark:text-amber-200/80">
+                                                    วันที่ส่งคืน: {formatDateTime(issue.borrowReturnedAt)}
+                                                </div>
+                                            </div>
+                                            {issue.borrowReturnerSign && (
+                                                <div className="flex h-20 w-full items-center justify-center rounded-lg border border-amber-200 bg-white px-3 dark:border-amber-900/60 dark:bg-slate-950 sm:w-44">
+                                                    <img src={issue.borrowReturnerSign} alt="ลายเซ็นผู้ส่งคืน" className="h-16 w-full object-contain" />
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                             <div className="shrink-0 flex flex-col items-end gap-2">
                                 {getStatusBadge(issue.status)}
                                 {issue.status === 'Resolved' && issue.userCloseSign && (
                                     <span className="text-xs text-emerald-600 font-medium">เซ็นปิดงานแล้ว</span>
+                                )}
+                                {isBorrowIssue(issue) && isIssueClosed(issue) && !issue.borrowReturnerSign && !issue.borrowReturnedAt && (
+                                    <a
+                                        href={buildBorrowReturnIssueLink(issue.id)}
+                                        className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-700 transition-colors hover:bg-amber-100 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200 dark:hover:bg-amber-950/50"
+                                    >
+                                        <Link2 className="h-3.5 w-3.5" />
+                                        บันทึกส่งคืน
+                                    </a>
                                 )}
                             </div>
                         </div>

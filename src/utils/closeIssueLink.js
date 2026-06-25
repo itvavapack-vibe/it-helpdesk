@@ -14,6 +14,10 @@ export function buildCloseIssueLink(issueId) {
   return buildWorkflowLink('/close-issue', 'closeIssue', issueId)
 }
 
+export function buildBorrowReturnIssueLink(issueId) {
+  return buildWorkflowLink('/return-borrow', 'returnBorrowIssue', issueId)
+}
+
 export function buildAcceptChangeRequestLink(requestId) {
   return buildWorkflowLink('/accept-change-request', 'acceptChangeReq', requestId)
 }
@@ -56,6 +60,39 @@ export async function showCloseIssueLinkDialog(issue) {
     cancelButtonText: 'ปิด',
     didOpen: () => {
       const input = document.getElementById('close-issue-link')
+      input?.addEventListener('click', () => input.select())
+    },
+  })
+
+  if (result.isConfirmed) {
+    await copyText(link)
+    Swal.fire({
+      toast: true,
+      position: 'top-end',
+      icon: 'success',
+      title: 'คัดลอกลิงก์แล้ว',
+      showConfirmButton: false,
+      timer: 2000,
+    })
+  }
+  return link
+}
+
+export async function showBorrowReturnIssueLinkDialog(issue) {
+  const link = buildBorrowReturnIssueLink(issue.id)
+  const result = await Swal.fire({
+    title: 'ส่งลิงก์บันทึกส่งคืน',
+    html: `
+      <p class="text-sm text-slate-600 mb-3">ส่งลิงก์ให้ <b>${issue.name}</b> เพื่อลงนามส่งคืนคอมพิวเตอร์/อุปกรณ์ IT</p>
+      <input id="borrow-return-link" readonly value="${link.replace(/"/g, '&quot;')}"
+        class="w-full text-xs p-3 rounded-lg border border-slate-200 bg-slate-50 font-mono text-indigo-700" />
+    `,
+    icon: 'success',
+    showCancelButton: true,
+    confirmButtonText: 'คัดลอกลิงก์',
+    cancelButtonText: 'ปิด',
+    didOpen: () => {
+      const input = document.getElementById('borrow-return-link')
       input?.addEventListener('click', () => input.select())
     },
   })

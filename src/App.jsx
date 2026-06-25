@@ -22,6 +22,7 @@ import ApprovedDocuments from './components/ApprovedDocuments';
 import IssueCloseSignature from './components/IssueCloseSignature';
 import ChangeRequestAcceptance from './components/ChangeRequestAcceptance';
 import AccessRequestAcknowledgement from './components/AccessRequestAcknowledgement';
+import BorrowReturnSignature from './components/BorrowReturnSignature';
 import ThemePicker from './components/ThemePicker';
 import ChangeManagerApproval from './components/ChangeManagerApproval';
 import { ChevronDown, LogIn, LogOut, Monitor, MoreHorizontal, PanelLeftClose, PanelLeftOpen, UserCog } from 'lucide-react';
@@ -40,7 +41,7 @@ const AUTO_CLOSE_AFTER_MS = 3 * 24 * 60 * 60 * 1000;
 const ACTIVE_TAB_STORAGE_KEY = 'it-helpdesk-active-tab';
 const ADMIN_SUB_TAB_STORAGE_KEY = 'it-helpdesk-admin-sub-tab';
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'it-helpdesk-sidebar-collapsed';
-const TRANSIENT_TABS = new Set(['manager_approval', 'change_manager_approval', 'it_manager_approval', 'issue_close', 'change_request_acceptance', 'access_request_acknowledgement']);
+const TRANSIENT_TABS = new Set(['manager_approval', 'change_manager_approval', 'it_manager_approval', 'issue_close', 'borrow_return', 'change_request_acceptance', 'access_request_acknowledgement']);
 const AUTH_HIDDEN_MAIN_NAV_ITEMS = new Set(['user', 'access_request', 'change_request']);
 const BOTTOM_NAV_VISIBLE_LIMIT = 4;
 const TAB_PATHS = {
@@ -58,6 +59,7 @@ const TAB_PATHS = {
     change_manager_approval: '/approve/change',
     it_manager_approval: '/approve/access/it',
     issue_close: '/close-issue',
+    borrow_return: '/return-borrow',
     change_request_acceptance: '/accept-change-request',
     access_request_acknowledgement: '/acknowledge-access-request',
 };
@@ -76,6 +78,7 @@ const WORKFLOW_QUERY_TABS = {
     approveChangeReq: 'change_manager_approval',
     itApproveRequest: 'it_manager_approval',
     closeIssue: 'issue_close',
+    returnBorrowIssue: 'borrow_return',
     acceptChangeReq: 'change_request_acceptance',
     ackAccessReq: 'access_request_acknowledgement',
 };
@@ -147,6 +150,10 @@ function App() {
     const [closeIssueId] = useState(() => {
         const params = new URLSearchParams(window.location.search);
         return params.get('closeIssue');
+    });
+    const [returnBorrowIssueId] = useState(() => {
+        const params = new URLSearchParams(window.location.search);
+        return params.get('returnBorrowIssue');
     });
     const [acceptChangeRequestId] = useState(() => {
         const params = new URLSearchParams(window.location.search);
@@ -494,6 +501,14 @@ function App() {
                 inspectorPosition: issue.inspector_position || null,
                 inspectorSign: issue.inspector_sign || null,
                 inspectorSignedAt: issue.inspector_signed_at || null,
+                borrowReturnerName: issue.borrow_returner_name || null,
+                borrowReturnerPosition: issue.borrow_returner_position || null,
+                borrowReturnerSign: issue.borrow_returner_sign || null,
+                borrowReturnedAt: issue.borrow_returned_at || null,
+                borrowReceiverName: issue.borrow_receiver_name || null,
+                borrowReceiverPosition: issue.borrow_receiver_position || null,
+                borrowReceiverSign: issue.borrow_receiver_sign || null,
+                borrowReceivedAt: issue.borrow_received_at || null,
                 createdAt: issue.created_at
                 });
             });
@@ -564,7 +579,7 @@ function App() {
         }
     };
 
-    const updateIssueFullDetails = async (id, updatedFields) => {
+    const updateIssueFullDetails = async (id, updatedFields, options = {}) => {
         const dbFields = {};
         if (updatedFields.name !== undefined) dbFields.name = updatedFields.name;
         if (updatedFields.department !== undefined) dbFields.department = updatedFields.department;
@@ -583,6 +598,14 @@ function App() {
         if (updatedFields.inspectorPosition !== undefined) dbFields.inspector_position = updatedFields.inspectorPosition || null;
         if (updatedFields.inspectorSign !== undefined) dbFields.inspector_sign = updatedFields.inspectorSign || null;
         if (updatedFields.inspectorSignedAt !== undefined) dbFields.inspector_signed_at = updatedFields.inspectorSignedAt ? toMysqlDateTime(updatedFields.inspectorSignedAt) : null;
+        if (updatedFields.borrowReturnerName !== undefined) dbFields.borrow_returner_name = updatedFields.borrowReturnerName || null;
+        if (updatedFields.borrowReturnerPosition !== undefined) dbFields.borrow_returner_position = updatedFields.borrowReturnerPosition || null;
+        if (updatedFields.borrowReturnerSign !== undefined) dbFields.borrow_returner_sign = updatedFields.borrowReturnerSign || null;
+        if (updatedFields.borrowReturnedAt !== undefined) dbFields.borrow_returned_at = updatedFields.borrowReturnedAt ? toMysqlDateTime(updatedFields.borrowReturnedAt) : null;
+        if (updatedFields.borrowReceiverName !== undefined) dbFields.borrow_receiver_name = updatedFields.borrowReceiverName || null;
+        if (updatedFields.borrowReceiverPosition !== undefined) dbFields.borrow_receiver_position = updatedFields.borrowReceiverPosition || null;
+        if (updatedFields.borrowReceiverSign !== undefined) dbFields.borrow_receiver_sign = updatedFields.borrowReceiverSign || null;
+        if (updatedFields.borrowReceivedAt !== undefined) dbFields.borrow_received_at = updatedFields.borrowReceivedAt ? toMysqlDateTime(updatedFields.borrowReceivedAt) : null;
         if (updatedFields.attachments !== undefined) dbFields.attachments_json = JSON.stringify(updatedFields.attachments || []);
 
         const { error } = await mysql
@@ -599,13 +622,15 @@ function App() {
         setIssues(currentIssues => currentIssues.map(issue =>
             issue.id === id ? { ...issue, ...updatedFields } : issue
         ));
-        Swal.fire({
-            title: 'บันทึกสำเร็จ!',
-            text: 'แก้ไขข้อมูลการแจ้งซ่อมเรียบร้อยแล้ว',
-            icon: 'success',
-            timer: 1500,
-            showConfirmButton: false
-        });
+        if (!options.silent) {
+            Swal.fire({
+                title: 'บันทึกสำเร็จ!',
+                text: 'แก้ไขข้อมูลการแจ้งซ่อมเรียบร้อยแล้ว',
+                icon: 'success',
+                timer: 1500,
+                showConfirmButton: false
+            });
+        }
         return true;
     };
 
@@ -704,6 +729,35 @@ function App() {
             userCloseNote: closeData.note || '',
             userCloseSign: closeData.signature,
             userClosedAt: payload.user_closed_at
+        } : issue));
+        return true;
+    };
+
+    const returnBorrowIssueByUser = async (id, returnData) => {
+        const payload = {
+            borrow_returner_name: returnData.name,
+            borrow_returner_position: returnData.position,
+            borrow_returner_sign: returnData.signature,
+            borrow_returned_at: returnData.returnedAt || toMysqlDateTime(),
+        };
+
+        const { error } = await mysql
+            .from('issues')
+            .update(payload)
+            .eq('id', id);
+
+        if (error) {
+            console.error('Error saving borrow return:', error);
+            Swal.fire('Error', 'ไม่สามารถบันทึกข้อมูลส่งคืนได้', 'error');
+            return false;
+        }
+
+        setIssues(currentIssues => currentIssues.map(issue => issue.id === id ? {
+            ...issue,
+            borrowReturnerName: returnData.name,
+            borrowReturnerPosition: returnData.position,
+            borrowReturnerSign: returnData.signature,
+            borrowReturnedAt: payload.borrow_returned_at,
         } : issue));
         return true;
     };
@@ -858,6 +912,10 @@ function App() {
 
         if (activeTab === 'issue_close') {
             return <IssueCloseSignature issueId={closeIssueId} onCloseIssue={closeIssueByUser} />;
+        }
+
+        if (activeTab === 'borrow_return') {
+            return <BorrowReturnSignature issueId={returnBorrowIssueId} onReturnBorrowIssue={returnBorrowIssueByUser} />;
         }
 
         if (activeTab === 'change_request_acceptance') {

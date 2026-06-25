@@ -4,7 +4,7 @@ import html2canvas from 'html2canvas-pro';
 import jsPDF from 'jspdf';
 import SignatureCanvas from 'react-signature-canvas';
 import { Clock, Edit, CheckCircle2, Download, FileSpreadsheet, Trash2, Search, Filter, AlertTriangle, Eye, Printer, FileSignature, MessageSquare, Monitor, ChevronDown, X, XCircle, Copy, ChevronLeft, ChevronRight, Settings, Save, ImagePlus, Paperclip, Link2, Ticket, Eraser } from 'lucide-react';
-import { showCloseIssueLinkDialog } from '../utils/closeIssueLink';
+import { showBorrowReturnIssueLinkDialog, showCloseIssueLinkDialog } from '../utils/closeIssueLink';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Combobox } from './ui/combobox';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, Legend } from 'recharts';
@@ -15,13 +15,17 @@ import { mysql, API_URL } from '../mysqlClient';
 import { ISSUE_CATEGORIES } from '../config/issueOptions';
 import { canDeleteRecords, canManageAllWork } from '../config/roles';
 import { loadSignatureIntoCanvas } from '../utils/signatureCanvas';
+import { toMysqlDateTime } from '../utils/dateTime';
 
 const ITEMS_PER_PAGE = 10;
 const PDF_ITEMS_PER_PAGE = 6;
 const STATUS_FLOW = ['Pending', 'In Progress', 'External Repair', 'Waiting for Parts', 'Resolved', 'Cancelled'];
 const ASSIGNABLE_STATUSES = ['In Progress', 'External Repair', 'Waiting for Parts', 'Resolved'];
+const BORROW_IT_CATEGORY = 'ยืมคอมพิวเตอร์/อุปกรณ์IT';
 
 const isIssueClosed = (issue) => issue?.status === 'Closed' || Boolean(issue?.userCloseSign || issue?.userClosedAt);
+const normalizeBorrowCategory = (value) => String(value || '').replace(/\s+/g, '');
+const isBorrowIssue = (issue) => normalizeBorrowCategory(issue?.category) === normalizeBorrowCategory(BORROW_IT_CATEGORY);
 
 const toDateTimeLocalValue = (value) => {
     if (!value) return '';
@@ -113,6 +117,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
     const [currentPdfIssue, setCurrentPdfIssue] = useState(null);
     const [isMaintenanceReportOpen, setIsMaintenanceReportOpen] = useState(false);
     const [currentMaintenanceIssue, setCurrentMaintenanceIssue] = useState(null);
+    const [returnInfoIssue, setReturnInfoIssue] = useState(null);
 
     // Asset and User states for the repair details page
     const [computers, setComputers] = useState([]);
@@ -693,6 +698,56 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
         setIsMaintenanceReportOpen(true);
     };
 
+    const handleReceiveBorrowReturn = async (issue) => {
+        if (!issue || !isBorrowIssue(issue) || !isIssueClosed(issue)) return;
+        if (!issue.borrowReturnedAt && !issue.borrowReturnerSign) {
+            Swal.fire('ยังไม่มีข้อมูลส่งคืน', 'ต้องให้ผู้แจ้งลงนามส่งคืนก่อนรับคืน', 'warning');
+            return;
+        }
+        if (issue.borrowReceivedAt || issue.borrowReceiverSign) {
+            Swal.fire('รับคืนแล้ว', 'รายการนี้มีการบันทึกรับคืนเรียบร้อยแล้ว', 'info');
+            return;
+        }
+        if (!currentAdmin?.signature) {
+            Swal.fire('ไม่พบลายเซ็นผู้รับคืน', 'กรุณาบันทึกลายเซ็นในโปรไฟล์ผู้ดูแลก่อนรับคืน', 'warning');
+            return;
+        }
+
+        const result = await Swal.fire({
+            title: 'ยืนยันรับคืนอุปกรณ์?',
+            text: 'ระบบจะลงวันที่รับคืนเป็นวันที่กดปุ่มนี้ และดึงลายเซ็นจากโปรไฟล์ผู้ดูแล',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#10b981',
+            cancelButtonColor: '#64748b',
+            confirmButtonText: 'ยืนยันรับคืน',
+            cancelButtonText: 'ยกเลิก',
+            reverseButtons: true,
+        });
+        if (!result.isConfirmed) return;
+
+        const receivedAt = toMysqlDateTime();
+        const receiverName = currentAdmin.name || currentAdmin.username || '';
+        const receiverPosition = currentAdmin.position || '';
+        const ok = await updateIssueFullDetails(issue.id, {
+            borrowReceiverName: receiverName,
+            borrowReceiverPosition: receiverPosition,
+            borrowReceiverSign: currentAdmin.signature,
+            borrowReceivedAt: receivedAt,
+        }, { silent: true });
+
+        if (ok) {
+            setReturnInfoIssue(current => current?.id === issue.id ? {
+                ...current,
+                borrowReceiverName: receiverName,
+                borrowReceiverPosition: receiverPosition,
+                borrowReceiverSign: currentAdmin.signature,
+                borrowReceivedAt: receivedAt,
+            } : current);
+            Swal.fire('รับคืนแล้ว', 'บันทึกข้อมูลรับคืนอุปกรณ์เรียบร้อย', 'success');
+        }
+    };
+
     const allowedStatusOptions = currentRepairIssue ? getAllowedStatusOptions(currentRepairIssue.status) : [];
     const repairCategoryOptions = useMemo(() => {
         const currentCategory = editFormData.category || currentRepairIssue?.category;
@@ -1111,6 +1166,36 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                                         title="คัดลอกลิงก์เซ็นปิดจบงาน"
                                                     >
                                                         <Link2 className="w-4 h-4" />
+                                                    </button>
+                                                )}
+                                                {isBorrowIssue(issue) && isIssueClosed(issue) && !issue.borrowReturnedAt && !issue.borrowReturnerSign && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => showBorrowReturnIssueLinkDialog(issue)}
+                                                        className="w-9 h-9 flex items-center justify-center text-amber-600 dark:text-amber-400 hover:text-white bg-amber-50 dark:bg-slate-800 hover:bg-amber-600 dark:hover:bg-amber-600 border border-amber-200/80 dark:border-slate-700 hover:border-amber-600 rounded-xl transition-all shadow-sm"
+                                                        title="บันทึกส่งคืนส่วนผู้แจ้ง"
+                                                    >
+                                                        <Link2 className="w-4 h-4" />
+                                                    </button>
+                                                )}
+                                                {isBorrowIssue(issue) && isIssueClosed(issue) && (issue.borrowReturnedAt || issue.borrowReturnerSign) && !issue.borrowReceivedAt && !issue.borrowReceiverSign && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleReceiveBorrowReturn(issue)}
+                                                        className="w-9 h-9 flex items-center justify-center text-emerald-600 dark:text-emerald-400 hover:text-white bg-emerald-50 dark:bg-slate-800 hover:bg-emerald-600 dark:hover:bg-emerald-600 border border-emerald-200/80 dark:border-slate-700 hover:border-emerald-600 rounded-xl transition-all shadow-sm"
+                                                        title="รับคืน"
+                                                    >
+                                                        <CheckCircle2 className="w-4 h-4" />
+                                                    </button>
+                                                )}
+                                                {isBorrowIssue(issue) && isIssueClosed(issue) && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setReturnInfoIssue(issue)}
+                                                        className="w-9 h-9 flex items-center justify-center text-violet-600 dark:text-violet-400 hover:text-white bg-violet-50 dark:bg-slate-800 hover:bg-violet-600 dark:hover:bg-violet-600 border border-violet-200/80 dark:border-slate-700 hover:border-violet-600 rounded-xl transition-all shadow-sm"
+                                                        title="ดูข้อมูลส่งคืน/รับคืน"
+                                                    >
+                                                        <Ticket className="w-4 h-4" />
                                                     </button>
                                                 )}
                                                 <button
@@ -1825,6 +1910,65 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                     );
                                 }
                             )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {returnInfoIssue && (
+                <div className="fixed inset-0 z-[120] flex items-start sm:items-center justify-center overflow-y-auto p-3 sm:p-4 bg-slate-900/40 dark:bg-slate-900/80 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[calc(100dvh-1.5rem)] overflow-hidden border border-white/20 dark:border-slate-700 transform scale-100 transition-all flex flex-col">
+                        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/80">
+                            <h3 className="text-lg font-bold text-indigo-950 dark:text-indigo-100 flex items-center gap-2">
+                                <Ticket className="w-5 h-5 text-violet-600 dark:text-violet-400" /> ข้อมูลส่งคืน/รับคืนอุปกรณ์
+                            </h3>
+                            <button
+                                onClick={() => setReturnInfoIssue(null)}
+                                className="text-slate-400 hover:text-rose-500 transition-colors"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="p-5 sm:p-6 overflow-y-auto custom-scrollbar flex-1 min-h-0 space-y-5">
+                            <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4 text-sm dark:border-slate-700 dark:bg-slate-900/40">
+                                <div className="font-bold text-slate-800 dark:text-slate-100">เลขที่เอกสาร: {returnInfoIssue.id}</div>
+                                <div className="mt-1 text-slate-500 dark:text-slate-400">ผู้แจ้ง: {returnInfoIssue.name || '-'}</div>
+                                <div className="mt-1 text-slate-500 dark:text-slate-400">หมวดหมู่: {returnInfoIssue.category || '-'}</div>
+                            </div>
+
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                <div className="rounded-2xl border border-amber-100 bg-amber-50/70 p-4 dark:border-amber-900/40 dark:bg-amber-950/20">
+                                    <h4 className="font-bold text-amber-800 dark:text-amber-200">ส่วนผู้ส่งคืน</h4>
+                                    <div className="mt-3 space-y-1.5 text-sm text-slate-700 dark:text-slate-300">
+                                        <div>ชื่อ: {displayValue(returnInfoIssue.borrowReturnerName)}</div>
+                                        <div>ตำแหน่ง: {displayValue(returnInfoIssue.borrowReturnerPosition)}</div>
+                                        <div>วันที่ส่งคืน: {displayDate(returnInfoIssue.borrowReturnedAt)}</div>
+                                    </div>
+                                    <div className="mt-4 flex h-28 items-center justify-center rounded-xl border border-dashed border-amber-200 bg-white dark:border-amber-900/50 dark:bg-slate-950">
+                                        {returnInfoIssue.borrowReturnerSign ? (
+                                            <img src={returnInfoIssue.borrowReturnerSign} alt="ลายเซ็นผู้ส่งคืน" className="h-24 w-full object-contain" />
+                                        ) : (
+                                            <span className="text-sm text-slate-400">ยังไม่มีลายเซ็นผู้ส่งคืน</span>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4 dark:border-emerald-900/40 dark:bg-emerald-950/20">
+                                    <h4 className="font-bold text-emerald-800 dark:text-emerald-200">ส่วนผู้รับคืน</h4>
+                                    <div className="mt-3 space-y-1.5 text-sm text-slate-700 dark:text-slate-300">
+                                        <div>ชื่อ: {displayValue(returnInfoIssue.borrowReceiverName)}</div>
+                                        <div>ตำแหน่ง: {displayValue(returnInfoIssue.borrowReceiverPosition)}</div>
+                                        <div>วันที่รับคืน: {displayDate(returnInfoIssue.borrowReceivedAt)}</div>
+                                    </div>
+                                    <div className="mt-4 flex h-28 items-center justify-center rounded-xl border border-dashed border-emerald-200 bg-white dark:border-emerald-900/50 dark:bg-slate-950">
+                                        {returnInfoIssue.borrowReceiverSign ? (
+                                            <img src={returnInfoIssue.borrowReceiverSign} alt="ลายเซ็นผู้รับคืน" className="h-24 w-full object-contain" />
+                                        ) : (
+                                            <span className="text-sm text-slate-400">ยังไม่มีลายเซ็นผู้รับคืน</span>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
