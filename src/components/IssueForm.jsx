@@ -5,6 +5,9 @@ import { Combobox } from './ui/combobox';
 import Swal from 'sweetalert2';
 import { mysql, API_URL } from '../mysqlClient';
 import { DEFAULT_ISSUE_CATEGORY, ISSUE_CATEGORIES } from '../config/issueOptions';
+
+const BORROW_IT_CATEGORY = 'ยืมคอมพิวเตอร์/อุปกรณ์IT';
+
 const DEPARTMENTS = [
     'แอดมิน', 'บุคคลและธุรการ', 'วิศวกรรม', 'การตลาดและขาย (ในประเทศ)',
     'การตลาดและขาย (ต่างประเทศ)', 'แอดมินการตลาด', 'บัญชี', 'การเงิน',
@@ -25,6 +28,8 @@ const IssueForm = ({ addIssue, qrParams = null }) => {
         assetName: '',
         assetType: '',
         assetLocation: '',
+        borrowDate: '',
+        returnDueDate: '',
     });
     const [selectedFiles, setSelectedFiles] = useState([]);
     const [isUploading, setIsUploading] = useState(false);
@@ -222,8 +227,35 @@ const IssueForm = ({ addIssue, qrParams = null }) => {
         }
     };
 
+    const formatBorrowDate = (value) => {
+        if (!value) return '-';
+        const date = new Date(`${value}T00:00:00`);
+        if (Number.isNaN(date.getTime())) return '-';
+        return date.toLocaleDateString('th-TH');
+    };
+
+    const buildIssueDescription = () => {
+        const description = formData.description.trim();
+        if (formData.category !== BORROW_IT_CATEGORY) return description;
+
+        return [
+            `ขอยืมวันที่ ${formatBorrowDate(formData.borrowDate)}`,
+            `คืนวันที่ ${formatBorrowDate(formData.returnDueDate)}`,
+            description,
+        ].filter(Boolean).join('\n');
+    };
+
     const handleChange = (e) => {
         const { name, value } = e.target;
+        if (name === 'category') {
+            setFormData(prev => ({
+                ...prev,
+                category: value,
+                ...(value === BORROW_IT_CATEGORY ? {} : { borrowDate: '', returnDueDate: '' }),
+            }));
+            return;
+        }
+
         if (name === 'assetId') {
             const selected = computers.find(c => String(c.id) === value);
             
@@ -339,6 +371,26 @@ const IssueForm = ({ addIssue, qrParams = null }) => {
             return;
         }
 
+        if (formData.category === BORROW_IT_CATEGORY && (!formData.borrowDate || !formData.returnDueDate)) {
+            Swal.fire({
+                title: 'ข้อมูลการยืมไม่ครบถ้วน',
+                text: 'กรุณาระบุวันที่ยืมและกำหนดคืนให้ครบถ้วน',
+                icon: 'warning',
+                confirmButtonColor: '#4f46e5',
+            });
+            return;
+        }
+
+        if (formData.category === BORROW_IT_CATEGORY && formData.returnDueDate < formData.borrowDate) {
+            Swal.fire({
+                title: 'วันที่กำหนดคืนไม่ถูกต้อง',
+                text: 'วันที่กำหนดคืนต้องไม่ก่อนวันที่ยืม',
+                icon: 'warning',
+                confirmButtonColor: '#4f46e5',
+            });
+            return;
+        }
+
         if (!DEPARTMENTS.includes(formData.department)) {
             Swal.fire({
                 title: 'แผนกไม่ถูกต้อง',
@@ -368,6 +420,7 @@ const IssueForm = ({ addIssue, qrParams = null }) => {
 
                 const newIssue = {
                     ...formData,
+                    description: buildIssueDescription(),
                     id: Date.now().toString(),
                     status: 'Pending',
                     attachments: attachments,
@@ -385,6 +438,8 @@ const IssueForm = ({ addIssue, qrParams = null }) => {
                     assetName: '',
                     assetType: '',
                     assetLocation: '',
+                    borrowDate: '',
+                    returnDueDate: '',
                 });
                 setSelectedFiles([]);
 
@@ -468,6 +523,38 @@ const IssueForm = ({ addIssue, qrParams = null }) => {
                             </Select>
                         </div>
                     </div>
+
+                    {formData.category === BORROW_IT_CATEGORY && (
+                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 rounded-2xl border border-amber-100 bg-amber-50/70 p-4 dark:border-amber-900/40 dark:bg-amber-950/20">
+                            <div className="space-y-1">
+                                <label htmlFor="borrowDate" className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1 ml-1">
+                                    วันที่ยืม <span className="text-rose-500 dark:text-rose-400">*</span>
+                                </label>
+                                <input
+                                    id="borrowDate"
+                                    name="borrowDate"
+                                    type="date"
+                                    value={formData.borrowDate}
+                                    onChange={handleChange}
+                                    className="w-full input-modern"
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <label htmlFor="returnDueDate" className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1 ml-1">
+                                    กำหนดคืน <span className="text-rose-500 dark:text-rose-400">*</span>
+                                </label>
+                                <input
+                                    id="returnDueDate"
+                                    name="returnDueDate"
+                                    type="date"
+                                    value={formData.returnDueDate}
+                                    onChange={handleChange}
+                                    min={formData.borrowDate || undefined}
+                                    className="w-full input-modern"
+                                />
+                            </div>
+                        </div>
+                    )}
 
                     {/* GLPI Asset Selector */}
                     <div className="space-y-1">

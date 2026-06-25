@@ -12,6 +12,7 @@ export const ISSUE_CATEGORIES = [
     'ร้องขอติดตั้ง CCTV',
     'ร้องขอติดตั้ง Printer',
     'ร้องขอ Computer/Printer',
+    'ยืมคอมพิวเตอร์/อุปกรณ์IT',
     'ร้องขอจัด ประชุม/อบรม/สัมนา',
     'อื่นๆ',
 ];
