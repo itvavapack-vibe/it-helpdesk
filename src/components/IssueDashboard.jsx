@@ -131,7 +131,9 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
     const repairListScrollYRef = useRef(0);
     const canDeleteRecord = canDeleteRecords(currentAdmin?.role);
     const canEditAllWork = canManageAllWork(currentAdmin?.role);
-    const isRepairReadOnly = isIssueClosed(currentRepairIssue) && !canEditAllWork;
+    const isLegacyAdminRole = String(currentAdmin?.role || '').trim().toLowerCase().replace(/[\s-]+/g, '_') === 'admin';
+    const canEditRepairRecords = canEditAllWork || isLegacyAdminRole;
+    const isRepairReadOnly = isIssueClosed(currentRepairIssue) && !canEditRepairRecords;
     
     // For read more modal
     const [readMoreIssue, setReadMoreIssue] = useState(null);
@@ -623,14 +625,14 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                 ? inspectorSignatureRef.current.getCanvas().toDataURL('image/png')
                 : fieldsToSave.inspectorSign;
 
-            if (!inspectorName || !fieldsToSave.inspectorPosition.trim() || !inspectorSign) {
-                Swal.fire('ข้อมูลผู้ตรวจสอบไม่ครบ', 'กรุณาระบุชื่อ ตำแหน่ง และลายเซ็นผู้ตรวจสอบก่อนเปลี่ยนสถานะเป็นเสร็จสิ้น', 'warning');
+            if (!inspectorName || !fieldsToSave.inspectorPosition.trim() || (!inspectorSign && !isLegacyAdminRole)) {
+                Swal.fire('ข้อมูลผู้ตรวจสอบไม่ครบ', isLegacyAdminRole ? 'กรุณาระบุชื่อและตำแหน่งผู้ตรวจสอบก่อนเปลี่ยนสถานะเป็นเสร็จสิ้น' : 'กรุณาระบุชื่อ ตำแหน่ง และลายเซ็นผู้ตรวจสอบก่อนเปลี่ยนสถานะเป็นเสร็จสิ้น', 'warning');
                 return;
             }
 
             fieldsToSave.inspectorName = inspectorName;
             fieldsToSave.inspectorSign = inspectorSign;
-            if (hasNewInspectorSignature) {
+            if (hasNewInspectorSignature || !fieldsToSave.inspectorSignedAt) {
                 fieldsToSave.inspectorSignedAt = new Date().toISOString();
             }
         }
@@ -1200,10 +1202,10 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                                 )}
                                                 <button
                                                     onClick={() => openRepairModal(issue)}
-                                                    className={`w-9 h-9 flex items-center justify-center hover:text-white dark:bg-slate-800 border dark:border-slate-700 rounded-xl transition-all shadow-sm group ${isIssueClosed(issue) ? 'text-sky-600 dark:text-sky-400 bg-sky-50 hover:bg-sky-600 dark:hover:bg-sky-600 border-sky-200/80 hover:border-sky-600' : 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 hover:bg-indigo-600 dark:hover:bg-indigo-600 border-indigo-200/80 hover:border-indigo-600'}`}
-                                                    title={isIssueClosed(issue) ? 'ดูรายละเอียด' : 'แก้ไขข้อมูลแจ้งซ่อม'}
+                                                    className={`w-9 h-9 flex items-center justify-center hover:text-white dark:bg-slate-800 border dark:border-slate-700 rounded-xl transition-all shadow-sm group ${(!isIssueClosed(issue) || canEditRepairRecords) ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 hover:bg-indigo-600 dark:hover:bg-indigo-600 border-indigo-200/80 hover:border-indigo-600' : 'text-sky-600 dark:text-sky-400 bg-sky-50 hover:bg-sky-600 dark:hover:bg-sky-600 border-sky-200/80 hover:border-sky-600'}`}
+                                                    title={(!isIssueClosed(issue) || canEditRepairRecords) ? 'แก้ไขข้อมูลแจ้งซ่อม' : 'ดูรายละเอียด'}
                                                 >
-                                                    {isIssueClosed(issue) ? <Eye className="w-4 h-4 group-hover:scale-110 transition-transform" /> : <Edit className="w-4 h-4 group-hover:scale-110 transition-transform" />}
+                                                    {(!isIssueClosed(issue) || canEditRepairRecords) ? <Edit className="w-4 h-4 group-hover:scale-110 transition-transform" /> : <Eye className="w-4 h-4 group-hover:scale-110 transition-transform" />}
                                                 </button>
                                             <button
                                                 onClick={() => handleOpenMaintenanceReport(issue)}
