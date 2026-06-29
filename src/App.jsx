@@ -37,6 +37,8 @@ import { loadSignatureIntoCanvas } from './utils/signatureCanvas';
 import { PASSWORD_POLICY_TEXT, getPasswordPolicyErrors } from '../shared/passwordPolicy';
 
 const AUTO_CLOSE_AFTER_MS = 3 * 24 * 60 * 60 * 1000;
+const SESSION_ACTIVITY_EVENTS = ['mousedown', 'keydown', 'scroll', 'touchstart', 'pointerdown'];
+const SESSION_REFRESH_THROTTLE_MS = 30 * 1000;
 
 const ACTIVE_TAB_STORAGE_KEY = 'it-helpdesk-active-tab';
 const ADMIN_SUB_TAB_STORAGE_KEY = 'it-helpdesk-admin-sub-tab';
@@ -181,6 +183,7 @@ function App() {
     const [profileForm, setProfileForm] = useState({ username: '', name: '', position: '', signature: '', password: '' });
     const [approvalQueues, setApprovalQueues] = useState({ access: [], change: [] });
     const profileSignatureRef = useRef(null);
+    const sessionRefreshRef = useRef({ inFlight: false, lastAt: 0 });
     const currentRole = normalizeRole(isAdminAuth);
     const adminNavItem = MAIN_NAV_ITEMS.find((item) => item.id === 'admin');
     const visibleMainNavItems = MAIN_NAV_ITEMS.filter((item) =>
@@ -336,6 +339,79 @@ function App() {
         const timeoutId = setTimeout(handleSessionTimeout, remainingTime);
         return () => clearTimeout(timeoutId);
     }, [isAdminAuth?.session_expires_at]);
+
+    useEffect(() => {
+        if (!isAdminAuth?.id || !isAdminAuth?.token) return;
+
+        let cancelled = false;
+
+        const extendLocalSession = () => {
+            const sessionTimeoutMinutes = Number(isAdminAuth.session_timeout_minutes);
+            if (!Number.isFinite(sessionTimeoutMinutes) || sessionTimeoutMinutes <= 0) return;
+
+            const session_expires_at = new Date(Date.now() + sessionTimeoutMinutes * 60 * 1000).toISOString();
+            setIsAdminAuth((previousAuth) => {
+                if (!previousAuth) return previousAuth;
+                const nextAuth = { ...previousAuth, session_expires_at };
+                localStorage.setItem('it-helpdesk-admin-auth', JSON.stringify(nextAuth));
+                return nextAuth;
+            });
+        };
+
+        const refreshSession = async ({ force = false } = {}) => {
+            const now = Date.now();
+            const refreshState = sessionRefreshRef.current;
+            extendLocalSession();
+            if (refreshState.inFlight) return;
+            if (!force && now - refreshState.lastAt < SESSION_REFRESH_THROTTLE_MS) return;
+
+            refreshState.inFlight = true;
+            refreshState.lastAt = now;
+
+            const { data, error, status } = await getAdminProfile();
+            refreshState.inFlight = false;
+            if (cancelled) return;
+
+            if (error) {
+                if (status === 401) {
+                    handleAdminLogout();
+                    Swal.fire('หมดเวลาเข้าสู่ระบบ', 'กรุณาเข้าสู่ระบบใหม่อีกครั้ง', 'warning');
+                }
+                return;
+            }
+
+            if (data?.password_change_required) {
+                handleAdminLogout();
+                Swal.fire('ต้องเปลี่ยนรหัสผ่าน', 'กรุณาเข้าสู่ระบบอีกครั้งเพื่อตั้งรหัสผ่านใหม่', 'warning');
+                return;
+            }
+
+            if (data) handleCurrentAdminUpdated(data);
+        };
+
+        const handleActivity = () => {
+            refreshSession();
+        };
+
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                refreshSession({ force: true });
+            }
+        };
+
+        SESSION_ACTIVITY_EVENTS.forEach((eventName) => {
+            window.addEventListener(eventName, handleActivity, { passive: true });
+        });
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        return () => {
+            cancelled = true;
+            SESSION_ACTIVITY_EVENTS.forEach((eventName) => {
+                window.removeEventListener(eventName, handleActivity);
+            });
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
+    }, [isAdminAuth?.id, isAdminAuth?.token, isAdminAuth?.session_timeout_minutes]);
 
     // Check auth state from localStorage initially
     useEffect(() => {
