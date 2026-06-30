@@ -5,6 +5,7 @@ import Swal from 'sweetalert2';
 import { mysql } from '../mysqlClient';
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Label, Textarea } from '@/components/ui';
 import { toMysqlDateTime } from '../utils/dateTime';
+import { loadSignatureIntoCanvas } from '../utils/signatureCanvas';
 
 const IssueCloseSignature = ({ issueId, onCloseIssue }) => {
     const signatureRef = useRef(null);
@@ -12,6 +13,7 @@ const IssueCloseSignature = ({ issueId, onCloseIssue }) => {
     const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [formData, setFormData] = useState({ name: '', position: '', note: '' });
+    const [latestCloseSignature, setLatestCloseSignature] = useState(null);
 
     useEffect(() => {
         const fetchIssue = async () => {
@@ -31,10 +33,28 @@ const IssueCloseSignature = ({ issueId, onCloseIssue }) => {
                 setIssue(null);
             } else {
                 setIssue(data);
+                let previousClose = null;
+                if (data?.name && !data?.user_close_sign && !data?.user_closed_at) {
+                    const { data: previousIssues, error: previousError } = await mysql
+                        .from('issues')
+                        .select('id,name,user_close_position,user_close_sign,user_closed_at,created_at')
+                        .eq('name', data.name)
+                        .order('user_closed_at', { ascending: false })
+                        .limit(20);
+
+                    if (previousError) {
+                        console.error('Error loading latest close signature:', previousError);
+                    } else {
+                        previousClose = (previousIssues || []).find((item) =>
+                            String(item.id) !== String(data.id) && item.user_close_sign
+                        );
+                    }
+                }
+                setLatestCloseSignature(previousClose?.user_close_sign || null);
                 setFormData(prev => ({
                     ...prev,
                     name: data?.user_close_name || data?.name || '',
-                    position: data?.user_close_position || ''
+                    position: data?.user_close_position || previousClose?.user_close_position || ''
                 }));
             }
             setIsLoading(false);
@@ -42,6 +62,11 @@ const IssueCloseSignature = ({ issueId, onCloseIssue }) => {
 
         fetchIssue();
     }, [issueId]);
+
+    useEffect(() => {
+        if (!issue || issue.status === 'Closed' || issue.user_close_sign || issue.user_closed_at || !latestCloseSignature) return;
+        loadSignatureIntoCanvas(signatureRef, latestCloseSignature, 100);
+    }, [issue, latestCloseSignature]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -62,13 +87,16 @@ const IssueCloseSignature = ({ issueId, onCloseIssue }) => {
             Swal.fire('ข้อมูลไม่ครบ', 'กรุณาระบุตำแหน่งผู้เซ็นปิดงาน', 'warning');
             return;
         }
-        if (!signatureRef.current || signatureRef.current.isEmpty()) {
+        const hasCanvasSignature = signatureRef.current && !signatureRef.current.isEmpty();
+        if (!hasCanvasSignature && !latestCloseSignature) {
             Swal.fire('ยังไม่ได้เซ็น', 'กรุณาเซ็นยืนยันการปิดงาน', 'warning');
             return;
         }
 
         setIsSubmitting(true);
-        const signature = signatureRef.current.getCanvas().toDataURL('image/png');
+        const signature = hasCanvasSignature
+            ? signatureRef.current.getCanvas().toDataURL('image/png')
+            : latestCloseSignature;
         const ok = await onCloseIssue(issue.id, {
             name: formData.name.trim(),
             position: formData.position.trim(),
@@ -189,7 +217,10 @@ const IssueCloseSignature = ({ issueId, onCloseIssue }) => {
                                         type="button"
                                         variant="ghost"
                                         size="sm"
-                                        onClick={() => signatureRef.current?.clear()}
+                                        onClick={() => {
+                                            signatureRef.current?.clear();
+                                            setLatestCloseSignature(null);
+                                        }}
                                         className="text-xs text-slate-500 hover:text-rose-500"
                                     >
                                         <Eraser className="w-3.5 h-3.5" />

@@ -3,7 +3,7 @@ import * as XLSX from 'xlsx';
 import html2canvas from 'html2canvas-pro';
 import jsPDF from 'jspdf';
 import SignatureCanvas from 'react-signature-canvas';
-import { Clock, Edit, CheckCircle2, Download, FileSpreadsheet, Trash2, Search, Filter, AlertTriangle, Eye, Printer, FileSignature, MessageSquare, Monitor, ChevronDown, X, XCircle, Copy, ChevronLeft, ChevronRight, Settings, Save, ImagePlus, Paperclip, Link2, Ticket, Eraser } from 'lucide-react';
+import { Clock, Edit, CheckCircle2, Download, FileSpreadsheet, Trash2, Search, Filter, AlertTriangle, Eye, Printer, FileSignature, MessageSquare, Monitor, ChevronDown, X, XCircle, Copy, ChevronLeft, ChevronRight, Settings, Save, ImagePlus, Paperclip, Link2, Ticket, Eraser, ZoomIn, ZoomOut } from 'lucide-react';
 import { showBorrowReturnIssueLinkDialog, showCloseIssueLinkDialog } from '../utils/closeIssueLink';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Combobox } from './ui/combobox';
@@ -140,6 +140,17 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
 
     // For image preview
     const [previewImage, setPreviewImage] = useState(null);
+    const [previewZoom, setPreviewZoom] = useState(1);
+
+    const openAttachmentPreview = (url) => {
+        setPreviewImage(url);
+        setPreviewZoom(1);
+    };
+
+    const closeAttachmentPreview = () => {
+        setPreviewImage(null);
+        setPreviewZoom(1);
+    };
 
     useEffect(() => {
         const fetchAssets = async () => {
@@ -1141,7 +1152,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                                 {issue.attachments.map((file, idx) => (
                                                     <button
                                                         key={idx}
-                                                        onClick={() => setPreviewImage(file.url)}
+                                                        onClick={() => openAttachmentPreview(file.url)}
                                                         className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-100 dark:border-indigo-800/50 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-all shadow-sm"
                                                     >
                                                         <Paperclip className="w-3.5 h-3.5" />
@@ -2020,7 +2031,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                         {readMoreIssue.attachments.map((file, idx) => (
                                             <button 
                                                 key={idx} 
-                                                onClick={() => setPreviewImage(file.url)}
+                                                onClick={() => openAttachmentPreview(file.url)}
                                                 className="group relative aspect-video rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-all"
                                             >
                                                 <img 
@@ -2053,21 +2064,51 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
             {previewImage && (
                 <div 
                     className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-4 bg-slate-900/90 backdrop-blur-sm animate-fade-in"
-                    onClick={() => setPreviewImage(null)}
+                    onClick={closeAttachmentPreview}
                 >
-                    <div className="relative max-w-5xl w-full max-h-[90vh] flex items-center justify-center">
+                    <div className="relative flex h-[90vh] w-full max-w-6xl flex-col" onClick={(e) => e.stopPropagation()}>
+                        <div className="mb-3 flex items-center justify-end gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setPreviewZoom((zoom) => Math.max(0.5, Number((zoom - 0.25).toFixed(2))))}
+                                disabled={previewZoom <= 0.5}
+                                className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur-md transition-colors hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-40"
+                                title="ย่อรูป"
+                            >
+                                <ZoomOut className="h-5 w-5" />
+                            </button>
+                            <div className="min-w-16 rounded-full bg-white/10 px-3 py-2 text-center text-xs font-bold text-white backdrop-blur-md">
+                                {Math.round(previewZoom * 100)}%
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setPreviewZoom((zoom) => Math.min(3, Number((zoom + 0.25).toFixed(2))))}
+                                disabled={previewZoom >= 3}
+                                className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur-md transition-colors hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-40"
+                                title="ขยายรูป"
+                            >
+                                <ZoomIn className="h-5 w-5" />
+                            </button>
                         <button
-                            onClick={() => setPreviewImage(null)}
-                            className="absolute -top-12 right-0 text-white hover:text-rose-400 transition-colors bg-white/10 p-2 rounded-full backdrop-blur-md"
+                            onClick={closeAttachmentPreview}
+                                className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur-md transition-colors hover:bg-white/20 hover:text-rose-300"
+                                title="ปิด"
                         >
-                            <X className="w-8 h-8" />
+                                <X className="h-6 w-6" />
                         </button>
-                        <img 
-                            src={resolveAttachmentUrl(previewImage)}
-                            alt="Preview" 
-                            className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl"
-                            onClick={(e) => e.stopPropagation()}
-                        />
+                        </div>
+                        <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto rounded-xl">
+                            <img
+                                src={resolveAttachmentUrl(previewImage)}
+                                alt="Preview"
+                                className="origin-center rounded-lg object-contain shadow-2xl transition-transform duration-150"
+                                style={{
+                                    maxWidth: '100%',
+                                    maxHeight: '100%',
+                                    transform: `scale(${previewZoom})`
+                                }}
+                            />
+                        </div>
                     </div>
                 </div>
             )}

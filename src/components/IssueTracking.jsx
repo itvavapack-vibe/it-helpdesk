@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { CheckCircle2, Clock, Edit, FileSignature, Link2, Search, XCircle } from 'lucide-react';
+import { CheckCircle2, Clock, Edit, Eye, FileSignature, Link2, Paperclip, Search, X, XCircle } from 'lucide-react';
+import { API_URL } from '../mysqlClient';
 import { buildBorrowReturnIssueLink } from '../utils/closeIssueLink';
 
 const STATUS_LABELS = {
@@ -17,6 +18,13 @@ const BORROW_IT_CATEGORY = 'ยืมคอมพิวเตอร์/อุป
 const normalizeBorrowCategory = (value) => String(value || '').replace(/\s+/g, '');
 const isBorrowIssue = (issue) => normalizeBorrowCategory(issue?.category) === normalizeBorrowCategory(BORROW_IT_CATEGORY);
 const isIssueClosed = (issue) => issue?.status === 'Closed' || Boolean(issue?.userCloseSign || issue?.userClosedAt);
+const displayValue = (value) => value || '-';
+
+const resolveAttachmentUrl = (url) => {
+    if (!url) return '';
+    if (/^(data:|blob:|https?:\/\/)/i.test(url)) return url;
+    return `${API_URL}${url}`;
+};
 
 const getStatusBadge = (status) => {
     switch (status) {
@@ -57,6 +65,7 @@ const formatDateTime = (dateString) => {
 
 const IssueTracking = ({ issues = [], isLoading = false }) => {
     const [searchTerm, setSearchTerm] = useState('');
+    const [selectedIssue, setSelectedIssue] = useState(null);
     const filteredIssues = issues
         .filter((issue) => {
             const term = searchTerm.trim().toLowerCase();
@@ -124,6 +133,23 @@ const IssueTracking = ({ issues = [], isLoading = false }) => {
                                         ผู้รับงาน: {issue.assignedAdmin}
                                     </p>
                                 )}
+                                {issue.attachments && issue.attachments.length > 0 && (
+                                    <div className="mt-3 flex flex-wrap gap-2">
+                                        {issue.attachments.map((file, index) => (
+                                            <a
+                                                key={`${file.url || file.name || 'attachment'}-${index}`}
+                                                href={resolveAttachmentUrl(file.url)}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-600 shadow-sm transition-all hover:bg-indigo-100 dark:border-indigo-800/50 dark:bg-indigo-900/30 dark:text-indigo-400 dark:hover:bg-indigo-900/50"
+                                                title={file.name || `ไฟล์แนบ ${index + 1}`}
+                                            >
+                                                <Paperclip className="h-3.5 w-3.5" />
+                                                <span>ไฟล์แนบ {issue.attachments.length > 1 ? index + 1 : ''}</span>
+                                            </a>
+                                        ))}
+                                    </div>
+                                )}
                                 {isBorrowIssue(issue) && (issue.borrowReturnerSign || issue.borrowReturnedAt) && (
                                     <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/80 p-3 dark:border-amber-900/60 dark:bg-amber-950/20">
                                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -150,6 +176,15 @@ const IssueTracking = ({ issues = [], isLoading = false }) => {
                             </div>
                             <div className="shrink-0 flex flex-col items-end gap-2">
                                 {getStatusBadge(issue.status)}
+                                <button
+                                    type="button"
+                                    onClick={() => setSelectedIssue(issue)}
+                                    className="inline-flex items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-bold text-sky-700 transition-colors hover:bg-sky-100 dark:border-sky-900/60 dark:bg-sky-950/30 dark:text-sky-200 dark:hover:bg-sky-950/50"
+                                    title="ดูข้อมูลรายการแจ้งซ่อม"
+                                >
+                                    <Eye className="h-3.5 w-3.5" />
+                                    ดูข้อมูล
+                                </button>
                                 {issue.status === 'Resolved' && issue.userCloseSign && (
                                     <span className="text-xs text-emerald-600 font-medium">เซ็นปิดงานแล้ว</span>
                                 )}
@@ -165,6 +200,92 @@ const IssueTracking = ({ issues = [], isLoading = false }) => {
                             </div>
                         </div>
                     ))}
+                </div>
+            )}
+
+            {selectedIssue && (
+                <div className="fixed inset-0 z-[120] flex items-start justify-center overflow-y-auto bg-slate-900/45 p-3 backdrop-blur-sm sm:items-center sm:p-4">
+                    <div className="w-full max-w-3xl overflow-hidden rounded-2xl border border-white/20 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-800">
+                        <div className="flex items-center justify-between gap-3 border-b border-slate-100 bg-slate-50/80 px-5 py-4 dark:border-slate-700 dark:bg-slate-800/80">
+                            <div>
+                                <h3 className="text-lg font-bold text-indigo-950 dark:text-indigo-100">ข้อมูลรายการแจ้งซ่อม</h3>
+                                <p className="text-xs font-semibold text-indigo-600 dark:text-indigo-300">{selectedIssue.id}</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setSelectedIssue(null)}
+                                className="rounded-full p-2 text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-500 dark:hover:bg-slate-700"
+                                title="ปิด"
+                            >
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+                        <div className="max-h-[calc(100dvh-9rem)] overflow-y-auto p-5 sm:p-6">
+                            <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+                                <div className="text-sm text-slate-500 dark:text-slate-400">วันที่แจ้ง: {formatDateTime(selectedIssue.createdAt)}</div>
+                                {getStatusBadge(selectedIssue.status)}
+                            </div>
+                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                <div>
+                                    <div className="text-xs font-semibold text-slate-400">ผู้แจ้ง</div>
+                                    <div className="mt-1 text-sm font-semibold text-slate-800 dark:text-slate-100">{displayValue(selectedIssue.name)}</div>
+                                </div>
+                                <div>
+                                    <div className="text-xs font-semibold text-slate-400">แผนก</div>
+                                    <div className="mt-1 text-sm font-semibold text-slate-800 dark:text-slate-100">{displayValue(selectedIssue.department)}</div>
+                                </div>
+                                <div>
+                                    <div className="text-xs font-semibold text-slate-400">หมวดหมู่</div>
+                                    <div className="mt-1 text-sm font-semibold text-slate-800 dark:text-slate-100">{displayValue(selectedIssue.category)}</div>
+                                </div>
+                                <div>
+                                    <div className="text-xs font-semibold text-slate-400">ผู้รับงาน</div>
+                                    <div className="mt-1 text-sm font-semibold text-slate-800 dark:text-slate-100">{displayValue(selectedIssue.assignedAdmin)}</div>
+                                </div>
+                                <div className="sm:col-span-2">
+                                    <div className="text-xs font-semibold text-slate-400">รายละเอียดปัญหา</div>
+                                    <div className="mt-2 rounded-xl border border-slate-100 bg-slate-50 p-4 text-sm leading-relaxed text-slate-700 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-300 whitespace-pre-wrap">
+                                        {displayValue(selectedIssue.description)}
+                                    </div>
+                                </div>
+                                <div className="sm:col-span-2">
+                                    <div className="text-xs font-semibold text-slate-400">แนวทางแก้ไข / ความคิดเห็น</div>
+                                    <div className="mt-2 rounded-xl border border-slate-100 bg-slate-50 p-4 text-sm leading-relaxed text-slate-700 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-300 whitespace-pre-wrap">
+                                        {displayValue(selectedIssue.repairDetails)}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {selectedIssue.attachments && selectedIssue.attachments.length > 0 && (
+                                <div className="mt-6">
+                                    <div className="mb-3 text-sm font-bold text-slate-700 dark:text-slate-300">ไฟล์แนบ ({selectedIssue.attachments.length})</div>
+                                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                                        {selectedIssue.attachments.map((file, index) => (
+                                            <a
+                                                key={`${file.url || file.name || 'file'}-${index}`}
+                                                href={resolveAttachmentUrl(file.url)}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="group overflow-hidden rounded-xl border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600 transition-colors hover:border-indigo-200 hover:text-indigo-700 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300"
+                                            >
+                                                <img src={resolveAttachmentUrl(file.url)} alt={file.name || `ไฟล์แนบ ${index + 1}`} className="aspect-video w-full object-cover" />
+                                                <div className="truncate px-3 py-2">{file.name || `ไฟล์แนบ ${index + 1}`}</div>
+                                            </a>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                        <div className="flex justify-end border-t border-slate-100 bg-slate-50 px-5 py-4 dark:border-slate-700 dark:bg-slate-700/30">
+                            <button
+                                type="button"
+                                onClick={() => setSelectedIssue(null)}
+                                className="rounded-xl bg-indigo-600 px-5 py-2 text-sm font-semibold text-white shadow-md shadow-indigo-200 transition-colors hover:bg-indigo-700"
+                            >
+                                ปิด
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>
