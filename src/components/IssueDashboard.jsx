@@ -192,8 +192,8 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
 
     useEffect(() => {
         if (!isRepairModalOpen || editFormData.status !== 'Resolved' || editFormData.inspectorSign) return;
-        loadSignatureIntoCanvas(inspectorSignatureRef, currentAdmin?.signature);
-    }, [editFormData.inspectorSign, editFormData.status, isRepairModalOpen]);
+        loadSignatureIntoCanvas(inspectorSignatureRef, currentAdmin?.signature, 150);
+    }, [currentAdmin?.signature, editFormData.inspectorSign, editFormData.status, isRepairModalOpen]);
 
     useEffect(() => {
         if (glpiUsersRaw.length === 0) return;

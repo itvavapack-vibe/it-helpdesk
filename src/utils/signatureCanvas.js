@@ -1,4 +1,4 @@
-export const loadSignatureIntoCanvas = (signatureRef, signature, delay = 50) => {
+export const loadSignatureIntoCanvas = (signatureRef, signature, delay = 50, attempt = 0) => {
     window.setTimeout(() => {
         const signaturePad = signatureRef.current;
         if (!signaturePad) return;
@@ -17,6 +17,10 @@ export const loadSignatureIntoCanvas = (signatureRef, signature, delay = 50) => 
         const targetHeight = canvas.offsetHeight || canvas.height / ratio;
 
         if (!targetWidth || !targetHeight) {
+            if (attempt < 6) {
+                loadSignatureIntoCanvas(signatureRef, signature, 120, attempt + 1);
+                return;
+            }
             signaturePad.fromDataURL(signature);
             return;
         }

@@ -6,7 +6,15 @@ function resolveApiUrl() {
   if (configured) {
     const isLocalhostConfig = /localhost|127\.0\.0\.1/i.test(configured)
     const onRemoteLanHost = pageHost !== 'localhost' && pageHost !== '127.0.0.1'
-    if (isLocalhostConfig && onRemoteLanHost) return sameOriginApi.replace(/\/+$/, '')
+    if (isLocalhostConfig && onRemoteLanHost) {
+      try {
+        const apiUrl = new URL(configured)
+        apiUrl.hostname = pageHost
+        return apiUrl.toString().replace(/\/+$/, '')
+      } catch {
+        return sameOriginApi.replace(/:\d+$/, ':4000').replace(/\/+$/, '')
+      }
+    }
     return configured.replace(/\/+$/, '')
   }
 
@@ -58,7 +66,17 @@ function buildUrl(table, state, endpoint = '') {
 }
 
 async function request(url, init) {
-  const response = await fetch(url, init)
+  let response
+  try {
+    response = await fetch(url, init)
+  } catch (error) {
+    return {
+      data: null,
+      error: `ไม่สามารถเชื่อมต่อ API ได้ (${new URL(url).origin})`,
+      code: error?.name || 'FETCH_ERROR',
+      status: 0,
+    }
+  }
   const payload = await response.json().catch(() => null)
   if (!response.ok) {
     return {
