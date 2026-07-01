@@ -66,18 +66,54 @@ function buildUrl(table, state, endpoint = '') {
 }
 
 async function request(url, init) {
-  let response
-  try {
-    response = await fetch(url, init)
-  } catch (error) {
-    return {
-      data: null,
-      error: `ไม่สามารถเชื่อมต่อ API ได้ (${new URL(url).origin})`,
-      code: error?.name || 'FETCH_ERROR',
-      status: 0,
+  const fetchJson = async (requestUrl) => {
+    const response = await fetch(requestUrl, init)
+    const payload = await response.json().catch(() => null)
+    return { response, payload }
+  }
+
+  const getSameOriginFallbackUrl = () => {
+    if (typeof window === 'undefined') return null
+    try {
+      const requestUrl = new URL(url)
+      if (requestUrl.origin === window.location.origin) return null
+      if (!requestUrl.pathname.startsWith('/api/')) return null
+      return new URL(`${requestUrl.pathname}${requestUrl.search}`, window.location.origin).toString()
+    } catch {
+      return null
     }
   }
-  const payload = await response.json().catch(() => null)
+
+  let response
+  let payload
+  try {
+    const result = await fetchJson(url)
+    response = result.response
+    payload = result.payload
+  } catch (error) {
+    const fallbackUrl = getSameOriginFallbackUrl()
+    if (fallbackUrl) {
+      try {
+        const result = await fetchJson(fallbackUrl)
+        response = result.response
+        payload = result.payload
+      } catch {
+        return {
+          data: null,
+          error: `ไม่สามารถเชื่อมต่อ API ได้ (${new URL(url).origin} หรือ ${new URL(fallbackUrl).origin})`,
+          code: error?.name || 'FETCH_ERROR',
+          status: 0,
+        }
+      }
+    } else {
+      return {
+        data: null,
+        error: `ไม่สามารถเชื่อมต่อ API ได้ (${new URL(url).origin})`,
+        code: error?.name || 'FETCH_ERROR',
+        status: 0,
+      }
+    }
+  }
   if (!response.ok) {
     return {
       data: null,
