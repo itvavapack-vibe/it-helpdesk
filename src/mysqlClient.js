@@ -7,13 +7,7 @@ function resolveApiUrl() {
     const isLocalhostConfig = /localhost|127\.0\.0\.1/i.test(configured)
     const onRemoteLanHost = pageHost !== 'localhost' && pageHost !== '127.0.0.1'
     if (isLocalhostConfig && onRemoteLanHost) {
-      try {
-        const apiUrl = new URL(configured)
-        apiUrl.hostname = pageHost
-        return apiUrl.toString().replace(/\/+$/, '')
-      } catch {
-        return sameOriginApi.replace(/:\d+$/, ':4000').replace(/\/+$/, '')
-      }
+      return sameOriginApi.replace(/\/+$/, '')
     }
     return configured.replace(/\/+$/, '')
   }
