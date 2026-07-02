@@ -28,6 +28,27 @@ const statusBadgeClass = (status) => {
     return 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-900';
 };
 
+const ACCESS_DOCUMENT_LIST_COLUMNS = [
+    'id',
+    'ticket_number',
+    'name_th',
+    'department',
+    'request_details',
+    'other_system_details',
+    'status',
+    'created_at',
+].join(',');
+
+const CHANGE_DOCUMENT_LIST_COLUMNS = [
+    'id',
+    'ticket_number',
+    'requester_name',
+    'department',
+    'details',
+    'status',
+    'created_at',
+].join(',');
+
 const ApprovedDocuments = ({ currentAdmin }) => {
     const [documents, setDocuments] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -43,8 +64,8 @@ const ApprovedDocuments = ({ currentAdmin }) => {
         if (!silent) setIsLoading(true);
         try {
             const [accessResult, changeResult] = await Promise.all([
-                mysql.from('access_requests').select('*').order('created_at', { ascending: false }),
-                mysql.from('change_requests').select('*').order('created_at', { ascending: false }),
+                mysql.from('access_requests').select(ACCESS_DOCUMENT_LIST_COLUMNS).order('created_at', { ascending: false }),
+                mysql.from('change_requests').select(CHANGE_DOCUMENT_LIST_COLUMNS).order('created_at', { ascending: false }),
             ]);
 
             if (accessResult.error) throw accessResult.error;
@@ -63,7 +84,6 @@ const ApprovedDocuments = ({ currentAdmin }) => {
                     details: req.request_details || req.other_system_details || '',
                     status: req.status || '',
                     createdAt: req.created_at,
-                    raw: req,
                 }));
 
             const changeDocs = (changeResult.data || [])

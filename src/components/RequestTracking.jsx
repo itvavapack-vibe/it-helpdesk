@@ -26,6 +26,27 @@ const statusBadgeClass = (status) => {
     return 'border-amber-200 bg-amber-50 text-amber-700';
 };
 
+const ACCESS_TRACKING_LIST_COLUMNS = [
+    'id',
+    'ticket_number',
+    'name_th',
+    'department',
+    'request_details',
+    'other_system_details',
+    'status',
+    'created_at',
+].join(',');
+
+const CHANGE_TRACKING_LIST_COLUMNS = [
+    'id',
+    'ticket_number',
+    'requester_name',
+    'department',
+    'details',
+    'status',
+    'created_at',
+].join(',');
+
 const RequestTracking = ({ initialType = 'access' }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [requests, setRequests] = useState([]);
@@ -35,8 +56,8 @@ const RequestTracking = ({ initialType = 'access' }) => {
         const fetchRequests = async () => {
             setIsLoading(true);
             const [accessResult, changeResult] = await Promise.all([
-                mysql.from('access_requests').select('*').order('created_at', { ascending: false }),
-                mysql.from('change_requests').select('*').order('created_at', { ascending: false }),
+                mysql.from('access_requests').select(ACCESS_TRACKING_LIST_COLUMNS).order('created_at', { ascending: false }),
+                mysql.from('change_requests').select(CHANGE_TRACKING_LIST_COLUMNS).order('created_at', { ascending: false }),
             ]);
 
             const accessRequests = (accessResult.data || []).map((request) => ({
