@@ -93,6 +93,37 @@ const formatDisplayDate = (value) => {
     return date.toLocaleDateString('th-TH');
 };
 
+const ACCESS_REQUEST_LIST_COLUMNS = [
+    'id',
+    'ticket_number',
+    'name_th',
+    'name_en',
+    'employee_id',
+    'department',
+    'position',
+    'internal_phone',
+    'systems',
+    'other_system_details',
+    'request_details',
+    'status',
+    'cancelled_at',
+    'cancel_reason',
+    'cancel_it_name',
+    'manager_date',
+    'it_manager_date',
+    'it_manager_name',
+    'it_manager_position',
+    'it_supervisor_date',
+    'it_supervisor_name',
+    'it_supervisor_position',
+    'it_staff_name',
+    'it_staff_date',
+    'action_result',
+    'user_acknowledge_date',
+    'created_at',
+    'updated_at',
+].join(',');
+
 const AdminAccessRequests = ({ currentAdmin }) => {
     const [requests, setRequests] = useState([]);
     const [employees, setEmployees] = useState([]);
@@ -148,7 +179,7 @@ const AdminAccessRequests = ({ currentAdmin }) => {
         try {
             const { data, error } = await mysql
                 .from('access_requests')
-                .select('*')
+                .select(ACCESS_REQUEST_LIST_COLUMNS)
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
@@ -161,6 +192,17 @@ const AdminAccessRequests = ({ currentAdmin }) => {
         } finally {
             if (!silent) setIsLoading(false);
         }
+    };
+
+    const fetchFullAccessRequest = async (id) => {
+        const { data, error } = await mysql
+            .from('access_requests')
+            .select('*')
+            .eq('id', id)
+            .single();
+
+        if (error) throw error;
+        return { ...data, systems: normalizeSystems(data?.systems) };
     };
 
     const fetchEmployees = async () => {
@@ -367,36 +409,53 @@ const AdminAccessRequests = ({ currentAdmin }) => {
         }
     };
 
-    const openPreview = (req) => {
+    const openPreview = async (req) => {
+        let fullRequest = req;
+        try {
+            Swal.fire({
+                title: 'กำลังโหลดเอกสาร...',
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                showConfirmButton: false,
+                didOpen: () => Swal.showLoading(),
+            });
+            fullRequest = await fetchFullAccessRequest(req.id);
+            Swal.close();
+        } catch (error) {
+            console.error('Error fetching access request preview:', error);
+            Swal.fire('Error', 'ไม่สามารถโหลดข้อมูลเอกสารได้', 'error');
+            return;
+        }
+
         setSelectedRequest({
-            ticketNumber: req.ticket_number,
-            nameTh: req.name_th,
-            nameEn: req.name_en,
-            department: req.department,
-            position: req.position,
-            internalPhone: req.internal_phone,
-            systems: normalizeSystems(req.systems),
-            otherSystemDetails: req.other_system_details || '',
-            requestDetails: req.request_details || '',
-            requesterSign: req.requester_sign || null,
-            managerSign: req.manager_sign || null,
-            managerDate: req.manager_date || null,
-            itSign: req.it_staff_sign || req.it_sign || null,
-            itStaffDate: req.it_staff_date || null,
-            itManagerSign: req.it_manager_sign || null,
-            itManagerDate: req.it_manager_date || null,
-            itSupervisorSign: req.it_supervisor_sign || null,
-            itSupervisorDate: req.it_supervisor_date || null,
-            itStaffName: req.it_staff_name || '',
-            actionResult: req.action_result || '',
-            userAcknowledgeSign: req.user_acknowledge_sign || null,
-            userAcknowledgeDate: req.user_acknowledge_date || null,
-            createdAt: req.created_at || null,
-            status: req.status || '',
-            cancelledAt: req.cancelled_at || null,
-            cancelReason: req.cancel_reason || '',
-            cancelItName: req.cancel_it_name || '',
-            cancelItSign: req.cancel_it_sign || null,
+            ticketNumber: fullRequest.ticket_number,
+            nameTh: fullRequest.name_th,
+            nameEn: fullRequest.name_en,
+            department: fullRequest.department,
+            position: fullRequest.position,
+            internalPhone: fullRequest.internal_phone,
+            systems: normalizeSystems(fullRequest.systems),
+            otherSystemDetails: fullRequest.other_system_details || '',
+            requestDetails: fullRequest.request_details || '',
+            requesterSign: fullRequest.requester_sign || null,
+            managerSign: fullRequest.manager_sign || null,
+            managerDate: fullRequest.manager_date || null,
+            itSign: fullRequest.it_staff_sign || fullRequest.it_sign || null,
+            itStaffDate: fullRequest.it_staff_date || null,
+            itManagerSign: fullRequest.it_manager_sign || null,
+            itManagerDate: fullRequest.it_manager_date || null,
+            itSupervisorSign: fullRequest.it_supervisor_sign || null,
+            itSupervisorDate: fullRequest.it_supervisor_date || null,
+            itStaffName: fullRequest.it_staff_name || '',
+            actionResult: fullRequest.action_result || '',
+            userAcknowledgeSign: fullRequest.user_acknowledge_sign || null,
+            userAcknowledgeDate: fullRequest.user_acknowledge_date || null,
+            createdAt: fullRequest.created_at || null,
+            status: fullRequest.status || '',
+            cancelledAt: fullRequest.cancelled_at || null,
+            cancelReason: fullRequest.cancel_reason || '',
+            cancelItName: fullRequest.cancel_it_name || '',
+            cancelItSign: fullRequest.cancel_it_sign || null,
         });
         setIsPreviewOpen(true);
     };
