@@ -13,12 +13,14 @@ import HomePage from './components/HomePage';
 import AssetInventory from './components/AssetInventory';
 import IssueStatistics from './components/IssueStatistics';
 import UserAccessRequestForm from './components/UserAccessRequestForm';
+import ControlledAreaEntryForm from './components/ControlledAreaEntryForm';
 import AdminAccessRequests from './components/AdminAccessRequests';
 import ManagerApproval from './components/ManagerApproval';
 import ITManagerApproval from './components/ITManagerApproval';
 import ChangeRequestForm from './components/ChangeRequestForm';
 import AdminChangeRequests from './components/AdminChangeRequests';
 import ApprovedDocuments from './components/ApprovedDocuments';
+import ServerRoomManagement from './components/ServerRoomManagement';
 import IssueCloseSignature from './components/IssueCloseSignature';
 import ChangeRequestAcceptance from './components/ChangeRequestAcceptance';
 import AccessRequestAcknowledgement from './components/AccessRequestAcknowledgement';
@@ -27,7 +29,7 @@ import ThemePicker from './components/ThemePicker';
 import ChangeManagerApproval from './components/ChangeManagerApproval';
 import { ChevronDown, LogIn, LogOut, Monitor, MoreHorizontal, PanelLeftClose, PanelLeftOpen, UserCog } from 'lucide-react';
 import { ADMIN_SUB_TABS, MAIN_NAV_ITEMS, canSee, normalizeRole } from './config/navigation';
-import { ACCESS_QUEUE_STATUS_BY_ROLE, APPROVAL_QUEUE_STATUS_BY_ROLE, CHANGE_QUEUE_STATUS_BY_ROLE, ROLE_LABELS, canHandleChangeRequestCategory, countVisibleQueue } from './config/roles';
+import { ACCESS_QUEUE_STATUS_BY_ROLE, APPROVAL_QUEUE_STATUS_BY_ROLE, CHANGE_QUEUE_STATUS_BY_ROLE, ROLE_LABELS, SERVER_ROOM_QUEUE_STATUS_BY_ROLE, canHandleChangeRequestCategory, countVisibleQueue } from './config/roles';
 import Swal from 'sweetalert2';
 import { notifyNewIssue, notifyStatusChange, notifyRepairUpdate } from './telegramNotify';
 import { buildCloseIssueLink, showCloseIssueLinkDialog } from './utils/closeIssueLink';
@@ -44,7 +46,7 @@ const ACTIVE_TAB_STORAGE_KEY = 'it-helpdesk-active-tab';
 const ADMIN_SUB_TAB_STORAGE_KEY = 'it-helpdesk-admin-sub-tab';
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'it-helpdesk-sidebar-collapsed';
 const TRANSIENT_TABS = new Set(['manager_approval', 'change_manager_approval', 'it_manager_approval', 'issue_close', 'borrow_return', 'change_request_acceptance', 'access_request_acknowledgement']);
-const AUTH_HIDDEN_MAIN_NAV_ITEMS = new Set(['user', 'access_request', 'change_request']);
+const AUTH_HIDDEN_MAIN_NAV_ITEMS = new Set(['user', 'access_request', 'change_request', 'controlled_area']);
 const BOTTOM_NAV_VISIBLE_LIMIT = 4;
 const TAB_PATHS = {
     home: '/',
@@ -56,6 +58,7 @@ const TAB_PATHS = {
     request_tracking_change: '/track/change',
     access_request: '/request-access',
     change_request: '/request-change',
+    controlled_area: '/controlled-area',
     admin: '/admin',
     manager_approval: '/approve/access',
     change_manager_approval: '/approve/change',
@@ -71,6 +74,7 @@ const ADMIN_SUB_TAB_PATHS = {
     access_requests: 'access-requests',
     change_requests: 'change-requests',
     approved_documents: 'approved-documents',
+    server_room: 'server-room',
     stats: 'statistics',
     employees: 'employees',
     users: 'users',
@@ -181,7 +185,7 @@ function App() {
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === 'true');
     const [isSavingProfile, setIsSavingProfile] = useState(false);
     const [profileForm, setProfileForm] = useState({ username: '', name: '', position: '', signature: '', password: '' });
-    const [approvalQueues, setApprovalQueues] = useState({ access: [], change: [] });
+    const [approvalQueues, setApprovalQueues] = useState({ access: [], change: [], serverRoom: [] });
     const profileSignatureRef = useRef(null);
     const sessionRefreshRef = useRef({ inFlight: false, lastAt: 0 });
     const currentRole = normalizeRole(isAdminAuth);
@@ -272,7 +276,7 @@ function App() {
 
     useEffect(() => {
         if (!isAdminAuth) {
-            setApprovalQueues({ access: [], change: [] });
+            setApprovalQueues({ access: [], change: [], serverRoom: [] });
             setIsProfileMenuOpen(false);
             setIsProfileModalOpen(false);
             setIsMainMoreOpen(false);
@@ -281,13 +285,15 @@ function App() {
         }
 
         const fetchApprovalQueues = async () => {
-            const [accessResult, changeResult] = await Promise.all([
+            const [accessResult, changeResult, serverRoomResult] = await Promise.all([
                 mysql.from('access_requests').select('id, status'),
-                mysql.from('change_requests').select('id, status, request_category')
+                mysql.from('change_requests').select('id, status, request_category'),
+                mysql.from('controlled_area_logs').select('id, status')
             ]);
             setApprovalQueues({
                 access: accessResult.error ? [] : accessResult.data || [],
-                change: changeResult.error ? [] : changeResult.data || []
+                change: changeResult.error ? [] : changeResult.data || [],
+                serverRoom: serverRoomResult.error ? [] : serverRoomResult.data || []
             });
         };
 
@@ -986,6 +992,10 @@ function App() {
             return <ChangeRequestForm />;
         }
 
+        if (activeTab === 'controlled_area') {
+            return <ControlledAreaEntryForm />;
+        }
+
         if (activeTab === 'issue_close') {
             return <IssueCloseSignature issueId={closeIssueId} onCloseIssue={closeIssueByUser} />;
         }
@@ -1077,6 +1087,8 @@ function App() {
                             <AdminChangeRequests currentAdmin={isAdminAuth} />
                         ) : selectedAdminSubTab === 'approved_documents' ? (
                             <ApprovedDocuments currentAdmin={isAdminAuth} />
+                        ) : selectedAdminSubTab === 'server_room' ? (
+                            <ServerRoomManagement currentAdmin={isAdminAuth} />
                         ) : selectedAdminSubTab === 'stats' ? (
                             <IssueStatistics issues={issues} />
                         ) : selectedAdminSubTab === 'employees' ? (
@@ -1124,6 +1136,9 @@ function App() {
         if (itemId === 'approved_documents') {
             return countVisibleQueue(approvalQueues.access, currentRole, APPROVAL_QUEUE_STATUS_BY_ROLE)
                 + countVisibleQueue(approvalQueues.change, currentRole, APPROVAL_QUEUE_STATUS_BY_ROLE, (_role, item) => item.status !== 'Pending_IT_Supervisor');
+        }
+        if (itemId === 'server_room') {
+            return countVisibleQueue(approvalQueues.serverRoom, currentRole, SERVER_ROOM_QUEUE_STATUS_BY_ROLE);
         }
         return 0;
     };
@@ -1257,10 +1272,10 @@ function App() {
                             type="button"
                             onClick={() => handleNavClick(adminNavItem)}
                             className="flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-3 py-3 text-sm font-semibold text-white shadow-md shadow-indigo-200 transition-colors hover:bg-indigo-700 dark:bg-indigo-500 dark:shadow-indigo-950/40 dark:hover:bg-indigo-400"
-                            title={isSidebarCollapsed ? 'เข้าสู่ระบบสำหรับเจ้าหน้าที่' : undefined}
+                            title={isSidebarCollapsed ? 'เข้าสู่ระบบสำหรับแผนกไอที' : undefined}
                         >
                             <LogIn className="h-5 w-5" />
-                            <span className={isSidebarCollapsed ? 'hidden' : ''}>เข้าสู่ระบบสำหรับเจ้าหน้าที่</span>
+                            <span className={isSidebarCollapsed ? 'hidden' : ''}>เข้าสู่ระบบสำหรับแผนกไอที</span>
                         </button>
                     </div>
                 )}

@@ -77,6 +77,26 @@ export const canDeleteRecords = (role) => {
     return rawRole === 'admin' || normalizeRoleValue(role) === ROLES.SUPERADMIN;
 };
 
+export const canApproveServerRoomEntry = (role) => [
+    ROLES.SUPERADMIN,
+    ROLES.IT_MANAGER,
+    ROLES.IT_SUPERVISOR,
+].includes(normalizeRoleValue(role));
+
+export const canExitServerRoomEntry = (role) => [
+    ROLES.SUPERADMIN,
+    ROLES.IT_SUPPORT,
+    ROLES.IT_SOFTWARE,
+].includes(normalizeRoleValue(role));
+
+export const SERVER_ROOM_QUEUE_STATUS_BY_ROLE = {
+    [ROLES.SUPERADMIN]: ['Pending_Approval', 'Approved'],
+    [ROLES.IT_MANAGER]: ['Pending_Approval'],
+    [ROLES.IT_SUPERVISOR]: ['Pending_Approval'],
+    [ROLES.IT_SUPPORT]: ['Approved'],
+    [ROLES.IT_SOFTWARE]: ['Approved'],
+};
+
 export const ACCESS_QUEUE_STATUS_BY_ROLE = {
     [ROLES.SUPERADMIN]: ['Pending_IT'],
     [ROLES.IT_SUPPORT]: ['Pending_IT'],

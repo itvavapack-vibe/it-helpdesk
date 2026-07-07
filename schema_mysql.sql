@@ -140,6 +140,28 @@ CREATE INDEX idx_access_requests_ticket ON access_requests(ticket_number);
 CREATE INDEX idx_access_requests_status ON access_requests(status);
 CREATE INDEX idx_access_requests_employee_id ON access_requests(employee_id);
 
+-- Controlled Area / Server Room Entry Logs
+CREATE TABLE IF NOT EXISTS controlled_area_logs (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  entry_date DATE NOT NULL,
+  department VARCHAR(255) NOT NULL,
+  full_name VARCHAR(255) NOT NULL,
+  entry_time DATETIME NOT NULL,
+  reason TEXT NOT NULL,
+  status VARCHAR(50) NOT NULL DEFAULT 'Pending_Approval',
+  approved_by VARCHAR(255),
+  approved_role VARCHAR(50),
+  approved_at DATETIME,
+  exit_time DATETIME,
+  exited_by VARCHAR(255),
+  exited_role VARCHAR(50),
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_controlled_area_logs_status ON controlled_area_logs(status);
+CREATE INDEX idx_controlled_area_logs_entry_time ON controlled_area_logs(entry_time);
+
 -- Employees
 CREATE TABLE IF NOT EXISTS employees (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,

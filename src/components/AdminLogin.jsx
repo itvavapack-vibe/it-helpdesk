@@ -90,7 +90,7 @@ const AdminLogin = ({ onLogin }) => {
                     <Lock className="w-8 h-8" />
                 </div>
                 <CardTitle className="text-2xl sm:text-3xl text-indigo-950 dark:text-indigo-100">
-                    เข้าสู่ระบบสำหรับเจ้าหน้าที่
+                    เข้าสู่ระบบสำหรับแผนกไอที
                 </CardTitle>
                 <CardDescription className="font-medium">
                     {changeToken ? 'ตั้งรหัสผ่านใหม่เพื่อเข้าสู่ระบบ' : 'กรุณาเข้าสู่ระบบเพื่อจัดการรายการแจ้งซ่อม'}
