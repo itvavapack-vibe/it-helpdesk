@@ -53,6 +53,12 @@ const MONTH_OPTIONS = [
     'ธันวาคม',
 ];
 
+const ISSUE_BREAKDOWN_VIEWS = [
+    { id: 'category', label: 'หมวดหมู่' },
+    { id: 'department', label: 'แผนก' },
+    { id: 'staff', label: 'เจ้าหน้าที่รับงาน' },
+];
+
 const getItemDate = (item) => {
     const rawDate = item?.createdAt || item?.created_at || item?.date;
     const date = rawDate ? new Date(rawDate) : null;
@@ -85,6 +91,12 @@ const getPeriodLabel = (filter) => {
     if (filter.type === 'quarter') return `ไตรมาส ${filter.quarter} / ${Number(filter.year) + 543}`;
     return `${MONTH_OPTIONS[Number(filter.month) - 1]} ${Number(filter.year) + 543}`;
 };
+
+const getIssueEffectiveStatus = (issue) => (
+    issue?.status === 'Closed' || issue?.userCloseSign || issue?.userClosedAt
+        ? 'Closed'
+        : issue?.status || 'Pending'
+);
 
 const SummaryCard = ({ icon: Icon, title, value, detail, color, cardClassName = '', iconClassName = 'text-white' }) => (
     <div className={`glass-card rounded-3xl p-5 shadow-sm ${cardClassName}`}>
@@ -241,6 +253,7 @@ const IssueStatistics = ({ issues = [] }) => {
     const [assets, setAssets] = useState([]);
     const [isLoadingDetails, setIsLoadingDetails] = useState(true);
     const [detailsError, setDetailsError] = useState('');
+    const [issueBreakdownView, setIssueBreakdownView] = useState('category');
     const now = new Date();
     const [dateFilter, setDateFilter] = useState({
         type: 'month',
@@ -299,9 +312,7 @@ const IssueStatistics = ({ issues = [] }) => {
     const statusData = useMemo(() => {
         const counts = { Pending: 0, 'In Progress': 0, Resolved: 0, Closed: 0 };
         filteredIssues.forEach(issue => {
-            const effectiveStatus = issue.status === 'Closed' || issue.userCloseSign || issue.userClosedAt
-                ? 'Closed'
-                : issue.status;
+            const effectiveStatus = getIssueEffectiveStatus(issue);
             if (counts[effectiveStatus] !== undefined) counts[effectiveStatus]++;
         });
         return [
@@ -336,6 +347,37 @@ const IssueStatistics = ({ issues = [] }) => {
             .sort((a, b) => b.count - a.count)
             .slice(0, 5);
     }, [filteredIssues]);
+
+    const staffWorkloadData = useMemo(() => {
+        const summary = {};
+        filteredIssues.forEach((issue) => {
+            const name = String(issue.assignedAdmin || '').trim() || 'ยังไม่มีผู้รับงาน';
+            if (!summary[name]) {
+                summary[name] = {
+                    name,
+                    total: 0,
+                    pending: 0,
+                    inProgress: 0,
+                    resolved: 0,
+                    closed: 0,
+                    open: 0,
+                };
+            }
+
+            const effectiveStatus = getIssueEffectiveStatus(issue);
+            summary[name].total += 1;
+            if (effectiveStatus === 'Pending') summary[name].pending += 1;
+            if (effectiveStatus === 'In Progress') summary[name].inProgress += 1;
+            if (effectiveStatus === 'Resolved') summary[name].resolved += 1;
+            if (effectiveStatus === 'Closed') summary[name].closed += 1;
+            if (!['Resolved', 'Closed'].includes(effectiveStatus)) summary[name].open += 1;
+        });
+
+        return Object.values(summary)
+            .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name, 'th-TH'));
+    }, [filteredIssues]);
+
+    const topStaffWorkloadData = useMemo(() => staffWorkloadData.slice(0, 10), [staffWorkloadData]);
 
     const allRequests = useMemo(() => [...filteredAccessRequests, ...filteredChangeRequests], [filteredAccessRequests, filteredChangeRequests]);
 
@@ -416,6 +458,9 @@ const IssueStatistics = ({ issues = [] }) => {
     const closedIssueCount = filteredIssues.filter(issue => issue.status === 'Closed' || issue.userCloseSign || issue.userClosedAt).length;
     const resolvedIssueCount = filteredIssues.filter(issue => issue.status === 'Resolved' && !issue.userCloseSign && !issue.userClosedAt).length;
     const openIssueCount = filteredIssues.filter(issue => !['Resolved', 'Closed'].includes(issue.status) && !issue.userCloseSign && !issue.userClosedAt).length;
+    const assignedIssueCount = filteredIssues.filter(issue => String(issue.assignedAdmin || '').trim()).length;
+    const unassignedIssueCount = filteredIssues.length - assignedIssueCount;
+    const activeStaffCount = staffWorkloadData.filter(item => item.name !== 'ยังไม่มีผู้รับงาน').length;
     const pendingAccessRequestCount = accessRequestStatusData[0]?.count || 0;
     const completedAccessRequestCount = accessRequestStatusData[2]?.count || 0;
     const pendingChangeRequestCount = changeRequestStatusData[0]?.count || 0;
@@ -543,35 +588,35 @@ const IssueStatistics = ({ issues = [] }) => {
                                 </ResponsiveContainer>
                             </div>
                         )}
-                        <div className="mt-8">
-                            <div className="mb-4 flex items-center gap-2">
-                                <Users className="h-5 w-5 text-emerald-500" />
-                                <h5 className="text-base font-bold text-slate-800 dark:text-slate-100">การแจ้งซ่อมตามแผนก</h5>
-                            </div>
-                            {departmentData.length === 0 ? <EmptyChart message="ยังไม่มีข้อมูลแผนกที่แจ้งซ่อม" /> : (
-                                <div className="h-72 w-full">
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <BarChart data={departmentData} layout="vertical" margin={{ top: 5, right: 30, left: 70, bottom: 5 }}>
-                                            <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" opacity={0.5} />
-                                            <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} allowDecimals={false} />
-                                            <YAxis type="category" dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#475569', fontSize: 12, fontWeight: 500 }} width={120} />
-                                            <RechartsTooltip cursor={{ fill: '#f1f5f9', opacity: 0.4 }} contentStyle={{ borderRadius: '12px', border: 'none' }} />
-                                            <Bar dataKey="count" name="จำนวนแจ้งซ่อม" radius={[0, 6, 6, 0]} barSize={28}>
-                                                {departmentData.map((entry, index) => <Cell key={entry.name} fill={index === 0 ? '#10b981' : '#6ee7b7'} />)}
-                                            </Bar>
-                                        </BarChart>
-                                    </ResponsiveContainer>
-                                </div>
-                            )}
-                        </div>
                     </div>
 
                     <div className="glass-card rounded-3xl p-6 shadow-sm">
-                        <div className="mb-6 flex items-center gap-2">
-                            <BarChart3 className="h-5 w-5 text-violet-500" />
-                            <h4 className="text-lg font-bold text-slate-800 dark:text-slate-100">ปัญหาที่พบบ่อย</h4>
+                        <div className="mb-6 flex flex-col gap-4">
+                            <div className="flex items-center gap-2">
+                                <BarChart3 className="h-5 w-5 text-violet-500" />
+                                <div>
+                                    <h4 className="text-lg font-bold text-slate-800 dark:text-slate-100">มุมมองสถิติการแจ้งซ่อม</h4>
+                                    <p className="text-sm text-slate-500 dark:text-slate-400">เลือกสลับข้อมูลที่ต้องการดู</p>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-3 gap-1 rounded-2xl bg-slate-100 p-1 dark:bg-slate-900/60">
+                                {ISSUE_BREAKDOWN_VIEWS.map((view) => (
+                                    <button
+                                        key={view.id}
+                                        type="button"
+                                        onClick={() => setIssueBreakdownView(view.id)}
+                                        className={`rounded-xl px-2 py-2 text-xs font-bold transition-colors sm:text-sm ${
+                                            issueBreakdownView === view.id
+                                                ? 'bg-white text-indigo-600 shadow-sm dark:bg-slate-700 dark:text-indigo-300'
+                                                : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                                        }`}
+                                    >
+                                        {view.label}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
-                        {categoryData.length === 0 ? <EmptyChart message="ยังไม่มีข้อมูลหมวดหมู่แจ้งซ่อม" /> : (
+                        {issueBreakdownView === 'category' && (categoryData.length === 0 ? <EmptyChart message="ยังไม่มีข้อมูลหมวดหมู่แจ้งซ่อม" /> : (
                             <div className="h-72 w-full">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={categoryData} margin={{ top: 20, right: 30, left: -20, bottom: 5 }}>
@@ -585,7 +630,46 @@ const IssueStatistics = ({ issues = [] }) => {
                                     </BarChart>
                                 </ResponsiveContainer>
                             </div>
-                        )}
+                        ))}
+                        {issueBreakdownView === 'department' && (departmentData.length === 0 ? <EmptyChart message="ยังไม่มีข้อมูลแผนกที่แจ้งซ่อม" /> : (
+                            <div className="h-72 w-full">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={departmentData} layout="vertical" margin={{ top: 5, right: 30, left: 70, bottom: 5 }}>
+                                        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" opacity={0.5} />
+                                        <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} allowDecimals={false} />
+                                        <YAxis type="category" dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#475569', fontSize: 12, fontWeight: 500 }} width={120} />
+                                        <RechartsTooltip cursor={{ fill: '#f1f5f9', opacity: 0.4 }} contentStyle={{ borderRadius: '12px', border: 'none' }} />
+                                        <Bar dataKey="count" name="จำนวนแจ้งซ่อม" radius={[0, 6, 6, 0]} barSize={28}>
+                                            {departmentData.map((entry, index) => <Cell key={entry.name} fill={index === 0 ? '#10b981' : '#6ee7b7'} />)}
+                                        </Bar>
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
+                        ))}
+                        {issueBreakdownView === 'staff' && (staffWorkloadData.length === 0 ? <EmptyChart message="ยังไม่มีข้อมูลเจ้าหน้าที่รับงาน" /> : (
+                            <div className="space-y-4">
+                                <div className="grid grid-cols-3 gap-2">
+                                    <MetricCard title="เจ้าหน้าที่รับงาน" value={activeStaffCount} icon={Users} iconColor="text-cyan-500" />
+                                    <MetricCard title="รับงานแล้ว" value={assignedIssueCount} icon={UserCheck} iconColor="text-emerald-500" />
+                                    <MetricCard title="ยังไม่ระบุผู้รับงาน" value={unassignedIssueCount} icon={AlertCircle} iconColor="text-amber-500" />
+                                </div>
+                                <div className="h-80 w-full">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart data={topStaffWorkloadData} layout="vertical" margin={{ top: 5, right: 20, left: 80, bottom: 5 }}>
+                                            <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" opacity={0.5} />
+                                            <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} allowDecimals={false} />
+                                            <YAxis type="category" dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#475569', fontSize: 12, fontWeight: 500 }} width={140} />
+                                            <RechartsTooltip cursor={{ fill: '#f1f5f9', opacity: 0.4 }} contentStyle={{ borderRadius: '12px', border: 'none' }} />
+                                            <Legend />
+                                            <Bar dataKey="pending" stackId="status" name="รอดำเนินการ" fill="#f59e0b" />
+                                            <Bar dataKey="inProgress" stackId="status" name="กำลังแก้ไข" fill="#6366f1" />
+                                            <Bar dataKey="resolved" stackId="status" name="เสร็จสิ้น" fill="#10b981" />
+                                            <Bar dataKey="closed" stackId="status" name="ปิดจบ" fill="#059669" radius={[0, 6, 6, 0]} />
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </div>
+                        ))}
                     </div>
 
                 </div>
