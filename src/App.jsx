@@ -1090,7 +1090,7 @@ function App() {
                         ) : selectedAdminSubTab === 'server_room' ? (
                             <ServerRoomManagement currentAdmin={isAdminAuth} />
                         ) : selectedAdminSubTab === 'stats' ? (
-                            <IssueStatistics issues={issues} />
+                            <IssueStatistics issues={issues} currentAdmin={isAdminAuth} />
                         ) : selectedAdminSubTab === 'employees' ? (
                             <EmployeeManagement currentAdmin={isAdminAuth} />
                         ) : selectedAdminSubTab === 'users' ? (

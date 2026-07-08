@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend } from 'recharts';
 import { AlertCircle, BarChart3, CalendarDays, CheckCircle2, ClipboardList, Clock3, Monitor, PieChart as PieChartIcon, RefreshCw, TrendingUp, UserCheck, Users } from 'lucide-react';
 import { mysql } from '../mysqlClient';
+import { ROLES, normalizeRoleValue } from '../config/roles';
 
 const CATEGORIES = [
     'แก้ไขปัญหาด้าน Software D365',
@@ -58,6 +59,16 @@ const ISSUE_BREAKDOWN_VIEWS = [
     { id: 'department', label: 'แผนก' },
     { id: 'staff', label: 'เจ้าหน้าที่รับงาน' },
 ];
+
+const FULL_DASHBOARD_ROLES = [ROLES.SUPERADMIN, ROLES.IT_MANAGER];
+
+const normalizeMatchText = (value) => String(value || '').trim().toLowerCase();
+const normalizeRoleText = (value) => normalizeMatchText(value).replace(/[\s-]+/g, '_');
+
+const matchesAnyName = (value, names) => {
+    const normalizedValue = normalizeMatchText(value);
+    return Boolean(normalizedValue) && names.some((name) => normalizedValue === name);
+};
 
 const getItemDate = (item) => {
     const rawDate = item?.createdAt || item?.created_at || item?.date;
@@ -123,25 +134,28 @@ const MetricCard = ({ title, value, icon: Icon, iconColor = 'text-indigo-500' })
     </div>
 );
 
-const AssetMetricCard = ({ title, value, detail, icon: Icon, iconColor = 'text-sky-500' }) => (
-    <div className="rounded-2xl border border-slate-100 bg-white/70 p-4 shadow-sm shadow-slate-200/40 dark:border-slate-700 dark:bg-slate-800/50 dark:shadow-none">
+const AssetMetricCard = ({ title, value, detail, icon: Icon, iconColor = 'text-sky-500', cardClassName = 'border-sky-100 bg-gradient-to-br from-sky-50 to-white dark:border-sky-900/50 dark:from-sky-950/40 dark:to-slate-900/50', valueClassName = 'text-sky-700 dark:text-sky-200' }) => (
+    <div className={`rounded-2xl border p-4 shadow-sm shadow-slate-200/40 dark:shadow-none ${cardClassName}`}>
         <div className="flex items-center justify-between gap-3">
-            <p className="text-base font-semibold text-slate-500 dark:text-slate-400">{title}</p>
-            <Icon className={`h-4 w-4 ${iconColor}`} />
+            <p className="text-base font-bold text-slate-600 dark:text-slate-300">{title}</p>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/80 shadow-sm dark:bg-slate-900/50">
+                <Icon className={`h-4 w-4 ${iconColor}`} />
+            </div>
         </div>
-        <p className="mt-2 text-lg font-black text-slate-800 dark:text-white">{value}</p>
+        <p className={`mt-2 text-2xl font-black ${valueClassName}`}>{value}</p>
         {detail && <p className="mt-1 text-xs font-medium text-slate-400 dark:text-slate-500">{detail}</p>}
     </div>
 );
 
 const AssetSourceCard = ({ title, total, items, iconColor, accentClass }) => (
-    <div className={`h-full rounded-3xl border p-5 shadow-sm ${accentClass}`}>
+    <div className={`relative h-full overflow-hidden rounded-3xl border p-5 shadow-sm shadow-slate-200/50 dark:shadow-none ${accentClass}`}>
+        <div className="absolute inset-x-0 top-0 h-1.5 bg-current opacity-70" />
         <div className="mb-4 flex items-center justify-between gap-3">
             <div>
-                <p className="text-sm font-bold text-slate-500 dark:text-slate-300">{title}</p>
-                <p className="mt-1 text-3xl font-black text-slate-900 dark:text-white">{total}</p>
+                <p className="text-sm font-black text-slate-600 dark:text-slate-200">{title}</p>
+                <p className="mt-1 text-4xl font-black text-slate-900 dark:text-white">{total}</p>
             </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/75 shadow-sm dark:bg-slate-900/50">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/85 shadow-md shadow-slate-200/50 dark:bg-slate-900/55 dark:shadow-none">
                 <Monitor className={`h-6 w-6 ${iconColor}`} />
             </div>
         </div>
@@ -247,7 +261,7 @@ const getAssetBranch = (asset) => {
     return 'อื่นๆ';
 };
 
-const IssueStatistics = ({ issues = [] }) => {
+const IssueStatistics = ({ issues = [], currentAdmin }) => {
     const [accessRequests, setAccessRequests] = useState([]);
     const [changeRequests, setChangeRequests] = useState([]);
     const [assets, setAssets] = useState([]);
@@ -267,8 +281,8 @@ const IssueStatistics = ({ issues = [] }) => {
         setDetailsError('');
 
         const [accessResult, changeResult, assetResult] = await Promise.all([
-            mysql.from('access_requests').select('id, status, department, created_at'),
-            mysql.from('change_requests').select('id, status, request_category, created_at'),
+            mysql.from('access_requests').select('id, status, department, it_staff_name, created_at'),
+            mysql.from('change_requests').select('id, status, request_category, it_staff_name, created_at'),
             mysql.from('assets').select('glpi_id, name, users_id, locations_id, computermodels_id, computertypes_id, states_id, autoupdatesystems_id')
         ]);
 
@@ -289,24 +303,50 @@ const IssueStatistics = ({ issues = [] }) => {
         return () => clearInterval(intervalId);
     }, [fetchDetails]);
 
+    const currentRole = normalizeRoleValue(currentAdmin?.role);
+    const rawCurrentRole = normalizeRoleText(currentAdmin?.role);
+    const currentAdminNames = useMemo(() => [
+        currentAdmin?.name,
+        currentAdmin?.username,
+    ].map(normalizeMatchText).filter(Boolean), [currentAdmin?.name, currentAdmin?.username]);
+    const canSeeFullDashboard = FULL_DASHBOARD_ROLES.includes(currentRole) || rawCurrentRole === 'admin';
+    const dashboardOwnerLabel = canSeeFullDashboard
+        ? 'ภาพรวมทั้งหมด'
+        : `แดชบอร์ดของ ${currentAdmin?.name || currentAdmin?.username || 'ผู้ใช้งานปัจจุบัน'}`;
+
+    const dashboardIssues = useMemo(() => {
+        if (canSeeFullDashboard) return issues;
+        return issues.filter((issue) => matchesAnyName(issue.assignedAdmin, currentAdminNames));
+    }, [canSeeFullDashboard, currentAdminNames, issues]);
+
+    const dashboardAccessRequests = useMemo(() => {
+        if (canSeeFullDashboard) return accessRequests;
+        return accessRequests.filter((request) => matchesAnyName(request.it_staff_name, currentAdminNames));
+    }, [accessRequests, canSeeFullDashboard, currentAdminNames]);
+
+    const dashboardChangeRequests = useMemo(() => {
+        if (canSeeFullDashboard) return changeRequests;
+        return changeRequests.filter((request) => matchesAnyName(request.it_staff_name, currentAdminNames));
+    }, [canSeeFullDashboard, changeRequests, currentAdminNames]);
+
     const availableYears = useMemo(
-        () => getAvailableYears(issues, accessRequests, changeRequests),
-        [issues, accessRequests, changeRequests],
+        () => getAvailableYears(dashboardIssues, dashboardAccessRequests, dashboardChangeRequests),
+        [dashboardIssues, dashboardAccessRequests, dashboardChangeRequests],
     );
 
     const filteredIssues = useMemo(
-        () => issues.filter(issue => isInSelectedPeriod(issue, dateFilter)),
-        [issues, dateFilter],
+        () => dashboardIssues.filter(issue => isInSelectedPeriod(issue, dateFilter)),
+        [dashboardIssues, dateFilter],
     );
 
     const filteredAccessRequests = useMemo(
-        () => accessRequests.filter(request => isInSelectedPeriod(request, dateFilter)),
-        [accessRequests, dateFilter],
+        () => dashboardAccessRequests.filter(request => isInSelectedPeriod(request, dateFilter)),
+        [dashboardAccessRequests, dateFilter],
     );
 
     const filteredChangeRequests = useMemo(
-        () => changeRequests.filter(request => isInSelectedPeriod(request, dateFilter)),
-        [changeRequests, dateFilter],
+        () => dashboardChangeRequests.filter(request => isInSelectedPeriod(request, dateFilter)),
+        [dashboardChangeRequests, dateFilter],
     );
 
     const statusData = useMemo(() => {
@@ -350,7 +390,7 @@ const IssueStatistics = ({ issues = [] }) => {
 
     const staffWorkloadData = useMemo(() => {
         const summary = {};
-        issues.forEach((issue) => {
+        dashboardIssues.forEach((issue) => {
             const name = String(issue.assignedAdmin || '').trim() || 'ยังไม่มีผู้รับงาน';
             if (!summary[name]) {
                 summary[name] = {
@@ -375,7 +415,7 @@ const IssueStatistics = ({ issues = [] }) => {
 
         return Object.values(summary)
             .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name, 'th-TH'));
-    }, [issues]);
+    }, [dashboardIssues]);
 
     const staffWorkloadChartData = useMemo(() => staffWorkloadData, [staffWorkloadData]);
     const staffWorkloadChartHeight = Math.max(320, Math.min(720, staffWorkloadChartData.length * 48));
@@ -459,8 +499,8 @@ const IssueStatistics = ({ issues = [] }) => {
     const closedIssueCount = filteredIssues.filter(issue => issue.status === 'Closed' || issue.userCloseSign || issue.userClosedAt).length;
     const resolvedIssueCount = filteredIssues.filter(issue => issue.status === 'Resolved' && !issue.userCloseSign && !issue.userClosedAt).length;
     const openIssueCount = filteredIssues.filter(issue => !['Resolved', 'Closed'].includes(issue.status) && !issue.userCloseSign && !issue.userClosedAt).length;
-    const assignedIssueCount = issues.filter(issue => String(issue.assignedAdmin || '').trim()).length;
-    const unassignedIssueCount = issues.length - assignedIssueCount;
+    const assignedIssueCount = dashboardIssues.filter(issue => String(issue.assignedAdmin || '').trim()).length;
+    const unassignedIssueCount = dashboardIssues.length - assignedIssueCount;
     const activeStaffCount = staffWorkloadData.filter(item => item.name !== 'ยังไม่มีผู้รับงาน').length;
     const pendingAccessRequestCount = accessRequestStatusData[0]?.count || 0;
     const completedAccessRequestCount = accessRequestStatusData[2]?.count || 0;
@@ -482,6 +522,7 @@ const IssueStatistics = ({ issues = [] }) => {
                         <div>
                             <h2 className="bg-gradient-to-r from-indigo-700 to-violet-700 bg-clip-text text-xl font-bold text-transparent dark:from-indigo-400 dark:to-violet-400">Dashboard</h2>
                             <p className="text-sm font-medium text-slate-500 dark:text-slate-400">รายงานการแจ้งซ่อม คำร้องขอสิทธิ์ พัฒนา และทรัพย์สินแผนกเทคโนโลยีสารสนเทศ</p>
+                            <p className="mt-1 text-xs font-bold text-indigo-600 dark:text-indigo-300">{dashboardOwnerLabel}</p>
                         </div>
                     </div>
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
@@ -649,7 +690,11 @@ const IssueStatistics = ({ issues = [] }) => {
                         ))}
                         {issueBreakdownView === 'staff' && (staffWorkloadData.length === 0 ? <EmptyChart message="ยังไม่มีข้อมูลเจ้าหน้าที่รับงาน" /> : (
                             <div className="space-y-4">
-                                <p className="text-sm font-medium text-slate-500 dark:text-slate-400">ภาพรวมทั้งหมดของรายการแจ้งซ่อม แยกตามเจ้าหน้าที่รับงาน ไม่จำกัดช่วงเวลาที่เลือก</p>
+                                <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
+                                    {canSeeFullDashboard
+                                        ? 'ภาพรวมทั้งหมดของรายการแจ้งซ่อม แยกตามเจ้าหน้าที่รับงาน ไม่จำกัดช่วงเวลาที่เลือก'
+                                        : 'ภาพรวมรายการแจ้งซ่อมของผู้ใช้งานปัจจุบัน ไม่จำกัดช่วงเวลาที่เลือก'}
+                                </p>
                                 <div className="grid grid-cols-3 gap-2">
                                     <MetricCard title="เจ้าหน้าที่รับงาน" value={activeStaffCount} icon={Users} iconColor="text-cyan-500" />
                                     <MetricCard title="รับงานแล้ว" value={assignedIssueCount} icon={UserCheck} iconColor="text-emerald-500" />
@@ -836,9 +881,30 @@ const IssueStatistics = ({ issues = [] }) => {
                                 <p className="text-base font-bold text-slate-700 dark:text-slate-200">สรุปคอมพิวเตอร์ตามแหล่งที่มา</p>
                             </div>
                         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                            <AssetMetricCard title="เครื่อง Active" value={activeAssets.length} icon={Monitor} iconColor="text-sky-500" />
-                            <AssetMetricCard title="มีผู้ใช้งาน" value={assignedAssets.length} icon={UserCheck} iconColor="text-emerald-500" />
-                            <AssetMetricCard title="ยังไม่ระบุผู้ใช้" value={activeAssets.length - assignedAssets.length} icon={Users} iconColor="text-slate-500" />
+                            <AssetMetricCard
+                                title="เครื่อง Active"
+                                value={activeAssets.length}
+                                icon={Monitor}
+                                iconColor="text-sky-500"
+                                cardClassName="border-sky-100 bg-gradient-to-br from-sky-50 via-cyan-50 to-white dark:border-sky-900/50 dark:from-sky-950/45 dark:via-cyan-950/25 dark:to-slate-900/50"
+                                valueClassName="text-sky-700 dark:text-sky-200"
+                            />
+                            <AssetMetricCard
+                                title="มีผู้ใช้งาน"
+                                value={assignedAssets.length}
+                                icon={UserCheck}
+                                iconColor="text-emerald-500"
+                                cardClassName="border-emerald-100 bg-gradient-to-br from-emerald-50 via-teal-50 to-white dark:border-emerald-900/50 dark:from-emerald-950/45 dark:via-teal-950/25 dark:to-slate-900/50"
+                                valueClassName="text-emerald-700 dark:text-emerald-200"
+                            />
+                            <AssetMetricCard
+                                title="ยังไม่ระบุผู้ใช้"
+                                value={activeAssets.length - assignedAssets.length}
+                                icon={Users}
+                                iconColor="text-amber-500"
+                                cardClassName="border-amber-100 bg-gradient-to-br from-amber-50 via-orange-50 to-white dark:border-amber-900/50 dark:from-amber-950/45 dark:via-orange-950/25 dark:to-slate-900/50"
+                                valueClassName="text-amber-700 dark:text-amber-200"
+                            />
                         </div>
                         <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-1">
                             <AssetSourceCard
@@ -846,14 +912,14 @@ const IssueStatistics = ({ issues = [] }) => {
                                 total={assetSourceSummary.buy}
                                 items={assetSourceTypeItems.buy}
                                 iconColor="text-emerald-500"
-                                accentClass="border-emerald-100 bg-gradient-to-br from-emerald-50/90 to-white dark:border-emerald-900/50 dark:from-emerald-950/30 dark:to-slate-900/40"
+                                accentClass="border-emerald-100 bg-gradient-to-br from-emerald-100/90 via-teal-50/95 to-white text-emerald-500 dark:border-emerald-900/50 dark:from-emerald-950/45 dark:via-teal-950/25 dark:to-slate-900/45"
                             />
                             <AssetSourceCard
                                 title="คอมพิวเตอร์เช่า"
                                 total={assetSourceSummary.rent}
                                 items={assetSourceTypeItems.rent}
                                 iconColor="text-indigo-500"
-                                accentClass="border-indigo-100 bg-gradient-to-br from-indigo-50/90 to-white dark:border-indigo-900/50 dark:from-indigo-950/30 dark:to-slate-900/40"
+                                accentClass="border-indigo-100 bg-gradient-to-br from-indigo-100/90 via-violet-50/95 to-white text-indigo-500 dark:border-indigo-900/50 dark:from-indigo-950/45 dark:via-violet-950/25 dark:to-slate-900/45"
                             />
                         </div>
                     </div>
