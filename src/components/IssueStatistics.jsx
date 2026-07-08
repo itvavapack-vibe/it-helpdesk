@@ -350,7 +350,7 @@ const IssueStatistics = ({ issues = [] }) => {
 
     const staffWorkloadData = useMemo(() => {
         const summary = {};
-        filteredIssues.forEach((issue) => {
+        issues.forEach((issue) => {
             const name = String(issue.assignedAdmin || '').trim() || 'ยังไม่มีผู้รับงาน';
             if (!summary[name]) {
                 summary[name] = {
@@ -375,9 +375,10 @@ const IssueStatistics = ({ issues = [] }) => {
 
         return Object.values(summary)
             .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name, 'th-TH'));
-    }, [filteredIssues]);
+    }, [issues]);
 
-    const topStaffWorkloadData = useMemo(() => staffWorkloadData.slice(0, 10), [staffWorkloadData]);
+    const staffWorkloadChartData = useMemo(() => staffWorkloadData, [staffWorkloadData]);
+    const staffWorkloadChartHeight = Math.max(320, Math.min(720, staffWorkloadChartData.length * 48));
 
     const allRequests = useMemo(() => [...filteredAccessRequests, ...filteredChangeRequests], [filteredAccessRequests, filteredChangeRequests]);
 
@@ -458,8 +459,8 @@ const IssueStatistics = ({ issues = [] }) => {
     const closedIssueCount = filteredIssues.filter(issue => issue.status === 'Closed' || issue.userCloseSign || issue.userClosedAt).length;
     const resolvedIssueCount = filteredIssues.filter(issue => issue.status === 'Resolved' && !issue.userCloseSign && !issue.userClosedAt).length;
     const openIssueCount = filteredIssues.filter(issue => !['Resolved', 'Closed'].includes(issue.status) && !issue.userCloseSign && !issue.userClosedAt).length;
-    const assignedIssueCount = filteredIssues.filter(issue => String(issue.assignedAdmin || '').trim()).length;
-    const unassignedIssueCount = filteredIssues.length - assignedIssueCount;
+    const assignedIssueCount = issues.filter(issue => String(issue.assignedAdmin || '').trim()).length;
+    const unassignedIssueCount = issues.length - assignedIssueCount;
     const activeStaffCount = staffWorkloadData.filter(item => item.name !== 'ยังไม่มีผู้รับงาน').length;
     const pendingAccessRequestCount = accessRequestStatusData[0]?.count || 0;
     const completedAccessRequestCount = accessRequestStatusData[2]?.count || 0;
@@ -648,14 +649,15 @@ const IssueStatistics = ({ issues = [] }) => {
                         ))}
                         {issueBreakdownView === 'staff' && (staffWorkloadData.length === 0 ? <EmptyChart message="ยังไม่มีข้อมูลเจ้าหน้าที่รับงาน" /> : (
                             <div className="space-y-4">
+                                <p className="text-sm font-medium text-slate-500 dark:text-slate-400">ภาพรวมทั้งหมดของรายการแจ้งซ่อม แยกตามเจ้าหน้าที่รับงาน ไม่จำกัดช่วงเวลาที่เลือก</p>
                                 <div className="grid grid-cols-3 gap-2">
                                     <MetricCard title="เจ้าหน้าที่รับงาน" value={activeStaffCount} icon={Users} iconColor="text-cyan-500" />
                                     <MetricCard title="รับงานแล้ว" value={assignedIssueCount} icon={UserCheck} iconColor="text-emerald-500" />
                                     <MetricCard title="ยังไม่ระบุผู้รับงาน" value={unassignedIssueCount} icon={AlertCircle} iconColor="text-amber-500" />
                                 </div>
-                                <div className="h-80 w-full">
+                                <div className="w-full" style={{ height: staffWorkloadChartHeight }}>
                                     <ResponsiveContainer width="100%" height="100%">
-                                        <BarChart data={topStaffWorkloadData} layout="vertical" margin={{ top: 5, right: 20, left: 80, bottom: 5 }}>
+                                        <BarChart data={staffWorkloadChartData} layout="vertical" margin={{ top: 5, right: 20, left: 80, bottom: 5 }}>
                                             <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" opacity={0.5} />
                                             <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} allowDecimals={false} />
                                             <YAxis type="category" dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#475569', fontSize: 12, fontWeight: 500 }} width={140} />
@@ -667,6 +669,28 @@ const IssueStatistics = ({ issues = [] }) => {
                                             <Bar dataKey="closed" stackId="status" name="ปิดจบ" fill="#059669" radius={[0, 6, 6, 0]} />
                                         </BarChart>
                                     </ResponsiveContainer>
+                                </div>
+                                <div className="overflow-hidden rounded-2xl border border-slate-100 dark:border-slate-700">
+                                    <div className="grid grid-cols-[minmax(130px,1.4fr)_repeat(5,minmax(54px,0.6fr))] bg-slate-50 px-3 py-2 text-xs font-bold text-slate-500 dark:bg-slate-900/50 dark:text-slate-300">
+                                        <div>เจ้าหน้าที่</div>
+                                        <div className="text-center">ทั้งหมด</div>
+                                        <div className="text-center">รอ</div>
+                                        <div className="text-center">กำลังแก้</div>
+                                        <div className="text-center">เสร็จสิ้น</div>
+                                        <div className="text-center">ปิดจบ</div>
+                                    </div>
+                                    <div className="max-h-80 overflow-auto divide-y divide-slate-100 dark:divide-slate-700">
+                                        {staffWorkloadData.map((staff) => (
+                                            <div key={staff.name} className="grid grid-cols-[minmax(130px,1.4fr)_repeat(5,minmax(54px,0.6fr))] px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                                                <div className="truncate pr-2" title={staff.name}>{staff.name}</div>
+                                                <div className="text-center text-slate-900 dark:text-white">{staff.total}</div>
+                                                <div className="text-center text-amber-600 dark:text-amber-300">{staff.pending}</div>
+                                                <div className="text-center text-indigo-600 dark:text-indigo-300">{staff.inProgress}</div>
+                                                <div className="text-center text-emerald-600 dark:text-emerald-300">{staff.resolved}</div>
+                                                <div className="text-center text-teal-700 dark:text-teal-300">{staff.closed}</div>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
                         ))}
