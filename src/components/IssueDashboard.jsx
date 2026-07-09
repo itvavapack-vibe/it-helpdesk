@@ -16,6 +16,7 @@ import { ISSUE_CATEGORIES } from '../config/issueOptions';
 import { canDeleteRecords, canManageAllWork } from '../config/roles';
 import { loadSignatureIntoCanvas } from '../utils/signatureCanvas';
 import { toMysqlDateTime } from '../utils/dateTime';
+import { getStatusBadgeClass, getStatusIconClass } from '../utils/statusStyles';
 
 const ITEMS_PER_PAGE = 10;
 const PDF_ITEMS_PER_PAGE = 6;
@@ -70,13 +71,13 @@ const DEPARTMENTS = [
 ];
 
 const FILTER_STATUS_CARDS = [
-    { status: 'Pending', label: 'รอดำเนินการ', icon: Clock, iconClass: 'bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400' },
-    { status: 'In Progress', label: 'กำลังแก้ไข', icon: Edit, iconClass: 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-400' },
-    { status: 'External Repair', label: 'ส่งซ่อมภายนอก', icon: Settings, iconClass: 'bg-violet-100 text-violet-600 dark:bg-violet-900/40 dark:text-violet-400' },
-    { status: 'Waiting for Parts', label: 'รออะไหล่', icon: Paperclip, iconClass: 'bg-pink-100 text-pink-600 dark:bg-pink-900/40 dark:text-pink-400' },
-    { status: 'Resolved', label: 'เสร็จสิ้น', icon: CheckCircle2, iconClass: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400' },
-    { status: 'Closed', label: 'ปิดจบ', icon: FileSignature, iconClass: 'bg-teal-100 text-teal-600 dark:bg-teal-900/40 dark:text-teal-400' },
-    { status: 'Cancelled', label: 'ยกเลิก', icon: XCircle, iconClass: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300' },
+    { status: 'Pending', label: 'รอดำเนินการ', icon: Clock, iconClass: getStatusIconClass('Pending') },
+    { status: 'In Progress', label: 'กำลังแก้ไข', icon: Edit, iconClass: getStatusIconClass('In Progress') },
+    { status: 'External Repair', label: 'ส่งซ่อมภายนอก', icon: Settings, iconClass: getStatusIconClass('External Repair') },
+    { status: 'Waiting for Parts', label: 'รออะไหล่', icon: Paperclip, iconClass: getStatusIconClass('Waiting for Parts') },
+    { status: 'Resolved', label: 'เสร็จสิ้น', icon: CheckCircle2, iconClass: getStatusIconClass('Resolved') },
+    { status: 'Closed', label: 'ปิดจบ', icon: FileSignature, iconClass: getStatusIconClass('Closed') },
+    { status: 'Cancelled', label: 'ยกเลิก', icon: XCircle, iconClass: getStatusIconClass('Cancelled') },
 ];
 
 const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRepairDetails, updateIssueFullDetails, deleteIssue, isLoading }) => {
@@ -796,24 +797,26 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
 
     // Empty state is handled inside the table body now.
     const getStatusBadge = (status, isClosed = false) => {
+        const badgeStatus = isClosed ? 'Closed' : status;
+        const badgeClass = `inline-flex items-center px-3 py-1 rounded-full border text-xs font-semibold ${getStatusBadgeClass(badgeStatus)}`;
         if (isClosed) {
-            return <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100/80 text-emerald-700 border border-emerald-200/50"><CheckCircle2 className="w-3 h-3 mr-1.5" /> ปิดจบ</span>;
+            return <span className={badgeClass}><CheckCircle2 className="w-3 h-3 mr-1.5" /> ปิดจบ</span>;
         }
         switch (status) {
             case 'Pending':
-                return <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-amber-100/80 text-amber-700 border border-amber-200/50"><Clock className="w-3 h-3 mr-1.5" /> รอดำเนินการ</span>;
+                return <span className={badgeClass}><Clock className="w-3 h-3 mr-1.5" /> รอดำเนินการ</span>;
             case 'In Progress':
-                return <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-indigo-100/80 text-indigo-700 border border-indigo-200/50"><Edit className="w-3 h-3 mr-1.5" /> กำลังแก้ไข</span>;
+                return <span className={badgeClass}><Edit className="w-3 h-3 mr-1.5" /> กำลังแก้ไข</span>;
             case 'Resolved':
-                return <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100/80 text-emerald-700 border border-emerald-200/50"><CheckCircle2 className="w-3 h-3 mr-1.5" /> เสร็จสิ้น</span>;
+                return <span className={badgeClass}><CheckCircle2 className="w-3 h-3 mr-1.5" /> เสร็จสิ้น</span>;
             case 'External Repair':
-                return <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-violet-100/80 text-violet-700 border border-violet-200/50"><AlertTriangle className="w-3 h-3 mr-1.5" /> ส่งซ่อมภายนอก</span>;
+                return <span className={badgeClass}><AlertTriangle className="w-3 h-3 mr-1.5" /> ส่งซ่อมภายนอก</span>;
             case 'Waiting for Parts':
-                return <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-pink-100/80 text-pink-700 border border-pink-200/50"><Clock className="w-3 h-3 mr-1.5" /> รออะไหล่</span>;
+                return <span className={badgeClass}><Clock className="w-3 h-3 mr-1.5" /> รออะไหล่</span>;
             case 'Cancelled':
-                return <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-slate-100/80 text-slate-700 border border-slate-200/50"><X className="w-3 h-3 mr-1.5" /> ยกเลิก</span>;
+                return <span className={badgeClass}><X className="w-3 h-3 mr-1.5" /> ยกเลิก</span>;
             default:
-                return <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-slate-100/80 text-slate-700 border border-slate-200/50">{getStatusLabel(status)}</span>;
+                return <span className={badgeClass}>{getStatusLabel(status)}</span>;
         }
     };
 

@@ -215,6 +215,66 @@ async function stopWindowsPorts(ports) {
   }
 }
 
+async function getWindowsPortListeners(ports) {
+  if (os.platform() !== 'win32') {
+    throw new Error('Project controls are available on Windows hosts only.')
+  }
+
+  const text = await output('netstat', ['-ano', '-p', 'tcp'], appRoot)
+  const listeners = []
+  for (const line of text.split(/\r?\n/)) {
+    const columns = line.trim().split(/\s+/)
+    if (columns.length < 5 || columns.at(-2)?.toUpperCase() !== 'LISTENING') continue
+    const localAddress = columns[1]
+    const port = Number(localAddress.split(':').pop())
+    const pid = Number(columns.at(-1))
+    if (ports.includes(port) && pid) listeners.push({ port, pid, address: localAddress })
+  }
+  return listeners
+}
+
+function validateProductionPath(productionPath) {
+  if (!String(productionPath || '').trim()) {
+    throw new Error('Production project folder is required.')
+  }
+  const resolved = path.resolve(productionPath || '')
+  if (!fs.existsSync(path.join(resolved, 'package.json'))) {
+    throw new Error('Production project folder is invalid.')
+  }
+  if (!fs.existsSync(path.join(resolved, '.env'))) {
+    throw new Error('Production .env is missing.')
+  }
+  return resolved
+}
+
+function getProductionPorts(productionPath) {
+  const env = readEnvFile(path.join(productionPath, '.env'))
+  const ports = {
+    webPort: Number(env.VITE_WEB_PORT || 5173),
+    apiPort: Number(env.API_PORT || 4000),
+  }
+  if (!Number.isInteger(ports.webPort) || ports.webPort <= 0) {
+    throw new Error('Production VITE_WEB_PORT is invalid.')
+  }
+  if (!Number.isInteger(ports.apiPort) || ports.apiPort <= 0) {
+    throw new Error('Production API_PORT is invalid.')
+  }
+  return ports
+}
+
+async function getProjectStatus(productionPath) {
+  const resolved = validateProductionPath(productionPath)
+  const { webPort, apiPort } = getProductionPorts(resolved)
+  const listeners = await getWindowsPortListeners([webPort, apiPort])
+  return {
+    productionPath: resolved,
+    webPort,
+    apiPort,
+    running: listeners.length > 0,
+    listeners,
+  }
+}
+
 function startProduction(productionPath) {
   sendLog('> npm run lan')
   if (os.platform() === 'win32') {
@@ -231,6 +291,39 @@ function startProduction(productionPath) {
     }).unref()
   }
   sendLog('Production started in a new terminal window.')
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+async function controlProject(payload) {
+  const productionPath = validateProductionPath(payload.productionPath)
+  const action = String(payload.action || '').trim().toLowerCase()
+  const { webPort, apiPort } = getProductionPorts(productionPath)
+  const ports = [webPort, apiPort]
+
+  if (!['run', 'restart', 'stop'].includes(action)) {
+    throw new Error('Invalid project control action.')
+  }
+
+  sendLog(`Project control: ${action}`)
+  if (action === 'run') {
+    const listeners = await getWindowsPortListeners(ports)
+    if (listeners.length) {
+      throw new Error(`Project is already running on port(s): ${listeners.map(item => item.port).join(', ')}`)
+    }
+    startProduction(productionPath)
+    await sleep(2000)
+    return getProjectStatus(productionPath)
+  }
+
+  await stopWindowsPorts(ports)
+  if (action === 'restart') {
+    startProduction(productionPath)
+    await sleep(2000)
+  }
+  return getProjectStatus(productionPath)
 }
 
 function validateDeployPayload(payload) {
@@ -432,6 +525,13 @@ function pageHtml(saved) {
     button { width: 100%; border: 0; border-radius: 12px; padding: 13px 16px; background: #38bdf8; color: #082f49; font-weight: 800; cursor: pointer; }
     button:disabled { opacity: .55; cursor: wait; }
     .danger { color: #fca5a5; }
+    .project-control { margin-top: 20px; border: 1px solid #334155; border-radius: 16px; padding: 16px; background: #0b1220; }
+    .project-control h2 { margin: 0 0 6px; font-size: 20px; }
+    .project-control .actions { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+    .project-control button.secondary { background: #1e293b; color: #e2e8f0; border: 1px solid #475569; }
+    .project-control button.warning { background: #f59e0b; color: #451a03; }
+    .project-control button.danger-button { background: #fb7185; color: #450a0a; }
+    .project-status { margin-top: 12px; min-height: 48px; border-radius: 12px; border: 1px solid #334155; background: #020617; padding: 12px; color: #cbd5e1; white-space: pre-wrap; overflow-wrap: anywhere; }
     .summary { margin-top: 20px; border: 1px solid #334155; border-radius: 14px; overflow: hidden; background: #0b1220; }
     .summary-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid #334155; font-weight: 800; }
     .summary-head.running { color: #7dd3fc; }
@@ -452,6 +552,10 @@ function pageHtml(saved) {
     .step.error .step-status { color: #fda4af; }
     pre { min-height: 260px; max-height: 420px; overflow: auto; white-space: pre-wrap; background: #020617; border: 1px solid #334155; border-radius: 14px; padding: 16px; color: #d1fae5; }
     .muted { color: #94a3b8; font-size: 13px; }
+    @media (max-width: 720px) {
+      main { padding: 16px; }
+      .row, .project-control .actions { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
 <body>
@@ -494,6 +598,17 @@ function pageHtml(saved) {
 
       <p class="muted">ระบบจะไม่คัดลอกหรือเขียนทับไฟล์ .env ของก้อนจริง</p>
       <button id="deploy">เริ่ม Deploy โค้ดขึ้นก้อนจริง</button>
+      <section class="project-control" aria-labelledby="projectControlTitle">
+        <h2 id="projectControlTitle">Project Control</h2>
+        <p class="muted">ควบคุมโปรเจค Production จาก folder ด้านบน โดยใช้พอร์ตจากไฟล์ .env ของ Production</p>
+        <div id="projectStatus" class="project-status">กำลังตรวจสอบสถานะ...</div>
+        <div class="actions">
+          <button id="projectRefresh" type="button" class="secondary">Refresh Status</button>
+          <button id="projectRun" type="button">Run Project</button>
+          <button id="projectRestart" type="button" class="warning">Restart Project</button>
+          <button id="projectStop" type="button" class="danger-button">Stop Project</button>
+        </div>
+      </section>
       <div class="summary">
         <div id="summaryHead" class="summary-head">● พร้อม deploy</div>
         <div id="steps" class="steps"></div>
@@ -514,6 +629,12 @@ function pageHtml(saved) {
     }
     const log = document.getElementById('log')
     const deployButton = document.getElementById('deploy')
+    const projectStatus = document.getElementById('projectStatus')
+    const projectRefreshButton = document.getElementById('projectRefresh')
+    const projectRunButton = document.getElementById('projectRun')
+    const projectRestartButton = document.getElementById('projectRestart')
+    const projectStopButton = document.getElementById('projectStop')
+    const projectButtons = [projectRefreshButton, projectRunButton, projectRestartButton, projectStopButton]
     const summaryHead = document.getElementById('summaryHead')
     const steps = document.getElementById('steps')
     const stepElements = new Map()
@@ -529,6 +650,66 @@ function pageHtml(saved) {
       .replaceAll('>', '&gt;')
       .replaceAll('"', '&quot;')
       .replaceAll("'", '&#039;')
+    const getProductionPath = () => document.getElementById('productionPath').value.trim()
+    const setProjectButtonsDisabled = disabled => {
+      for (const button of projectButtons) button.disabled = disabled
+    }
+    const renderProjectStatus = status => {
+      const listeners = Array.isArray(status.listeners) ? status.listeners : []
+      const listenerText = listeners.length
+        ? listeners.map(item => 'Port ' + item.port + ' PID ' + item.pid).join('\\n')
+        : 'ไม่พบ process ที่เปิดพอร์ต Production'
+      projectStatus.textContent =
+        (status.running ? 'สถานะ: กำลังทำงาน' : 'สถานะ: หยุดอยู่') +
+        '\\nWeb port: ' + status.webPort +
+        '\\nAPI port: ' + status.apiPort +
+        '\\n' + listenerText
+    }
+    const refreshProjectStatus = async ({ quiet = false } = {}) => {
+      const productionPath = getProductionPath()
+      if (!productionPath) {
+        projectStatus.textContent = 'กรุณาระบุ Production folder ก่อน'
+        return
+      }
+      setProjectButtonsDisabled(true)
+      try {
+        const url = '/api/project/status?token=' + encodeURIComponent(token || '') + '&productionPath=' + encodeURIComponent(productionPath)
+        const response = await fetch(url)
+        const result = await response.json()
+        if (!response.ok) throw new Error(result.error || 'Cannot read project status')
+        renderProjectStatus(result.data)
+      } catch (error) {
+        projectStatus.textContent = error.message || 'Cannot read project status'
+        if (!quiet) alert(projectStatus.textContent)
+      } finally {
+        setProjectButtonsDisabled(false)
+      }
+    }
+    const controlProject = async action => {
+      const productionPath = getProductionPath()
+      if (!productionPath) {
+        alert('กรุณาระบุ Production folder ก่อน')
+        return
+      }
+      const actionLabel = action === 'run' ? 'Run' : action === 'restart' ? 'Restart' : 'Stop'
+      if (!confirm(actionLabel + ' project ตอนนี้หรือไม่?')) return
+      setProjectButtonsDisabled(true)
+      try {
+        const response = await fetch('/api/project/control?token=' + encodeURIComponent(token || ''), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action, productionPath }),
+        })
+        const result = await response.json()
+        if (!response.ok) throw new Error(result.error || actionLabel + ' project failed')
+        renderProjectStatus(result.data)
+      } catch (error) {
+        alert(error.message || actionLabel + ' project failed')
+        await refreshProjectStatus({ quiet: true })
+      } finally {
+        setProjectButtonsDisabled(false)
+      }
+    }
     const resetSummary = () => {
       stepElements.clear()
       steps.innerHTML = ''
@@ -561,9 +742,19 @@ function pageHtml(saved) {
       } else if (payload.type === 'deploy') {
         summaryHead.className = 'summary-head ' + payload.status
         summaryHead.textContent = (payload.status === 'success' ? '✓ ' : payload.status === 'error' ? '! ' : '↻ ') + payload.message
-        if (payload.status === 'success' || payload.status === 'error') deployButton.disabled = false
+        if (payload.status === 'success' || payload.status === 'error') {
+          deployButton.disabled = false
+          refreshProjectStatus({ quiet: true })
+        }
       }
     }
+
+    projectRefreshButton.addEventListener('click', () => refreshProjectStatus())
+    projectRunButton.addEventListener('click', () => controlProject('run'))
+    projectRestartButton.addEventListener('click', () => controlProject('restart'))
+    projectStopButton.addEventListener('click', () => controlProject('stop'))
+    document.getElementById('productionPath').addEventListener('blur', () => refreshProjectStatus({ quiet: true }))
+    refreshProjectStatus({ quiet: true })
 
     deployButton.addEventListener('click', async () => {
       const runMigrations = document.getElementById('runMigrations').checked
@@ -623,6 +814,20 @@ const server = http.createServer(async (req, res) => {
       })
       clients.add(res)
       req.on('close', () => clients.delete(res))
+      return
+    }
+
+    if (url.pathname === '/api/project/status' && req.method === 'GET') {
+      if (!requireToken(req, res)) return
+      const productionPath = url.searchParams.get('productionPath')
+      jsonResponse(res, 200, { data: await getProjectStatus(productionPath) })
+      return
+    }
+
+    if (url.pathname === '/api/project/control' && req.method === 'POST') {
+      if (!requireToken(req, res)) return
+      const body = await collectBody(req)
+      jsonResponse(res, 200, { data: await controlProject(body) })
       return
     }
 

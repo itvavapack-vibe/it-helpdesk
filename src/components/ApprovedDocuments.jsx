@@ -6,6 +6,7 @@ import { mysql } from '../mysqlClient';
 import { APPROVAL_QUEUE_STATUS_BY_ROLE, normalizeRoleValue, visibleQueueStatuses } from '../config/roles';
 import { toMysqlDateTime } from '../utils/dateTime';
 import { loadSignatureIntoCanvas } from '../utils/signatureCanvas';
+import { getStatusBadgeClass } from '../utils/statusStyles';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
 const STATUS_LABELS = {
@@ -19,13 +20,6 @@ const STATUS_LABELS = {
     Completed: 'ปิดจบ',
     Approved: 'อนุมัติแล้ว',
     Rejected: 'ไม่อนุมัติ',
-};
-
-const statusBadgeClass = (status) => {
-    if (status === 'Completed') return 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900';
-    if (status === 'Rejected') return 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-900';
-    if (status === 'In_Progress') return 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-900';
-    return 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-900';
 };
 
 const ACCESS_DOCUMENT_LIST_COLUMNS = [
@@ -309,7 +303,7 @@ const ApprovedDocuments = ({ currentAdmin }) => {
                                             <p className="text-sm text-slate-600 dark:text-slate-300 line-clamp-2">{doc.details || '-'}</p>
                                         </td>
                                         <td className="p-4 align-top whitespace-nowrap">
-                                            <span className={`inline-flex px-2.5 py-1 rounded-full border text-xs font-semibold ${statusBadgeClass(doc.status)}`}>
+                                            <span className={`inline-flex px-2.5 py-1 rounded-full border text-xs font-semibold ${getStatusBadgeClass(doc.status)}`}>
                                                 {STATUS_LABELS[doc.status] || doc.status || '-'}
                                             </span>
                                         </td>

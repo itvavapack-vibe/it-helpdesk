@@ -3,6 +3,7 @@ import { Copy, Search } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { mysql } from '../mysqlClient';
 import { buildManagerApprovalLink, copyText } from '../utils/closeIssueLink';
+import { getStatusBadgeClass } from '../utils/statusStyles';
 
 const STATUS_LABELS = {
     Pending_Manager: 'ผู้จัดการของผู้แจ้ง',
@@ -20,10 +21,7 @@ const STATUS_LABELS = {
 };
 
 const statusBadgeClass = (status) => {
-    if (status === 'Completed' || status === 'Approved') return 'border-emerald-200 bg-emerald-50 text-emerald-700';
-    if (status === 'Rejected' || status === 'Cancelled') return 'border-rose-200 bg-rose-50 text-rose-700';
-    if (status === 'In_Progress') return 'border-indigo-200 bg-indigo-50 text-indigo-700';
-    return 'border-amber-200 bg-amber-50 text-amber-700';
+    return getStatusBadgeClass(status);
 };
 
 const ACCESS_TRACKING_LIST_COLUMNS = [
@@ -153,7 +151,7 @@ const RequestTracking = ({ initialType = 'access' }) => {
                                     <button
                                         type="button"
                                         onClick={() => handleCopyManagerLink(request)}
-                                        className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-600 transition-colors hover:bg-indigo-600 hover:text-white"
+                                        className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-600 transition-colors hover:bg-indigo-600 hover:text-white dark:border-indigo-700/40 dark:bg-indigo-500/10 dark:text-indigo-200 dark:hover:bg-indigo-500/20"
                                         title="คัดลอกลิงก์ให้ผู้จัดการเซ็น"
                                     >
                                         <Copy className="h-3.5 w-3.5" />

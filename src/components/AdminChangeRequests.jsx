@@ -11,6 +11,7 @@ import { showAcceptChangeRequestLinkDialog } from '../utils/closeIssueLink';
 import Fmit15PdfPreview from './Fmit15PdfPreview';
 import { MAX_ATTACHMENT_SIZE, resolveAttachmentUrl, uploadAttachmentFiles } from '../utils/fileUpload';
 import { loadSignatureIntoCanvas } from '../utils/signatureCanvas';
+import { getStatusBadgeClass } from '../utils/statusStyles';
 
 const parseAttachments = (value) => {
     if (!value) return [];
@@ -465,18 +466,19 @@ const AdminChangeRequests = ({ currentAdmin }) => {
     };
 
     const getStatusBadge = (status) => {
+        const badgeClass = `px-2.5 py-1 rounded-full border text-xs font-semibold flex items-center gap-1 ${getStatusBadgeClass(status)}`;
         switch (status) {
-            case 'Pending_Manager': return <span className="px-2.5 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs font-semibold flex items-center gap-1"><Clock className="w-3 h-3"/> ผู้จัดการของผู้แจ้ง</span>;
-            case 'Pending_IT': return <span className="px-2.5 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-semibold flex items-center gap-1"><Clock className="w-3 h-3"/> รับแจ้ง</span>;
-            case 'Pending_IT_Supervisor': return <span className="px-2.5 py-1 bg-cyan-100 text-cyan-700 rounded-full text-xs font-semibold flex items-center gap-1"><Clock className="w-3 h-3"/> หัวหน้าแผนก</span>;
-            case 'Pending_IT_Manager': return <span className="px-2.5 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-semibold flex items-center gap-1"><Clock className="w-3 h-3"/> ผู้จัดการ</span>;
-            case 'In_Progress': return <span className="px-2.5 py-1 bg-indigo-100 text-indigo-700 rounded-full text-xs font-semibold flex items-center gap-1"><Clock className="w-3 h-3"/> รอดำเนินการ</span>;
-            case 'In_Development': return <span className="px-2.5 py-1 bg-sky-100 text-sky-700 rounded-full text-xs font-semibold flex items-center gap-1"><Edit className="w-3 h-3"/> กำลังดำเนินการ</span>;
-            case 'Pending_User_Acceptance': return <span className="px-2.5 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-semibold flex items-center gap-1"><Clock className="w-3 h-3"/> เสร็จสิ้น</span>;
-            case 'Completed': return <span className="px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-semibold flex items-center gap-1"><CheckCircle className="w-3 h-3"/> ปิดจบ</span>;
-            case 'Rejected': return <span className="px-2.5 py-1 bg-red-100 text-red-700 rounded-full text-xs font-semibold flex items-center gap-1"><XCircle className="w-3 h-3"/> ไม่อนุมัติ</span>;
-            case 'Cancelled': return <span className="px-2.5 py-1 bg-rose-100 text-rose-700 rounded-full text-xs font-semibold flex items-center gap-1"><XCircle className="w-3 h-3"/> ยกเลิก</span>;
-            default: return <span className="px-2.5 py-1 bg-slate-100 text-slate-700 rounded-full text-xs font-semibold">{status}</span>;
+            case 'Pending_Manager': return <span className={badgeClass}><Clock className="w-3 h-3"/> ผู้จัดการของผู้แจ้ง</span>;
+            case 'Pending_IT': return <span className={badgeClass}><Clock className="w-3 h-3"/> รับแจ้ง</span>;
+            case 'Pending_IT_Supervisor': return <span className={badgeClass}><Clock className="w-3 h-3"/> หัวหน้าแผนก</span>;
+            case 'Pending_IT_Manager': return <span className={badgeClass}><Clock className="w-3 h-3"/> ผู้จัดการ</span>;
+            case 'In_Progress': return <span className={badgeClass}><Clock className="w-3 h-3"/> รอดำเนินการ</span>;
+            case 'In_Development': return <span className={badgeClass}><Edit className="w-3 h-3"/> กำลังดำเนินการ</span>;
+            case 'Pending_User_Acceptance': return <span className={badgeClass}><Clock className="w-3 h-3"/> เสร็จสิ้น</span>;
+            case 'Completed': return <span className={badgeClass}><CheckCircle className="w-3 h-3"/> ปิดจบ</span>;
+            case 'Rejected': return <span className={badgeClass}><XCircle className="w-3 h-3"/> ไม่อนุมัติ</span>;
+            case 'Cancelled': return <span className={badgeClass}><XCircle className="w-3 h-3"/> ยกเลิก</span>;
+            default: return <span className={badgeClass}>{status}</span>;
         }
     };
 
@@ -638,8 +640,8 @@ const AdminChangeRequests = ({ currentAdmin }) => {
     const getRequestCategoryBadge = (category) => {
         if (!category) return <span className="text-xs text-slate-400">-</span>;
         const tone = category === 'พัฒนาสื่อ'
-            ? 'border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700'
-            : 'border-sky-200 bg-sky-50 text-sky-700';
+            ? 'border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700 dark:!border-fuchsia-700/50 dark:!bg-fuchsia-950/55 dark:!text-fuchsia-200'
+            : 'border-sky-200 bg-sky-50 text-sky-700 dark:!border-sky-700/50 dark:!bg-sky-950/55 dark:!text-sky-200';
         return <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${tone}`}>{category}</span>;
     };
 
@@ -753,7 +755,7 @@ const AdminChangeRequests = ({ currentAdmin }) => {
                     <div className="overflow-x-auto">
                         <table className="w-full min-w-[1180px] table-fixed text-left border-collapse">
                             <thead>
-                                <tr className="bg-slate-50 border-b text-center text-slate-500 text-xs uppercase">
+                                <tr className="bg-slate-50 border-b text-center text-slate-500 text-xs uppercase dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-400">
                                     <th className="w-[130px] p-3 whitespace-nowrap text-center">วันที่ / เลขเอกสาร</th>
                                     <th className="w-[130px] p-3 whitespace-nowrap text-center">ประเภทการร้องขอ</th>
                                     <th className="w-[170px] p-3 whitespace-nowrap text-center">ผู้ร้องขอ / แผนก</th>
@@ -762,30 +764,30 @@ const AdminChangeRequests = ({ currentAdmin }) => {
                                     <th className="w-[300px] p-3 whitespace-nowrap text-center">จัดการ</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-slate-100">
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-700/70">
                                 {filteredRequests.map((req) => (
-                                    <tr key={req.id} className="hover:bg-slate-50 transition-colors">
+                                    <tr key={req.id} className="hover:bg-slate-50 transition-colors dark:hover:bg-slate-900/45">
                                         <td className="p-3 align-top">
-                                            <div className="text-sm font-semibold">{new Date(req.created_at).toLocaleDateString('th-TH')}</div>
-                                            <div className="text-xs text-emerald-600 font-mono mt-1">{req.ticket_number}</div>
+                                            <div className="text-sm font-semibold text-slate-800 dark:text-slate-100">{new Date(req.created_at).toLocaleDateString('th-TH')}</div>
+                                            <div className="text-xs text-emerald-600 font-mono mt-1 dark:text-emerald-300">{req.ticket_number}</div>
                                             <div className="text-xs text-slate-400 mt-1 font-bold">{getChangeRequestTypeLabel(req.req_type)}</div>
                                         </td>
                                         <td className="p-3 align-top">
                                             {getRequestCategoryBadge(req.request_category)}
                                         </td>
                                         <td className="p-3 align-top">
-                                            <div className="truncate text-sm font-bold text-slate-800" title={req.requester_name}>{req.requester_name}</div>
-                                            <div className="mt-1 truncate text-xs text-slate-500" title={req.department}>{req.department}</div>
+                                            <div className="truncate text-sm font-bold text-slate-800 dark:text-slate-100" title={req.requester_name}>{req.requester_name}</div>
+                                            <div className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400" title={req.department}>{req.department}</div>
                                             {req.status === 'Cancelled' && (
-                                                <div className="inline-flex items-center gap-1 mt-2 px-2 py-0.5 rounded-full bg-rose-50 text-rose-600 border border-rose-200 text-[11px] font-semibold">
+                                                <div className="inline-flex items-center gap-1 mt-2 px-2 py-0.5 rounded-full bg-rose-50 text-rose-600 border border-rose-200 text-[11px] font-semibold dark:!border-rose-700/50 dark:!bg-rose-950/55 dark:!text-rose-200">
                                                     <XCircle className="w-3 h-3" />
                                                     ยกเลิกสิทธิ์แล้ว
                                                 </div>
                                             )}
                                         </td>
                                         <td className="p-3 align-top">
-                                            <p className="text-sm text-slate-700 line-clamp-2" title={req.details}>{req.details}</p>
-                                            <p className="text-xs text-amber-600 border border-amber-200 bg-amber-50 rounded p-1 mt-2 line-clamp-1 truncate" title={req.reason}>เหตุผล: {req.reason}</p>
+                                            <p className="text-sm text-slate-700 line-clamp-2 dark:text-slate-300" title={req.details}>{req.details}</p>
+                                            <p className="text-xs text-amber-600 border border-amber-200 bg-amber-50 rounded p-1 mt-2 line-clamp-1 truncate dark:!border-amber-700/50 dark:!bg-amber-950/55 dark:!text-amber-200" title={req.reason}>เหตุผล: {req.reason}</p>
                                         </td>
                                         <td className="p-3 align-top">
                                             {getStatusBadge(req.status)}
@@ -795,7 +797,7 @@ const AdminChangeRequests = ({ currentAdmin }) => {
                                             <button
                                                 type="button"
                                                 onClick={() => openDetailModal(req)}
-                                                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-sky-600 transition-colors hover:bg-sky-600 hover:text-white"
+                                                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-sky-600 transition-colors hover:bg-sky-600 hover:text-white dark:text-sky-300 dark:hover:bg-sky-500/20"
                                                 title="ดูข้อมูล"
                                                 aria-label="ดูข้อมูล"
                                             >
@@ -805,7 +807,7 @@ const AdminChangeRequests = ({ currentAdmin }) => {
                                                 <button
                                                     type="button"
                                                     onClick={() => openDetailModal(req, { edit: true })}
-                                                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-amber-600 transition-colors hover:bg-amber-600 hover:text-white"
+                                                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-amber-600 transition-colors hover:bg-amber-600 hover:text-white dark:text-amber-300 dark:hover:bg-amber-500/20"
                                                     title="แก้ไขข้อมูล"
                                                     aria-label="แก้ไขข้อมูล"
                                                 >
@@ -813,25 +815,25 @@ const AdminChangeRequests = ({ currentAdmin }) => {
                                                 </button>
                                             )}
                                             {req.status === 'Pending_User_Acceptance' && (
-                                                <button type="button" onClick={() => showAcceptChangeRequestLinkDialog(req)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-indigo-500 transition-colors hover:bg-indigo-50 hover:text-indigo-700" title="สร้างลิงก์เซ็นรับมอบงาน" aria-label="สร้างลิงก์เซ็นรับมอบงาน">
+                                                <button type="button" onClick={() => showAcceptChangeRequestLinkDialog(req)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-indigo-500 transition-colors hover:bg-indigo-50 hover:text-indigo-700 dark:!text-indigo-300 dark:hover:!bg-indigo-950/60 dark:hover:!text-indigo-100" title="สร้างลิงก์เซ็นรับมอบงาน" aria-label="สร้างลิงก์เซ็นรับมอบงาน">
                                                     <Link className="w-4 h-4" />
                                                 </button>
                                             )}
                                             {parseAttachments(req.attachments_json).length > 0 && (
-                                                <button type="button" onClick={() => showAttachmentsDialog(req)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-emerald-600 transition-colors hover:bg-emerald-600 hover:text-white" title="ดูไฟล์แนบเพิ่มเติม" aria-label="ดูไฟล์แนบเพิ่มเติม">
+                                                <button type="button" onClick={() => showAttachmentsDialog(req)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-emerald-600 transition-colors hover:bg-emerald-600 hover:text-white dark:text-emerald-300 dark:hover:bg-emerald-500/20" title="ดูไฟล์แนบเพิ่มเติม" aria-label="ดูไฟล์แนบเพิ่มเติม">
                                                     <Paperclip className="w-4 h-4" />
                                                 </button>
                                             )}
-                                            <button type="button" onClick={() => setPreviewRequest(req)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 transition-colors hover:bg-indigo-100" title="ดูเอกสาร" aria-label="ดูเอกสาร">
+                                            <button type="button" onClick={() => setPreviewRequest(req)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 transition-colors hover:bg-indigo-100 dark:!bg-indigo-950/60 dark:!text-indigo-200 dark:hover:!bg-indigo-900/70" title="ดูเอกสาร" aria-label="ดูเอกสาร">
                                                 <Printer className="w-4 h-4" />
                                             </button>
                                             {canDeleteRecord && (
-                                                <button onClick={() => handleDelete(req.id)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500" title="ลบข้อมูล" aria-label="ลบข้อมูล">
+                                                <button onClick={() => handleDelete(req.id)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-rose-500/10 dark:hover:text-rose-200" title="ลบข้อมูล" aria-label="ลบข้อมูล">
                                                     <Trash2 className="w-4 h-4" />
                                                 </button>
                                             )}
                                             {(!canDeleteRecord || canEditAllWork) && !['Cancelled', 'Completed', 'Rejected'].includes(req.status) && (
-                                                <button onClick={() => handleCancelRequest(req)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-rose-500 transition-colors hover:bg-rose-600 hover:text-white" title="ตั้งสถานะยกเลิก" aria-label="ตั้งสถานะยกเลิก">
+                                                <button onClick={() => handleCancelRequest(req)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-rose-500 transition-colors hover:bg-rose-600 hover:text-white dark:text-rose-300 dark:hover:bg-rose-500/20" title="ตั้งสถานะยกเลิก" aria-label="ตั้งสถานะยกเลิก">
                                                     <XCircle className="w-4 h-4" />
                                                 </button>
                                             )}
@@ -1146,7 +1148,7 @@ const AdminChangeRequests = ({ currentAdmin }) => {
                                                     {actionFiles.map((file) => (
                                                         <div key={file.id} className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 text-xs dark:bg-slate-800">
                                                             <span className="min-w-0 truncate font-semibold text-slate-700 dark:text-slate-200">{file.name}</span>
-                                                            <button type="button" onClick={() => removeActionFile(file.id)} className="shrink-0 rounded p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-500" title="ลบไฟล์แนบ" aria-label="ลบไฟล์แนบ">
+                                                            <button type="button" onClick={() => removeActionFile(file.id)} className="shrink-0 rounded p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-500 dark:hover:!bg-rose-950/55 dark:hover:!text-rose-200" title="ลบไฟล์แนบ" aria-label="ลบไฟล์แนบ">
                                                                 <X className="h-3.5 w-3.5" />
                                                             </button>
                                                         </div>
@@ -1182,7 +1184,7 @@ const AdminChangeRequests = ({ currentAdmin }) => {
 
             {isActionModalOpen && selectedRequest && (
                 <div className="fixed inset-0 z-[120] flex items-start sm:items-center justify-center overflow-y-auto p-3 sm:p-4 bg-slate-900/50 backdrop-blur-sm">
-                    <div className="bg-white rounded-3xl p-5 sm:p-6 w-full max-w-lg shadow-2xl animate-fade-in border overflow-y-auto max-h-[calc(100dvh-1.5rem)]">
+                    <div className="bg-white rounded-3xl p-5 sm:p-6 w-full max-w-lg shadow-2xl animate-fade-in border overflow-y-auto max-h-[calc(100dvh-1.5rem)] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
                         <div className="flex justify-between items-center mb-6">
                             <h3 className="text-xl font-bold flex items-center gap-2">
                                 <ClipboardPenLine className="w-6 h-6 text-emerald-500"/>
@@ -1191,7 +1193,7 @@ const AdminChangeRequests = ({ currentAdmin }) => {
                             <button onClick={() => { setIsActionModalOpen(false); setSelectedActionStatus(''); setActionFiles([]); }} className="text-slate-400 hover:text-rose-500"><XCircle className="w-6 h-6" /></button>
                         </div>
                         
-                        <div className="bg-slate-50 p-3 rounded-lg text-sm mb-4 border border-slate-200">
+                        <div className="bg-slate-50 p-3 rounded-lg text-sm mb-4 border border-slate-200 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-200">
                             <b>เอกสารอ้างอิง:</b> {selectedRequest.ticket_number}<br/>
                             <b>ประเภทการร้องขอ:</b> {selectedRequest.request_category || '-'}<br/>
                             <b>รายละเอียดการขอ:</b> {selectedRequest.details}
@@ -1219,7 +1221,7 @@ const AdminChangeRequests = ({ currentAdmin }) => {
                                         <input type="date" className="input-modern w-full text-sm" value={itForm.receivedDate} onChange={e => setItForm({...itForm, receivedDate: e.target.value})} />
                                     </div>
                                 </div>
-                                <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+                                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700 dark:!border-emerald-700/50 dark:!bg-emerald-950/55 dark:!text-emerald-200">
                                     บันทึกวันที่แล้วระบบจะส่งรายการต่อให้ IT Manager ลงนาม
                                 </div>
                             </div>
@@ -1254,9 +1256,9 @@ const AdminChangeRequests = ({ currentAdmin }) => {
                                     <input type="text" className="input-modern" placeholder="ชื่อผู้อนุมัติ" value={itForm.managerName} onChange={e => setItForm({...itForm, managerName: e.target.value})} />
                                     <input type="text" className="input-modern" placeholder="ตำแหน่ง" value={itForm.managerPosition} onChange={e => setItForm({...itForm, managerPosition: e.target.value})} />
                                 </div>
-                                <div className="border shadow-inner bg-slate-50 h-32 relative rounded-xl overflow-hidden">
+                                <div className="border shadow-inner bg-slate-50 h-32 relative rounded-xl overflow-hidden dark:border-slate-700 dark:bg-slate-900">
                                      <SignatureCanvas ref={itManagerSignatureRef} canvasProps={{ className: 'w-full h-full xl-signature' }} />
-                                     <div className="absolute top-2 right-2 text-xs text-red-500 cursor-pointer" onClick={() => itManagerSignatureRef.current.clear()}>ล้าง</div>
+                                     <div className="absolute top-2 right-2 text-xs text-red-500 cursor-pointer dark:text-rose-300" onClick={() => itManagerSignatureRef.current.clear()}>ล้าง</div>
                                 </div>
                             </div>
                         )}
@@ -1273,7 +1275,7 @@ const AdminChangeRequests = ({ currentAdmin }) => {
                                         <input type="date" className="input-modern w-full text-sm" value={itForm.targetDate} onChange={e => setItForm({...itForm, targetDate: e.target.value})} />
                                     </div>
                                 </div>
-                                <div className="rounded-xl border border-sky-100 bg-sky-50 px-3 py-2 text-xs text-sky-700">
+                                <div className="rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-700 dark:!border-sky-700/50 dark:!bg-sky-950/55 dark:!text-sky-200">
                                     บันทึกวันที่แล้วระบบจะเปลี่ยนสถานะเป็นกำลังดำเนินการ
                                 </div>
                             </div>
@@ -1290,15 +1292,15 @@ const AdminChangeRequests = ({ currentAdmin }) => {
                                     <input type="text" className="input-modern" placeholder="ชื่อผู้ดำเนินการ" value={itForm.staffName} onChange={e => setItForm({...itForm, staffName: e.target.value})} />
                                     <input type="text" className="input-modern" placeholder="ตำแหน่ง" value={itForm.staffPosition} onChange={e => setItForm({...itForm, staffPosition: e.target.value})} />
                                 </div>
-                                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-300">
                                     ลงวันที่: {new Date().toLocaleDateString('th-TH')}
                                 </div>
-                                <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3">
-                                    <label className="mb-2 flex items-center gap-2 text-xs font-semibold text-slate-700">
+                                <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900/50">
+                                    <label className="mb-2 flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-200">
                                         <Paperclip className="h-4 w-4 text-emerald-500" />
                                         ไฟล์แนบเพิ่มเติม <span className="font-normal text-slate-400">(ไม่บังคับ)</span>
                                     </label>
-                                    <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-500 hover:border-emerald-300 hover:text-emerald-600">
+                                    <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-500 hover:border-emerald-300 hover:text-emerald-600 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300 dark:hover:border-emerald-700 dark:hover:text-emerald-200">
                                         <Paperclip className="h-4 w-4" />
                                         เลือกไฟล์
                                         <input type="file" multiple accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.zip" className="hidden" onChange={handleActionFileChange} />
@@ -1306,9 +1308,9 @@ const AdminChangeRequests = ({ currentAdmin }) => {
                                     {actionFiles.length > 0 && (
                                         <div className="mt-3 space-y-2">
                                             {actionFiles.map((file) => (
-                                                <div key={file.id} className="flex items-center justify-between gap-2 rounded-lg bg-white px-3 py-2 text-xs">
-                                                    <span className="min-w-0 truncate font-semibold text-slate-700">{file.name}</span>
-                                                    <button type="button" onClick={() => removeActionFile(file.id)} className="shrink-0 rounded p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-500" title="ลบไฟล์แนบ" aria-label="ลบไฟล์แนบ">
+                                                <div key={file.id} className="flex items-center justify-between gap-2 rounded-lg bg-white px-3 py-2 text-xs dark:bg-slate-800">
+                                                    <span className="min-w-0 truncate font-semibold text-slate-700 dark:text-slate-200">{file.name}</span>
+                                                    <button type="button" onClick={() => removeActionFile(file.id)} className="shrink-0 rounded p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-500 dark:hover:!bg-rose-950/55 dark:hover:!text-rose-200" title="ลบไฟล์แนบ" aria-label="ลบไฟล์แนบ">
                                                         <X className="h-3.5 w-3.5" />
                                                     </button>
                                                 </div>
@@ -1316,15 +1318,15 @@ const AdminChangeRequests = ({ currentAdmin }) => {
                                         </div>
                                     )}
                                 </div>
-                                <div className="border shadow-inner bg-slate-50 h-32 relative rounded-xl overflow-hidden">
+                                <div className="border shadow-inner bg-slate-50 h-32 relative rounded-xl overflow-hidden dark:border-slate-700 dark:bg-slate-900">
                                      <SignatureCanvas ref={staffSignatureRef} canvasProps={{ className: 'w-full h-full xl-signature' }} />
-                                     <div className="absolute top-2 right-2 text-xs text-red-500 cursor-pointer" onClick={() => staffSignatureRef.current.clear()}>ล้าง</div>
+                                     <div className="absolute top-2 right-2 text-xs text-red-500 cursor-pointer dark:text-rose-300" onClick={() => staffSignatureRef.current.clear()}>ล้าง</div>
                                 </div>
                             </div>
                         )}
 
                         <div className="flex gap-3 mt-6">
-                            <button onClick={() => { setIsActionModalOpen(false); setSelectedActionStatus(''); setActionFiles([]); }} className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 font-bold rounded-xl text-slate-700">ยกเลิก</button>
+                            <button onClick={() => { setIsActionModalOpen(false); setSelectedActionStatus(''); setActionFiles([]); }} className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 font-bold rounded-xl text-slate-700 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600">ยกเลิก</button>
                             <button onClick={handleItAction} className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-lg">ยืนยันรายการ</button>
                         </div>
                     </div>
