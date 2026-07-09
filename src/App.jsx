@@ -1,32 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { Suspense, lazy, useState, useEffect, useRef } from 'react';
 import SignatureCanvas from 'react-signature-canvas';
 import { getAdminProfile, mysql, updateAdminProfile } from './mysqlClient';
-import IssueForm from './components/IssueForm';
-import IssueTracking from './components/IssueTracking';
-import RequestTracking from './components/RequestTracking';
-import IssueDashboard from './components/IssueDashboard';
-import AdminLogin from './components/AdminLogin';
-import UserManagement from './components/UserManagement';
-import EmployeeManagement from './components/EmployeeManagement';
-import AIHelpdesk from './components/AIHelpdesk';
-import HomePage from './components/HomePage';
-import AssetInventory from './components/AssetInventory';
-import IssueStatistics from './components/IssueStatistics';
-import UserAccessRequestForm from './components/UserAccessRequestForm';
-import ControlledAreaEntryForm from './components/ControlledAreaEntryForm';
-import AdminAccessRequests from './components/AdminAccessRequests';
-import ManagerApproval from './components/ManagerApproval';
-import ITManagerApproval from './components/ITManagerApproval';
-import ChangeRequestForm from './components/ChangeRequestForm';
-import AdminChangeRequests from './components/AdminChangeRequests';
-import ApprovedDocuments from './components/ApprovedDocuments';
-import ServerRoomManagement from './components/ServerRoomManagement';
-import IssueCloseSignature from './components/IssueCloseSignature';
-import ChangeRequestAcceptance from './components/ChangeRequestAcceptance';
-import AccessRequestAcknowledgement from './components/AccessRequestAcknowledgement';
-import BorrowReturnSignature from './components/BorrowReturnSignature';
 import ThemePicker from './components/ThemePicker';
-import ChangeManagerApproval from './components/ChangeManagerApproval';
 import { Bell, ChevronDown, ClipboardPenLine, LogIn, LogOut, Monitor, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Server, UserCog } from 'lucide-react';
 import { ADMIN_SUB_TABS, MAIN_NAV_ITEMS, canSee, normalizeRole } from './config/navigation';
 import { ACCESS_QUEUE_STATUS_BY_ROLE, APPROVAL_QUEUE_STATUS_BY_ROLE, CHANGE_QUEUE_STATUS_BY_ROLE, ROLE_LABELS, SERVER_ROOM_QUEUE_STATUS_BY_ROLE, canHandleChangeRequestCategory, countVisibleQueue } from './config/roles';
@@ -37,6 +12,32 @@ import { toMysqlDateTime } from './utils/dateTime';
 import { insertWithMonthlyDocumentNumber } from './utils/ticketNumber';
 import { loadSignatureIntoCanvas } from './utils/signatureCanvas';
 import { PASSWORD_POLICY_TEXT, getPasswordPolicyErrors } from '../shared/passwordPolicy';
+
+const IssueForm = lazy(() => import('./components/IssueForm'));
+const IssueTracking = lazy(() => import('./components/IssueTracking'));
+const RequestTracking = lazy(() => import('./components/RequestTracking'));
+const IssueDashboard = lazy(() => import('./components/IssueDashboard'));
+const AdminLogin = lazy(() => import('./components/AdminLogin'));
+const UserManagement = lazy(() => import('./components/UserManagement'));
+const EmployeeManagement = lazy(() => import('./components/EmployeeManagement'));
+const AIHelpdesk = lazy(() => import('./components/AIHelpdesk'));
+const HomePage = lazy(() => import('./components/HomePage'));
+const AssetInventory = lazy(() => import('./components/AssetInventory'));
+const IssueStatistics = lazy(() => import('./components/IssueStatistics'));
+const UserAccessRequestForm = lazy(() => import('./components/UserAccessRequestForm'));
+const ControlledAreaEntryForm = lazy(() => import('./components/ControlledAreaEntryForm'));
+const AdminAccessRequests = lazy(() => import('./components/AdminAccessRequests'));
+const ManagerApproval = lazy(() => import('./components/ManagerApproval'));
+const ITManagerApproval = lazy(() => import('./components/ITManagerApproval'));
+const ChangeRequestForm = lazy(() => import('./components/ChangeRequestForm'));
+const AdminChangeRequests = lazy(() => import('./components/AdminChangeRequests'));
+const ApprovedDocuments = lazy(() => import('./components/ApprovedDocuments'));
+const ServerRoomManagement = lazy(() => import('./components/ServerRoomManagement'));
+const IssueCloseSignature = lazy(() => import('./components/IssueCloseSignature'));
+const ChangeRequestAcceptance = lazy(() => import('./components/ChangeRequestAcceptance'));
+const AccessRequestAcknowledgement = lazy(() => import('./components/AccessRequestAcknowledgement'));
+const BorrowReturnSignature = lazy(() => import('./components/BorrowReturnSignature'));
+const ChangeManagerApproval = lazy(() => import('./components/ChangeManagerApproval'));
 
 const AUTO_CLOSE_AFTER_MS = 3 * 24 * 60 * 60 * 1000;
 const SESSION_ACTIVITY_EVENTS = ['mousedown', 'keydown', 'scroll', 'touchstart', 'pointerdown'];
@@ -98,6 +99,12 @@ const SERVER_ROOM_WORK_QUEUE_LABELS = {
     Pending_Approval: 'รออนุมัติ',
     Approved: 'อยู่ในห้อง',
 };
+
+const PageLoadingFallback = () => (
+    <div className="glass-card rounded-3xl p-10 text-center text-sm font-semibold text-slate-500 dark:text-slate-400">
+        กำลังโหลดหน้า...
+    </div>
+);
 
 const normalizePathname = (pathname = '/') => {
     const normalized = `/${String(pathname).replace(/^\/+|\/+$/g, '')}`;
@@ -1519,7 +1526,9 @@ function App() {
 
             <main className={`flex-grow relative w-full transition-[margin,width] duration-300 ${isStandaloneSignaturePage ? 'flex min-h-screen items-stretch justify-stretch p-0' : `mx-auto max-w-full px-3 py-4 sm:px-4 xl:p-8 mt-24 xl:mt-0 2xl:max-w-[1500px] mb-24 xl:mb-0 xl:mr-0 ${isSidebarCollapsed ? 'xl:ml-20 xl:w-[calc(100%-5rem)]' : 'xl:ml-80 xl:w-[calc(100%-20rem)]'}`}`}>
                 <div className="animate-fade-in">
-                    {renderContent()}
+                    <Suspense fallback={<PageLoadingFallback />}>
+                        {renderContent()}
+                    </Suspense>
                 </div>
             </main>
 
