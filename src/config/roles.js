@@ -52,7 +52,7 @@ export const ROLE_LABELS = {
 
 export const ROLE_OPTIONS = [
     { value: ROLES.SUPERADMIN, label: 'Super Admin', description: 'เห็นทุกอย่างและจัดการผู้ใช้งานได้ทั้งหมด' },
-    { value: ROLES.IT_SUPPORT, label: 'IT Support', description: 'ดูแลงานแจ้งซ่อมและคำร้องขอสิทธิ์ขั้นแรก' },
+    { value: ROLES.IT_SUPPORT, label: 'IT Support', description: 'ดูแลงานแจ้งซ่อม คำร้องขอสิทธิ์ และอัพเดทงานขอพัฒนาระบบ' },
     { value: ROLES.IT_SUPERVISOR, label: 'IT Supervisor', description: 'ตรวจสอบคำร้องขอสิทธิ์ก่อนส่ง IT Manager' },
     { value: ROLES.IT_MANAGER, label: 'IT Manager', description: 'อนุมัติขั้นสุดท้ายของคำร้อง IT' },
     { value: ROLES.IT_SOFTWARE, label: 'IT Software', description: 'ดูแลคำร้องขอพัฒนาโปรแกรมขั้นแรก' },
@@ -105,7 +105,7 @@ export const ACCESS_QUEUE_STATUS_BY_ROLE = {
 
 export const CHANGE_QUEUE_STATUS_BY_ROLE = {
     [ROLES.SUPERADMIN]: ['Pending_IT', 'Pending_IT_Manager', 'In_Progress', 'In_Development'],
-    [ROLES.IT_SUPPORT]: ['Pending_IT'],
+    [ROLES.IT_SUPPORT]: ['Pending_IT', 'In_Progress', 'In_Development'],
     [ROLES.IT_MANAGER]: ['Pending_IT_Manager'],
     [ROLES.IT_SOFTWARE]: ['Pending_IT', 'In_Progress', 'In_Development'],
     [ROLES.IT_MEDIA]: ['Pending_IT', 'In_Progress', 'In_Development'],

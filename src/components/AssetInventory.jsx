@@ -356,9 +356,9 @@ const AssetInventory = ({ issues = [] }) => {
             {/* Stats Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {[
-                    { label: 'เครื่องทั้งหมด (Active)', value: stats.total, color: 'bg-indigo-50 text-indigo-700 border-indigo-200', dot: 'bg-indigo-500' },
-                    { label: 'กำลังซ่อม', value: stats.repairing, color: 'bg-amber-50 text-amber-700 border-amber-200', dot: 'bg-amber-500' },
-                    { label: 'แจ้งซ่อมบ่อยสุด', value: stats.topAsset ? `${stats.topAsset.name} (${stats.topAsset.count} ครั้ง)` : '-', color: 'bg-rose-50 text-rose-700 border-rose-200', dot: 'bg-rose-500' },
+                    { label: 'เครื่องทั้งหมด (Active)', value: stats.total, color: 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:!border-indigo-700/50 dark:!bg-indigo-950/60 dark:!text-indigo-200', dot: 'bg-indigo-500 dark:bg-indigo-300' },
+                    { label: 'กำลังซ่อม', value: stats.repairing, color: 'bg-amber-50 text-amber-700 border-amber-200 dark:!border-amber-700/50 dark:!bg-amber-950/60 dark:!text-amber-200', dot: 'bg-amber-500 dark:bg-amber-300' },
+                    { label: 'แจ้งซ่อมบ่อยสุด', value: stats.topAsset ? `${stats.topAsset.name} (${stats.topAsset.count} ครั้ง)` : '-', color: 'bg-rose-50 text-rose-700 border-rose-200 dark:!border-rose-700/50 dark:!bg-rose-950/60 dark:!text-rose-200', dot: 'bg-rose-500 dark:bg-rose-300' },
                 ].map(s => (
                     <div key={s.label} className={`glass-card rounded-2xl p-4 border ${s.color}`}>
                         <div className="flex items-center gap-2 mb-1">
@@ -402,9 +402,9 @@ const AssetInventory = ({ issues = [] }) => {
                 {/* Sync Result Box */}
                 {syncResult && (
                     <div className={`p-4 rounded-xl border flex justify-between items-start animate-fade-in ${
-                        syncResult.type === 'error' ? 'bg-rose-50 border-rose-200 text-rose-700 dark:bg-rose-900/20' : 
-                        syncResult.type === 'info' ? 'bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-900/20' : 
-                        'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-900/20'
+                        syncResult.type === 'error' ? 'bg-rose-50 border-rose-200 text-rose-700 dark:!border-rose-700/50 dark:!bg-rose-950/60 dark:!text-rose-200' :
+                        syncResult.type === 'info' ? 'bg-indigo-50 border-indigo-200 text-indigo-700 dark:!border-indigo-700/50 dark:!bg-indigo-950/60 dark:!text-indigo-200' :
+                        'bg-emerald-50 border-emerald-200 text-emerald-700 dark:!border-emerald-700/50 dark:!bg-emerald-950/60 dark:!text-emerald-200'
                     }`}>
                         <div className="flex gap-3">
                             <RefreshCw className={`w-5 h-5 flex-shrink-0 mt-0.5 ${syncResult.type === 'success' ? 'text-emerald-500' : 'text-indigo-500'}`} />
@@ -450,19 +450,19 @@ const AssetInventory = ({ issues = [] }) => {
                         onClick={() => setSourceFilter('buyrent')}
                         className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${sourceFilter === 'buyrent' ? 'bg-violet-500 text-white shadow-sm shadow-violet-200 dark:shadow-none' : 'text-slate-500 hover:text-violet-600 dark:text-slate-400 dark:hover:text-violet-400'}`}
                     >
-                        🧩 เช่า+ซื้อ <span className={`text-xs px-2 py-0.5 rounded-full ${sourceFilter === 'buyrent' ? 'bg-violet-600 text-violet-50' : 'bg-violet-100 text-violet-700 dark:bg-violet-900/50 dark:text-violet-300'}`}>{filterCounts.buyrent}</span>
+                        🧩 เช่า+ซื้อ <span className={`text-xs px-2 py-0.5 rounded-full ${sourceFilter === 'buyrent' ? 'bg-violet-600 text-violet-50 dark:!bg-violet-950/70 dark:!text-violet-100' : 'bg-violet-100 text-violet-700 dark:!bg-violet-950/60 dark:!text-violet-200'}`}>{filterCounts.buyrent}</span>
                     </button>
                     <button 
                         onClick={() => setSourceFilter('buy')}
                         className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${sourceFilter === 'buy' ? 'bg-emerald-500 text-white shadow-sm shadow-emerald-200 dark:shadow-none' : 'text-slate-500 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-400'}`}
                     >
-                        💰 ซื้อขาด <span className={`text-xs px-2 py-0.5 rounded-full ${sourceFilter === 'buy' ? 'bg-emerald-600 text-emerald-50' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300'}`}>{filterCounts.buy}</span>
+                        💰 ซื้อขาด <span className={`text-xs px-2 py-0.5 rounded-full ${sourceFilter === 'buy' ? 'bg-emerald-600 text-emerald-50 dark:!bg-emerald-950/70 dark:!text-emerald-100' : 'bg-emerald-100 text-emerald-700 dark:!bg-emerald-950/60 dark:!text-emerald-200'}`}>{filterCounts.buy}</span>
                     </button>
                     <button 
                         onClick={() => setSourceFilter('rent')}
                         className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${sourceFilter === 'rent' ? 'bg-indigo-500 text-white shadow-sm shadow-indigo-200 dark:shadow-none' : 'text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400'}`}
                     >
-                        🤝 เช่า <span className={`text-xs px-2 py-0.5 rounded-full ${sourceFilter === 'rent' ? 'bg-indigo-600 text-indigo-50' : 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300'}`}>{filterCounts.rent}</span>
+                        🤝 เช่า <span className={`text-xs px-2 py-0.5 rounded-full ${sourceFilter === 'rent' ? 'bg-indigo-600 text-indigo-50 dark:!bg-indigo-950/70 dark:!text-indigo-100' : 'bg-indigo-100 text-indigo-700 dark:!bg-indigo-950/60 dark:!text-indigo-200'}`}>{filterCounts.rent}</span>
                     </button>
                 </div>
             </div>
@@ -528,7 +528,7 @@ const AssetInventory = ({ issues = [] }) => {
                                         )}
                                         <div className="flex items-start justify-between mb-3">
                                             <div className="flex items-center gap-3">
-                                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${isRepairing ? 'bg-amber-50 dark:bg-amber-900/40' : 'bg-indigo-50 dark:bg-indigo-900/40 group-hover:bg-indigo-100'}`}>
+                                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${isRepairing ? 'bg-amber-50 dark:!bg-amber-950/60' : 'bg-indigo-50 dark:!bg-indigo-950/60 group-hover:bg-indigo-100 dark:group-hover:!bg-indigo-900/70'}`}>
                                                     <Monitor className={`w-5 h-5 ${isRepairing ? 'text-amber-600 dark:text-amber-400' : 'text-indigo-600 dark:text-indigo-400'}`} />
                                                 </div>
                                                 <div>
@@ -536,7 +536,7 @@ const AssetInventory = ({ issues = [] }) => {
                                                     <p className="text-xs text-slate-400 dark:text-slate-500 font-mono">{computer.serial || '-'}</p>
                                                 </div>
                                             </div>
-                                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border bg-emerald-100 text-emerald-700 border-emerald-200">● Active</span>
+                                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border bg-emerald-100 text-emerald-700 border-emerald-200 dark:!border-emerald-700/50 dark:!bg-emerald-950/60 dark:!text-emerald-200">● Active</span>
                                         </div>
                                         <div className="space-y-1.5 text-xs text-slate-500 dark:text-slate-400">
                                             {computer.otherserial && (
@@ -656,7 +656,7 @@ const AssetInventory = ({ issues = [] }) => {
                                                 const isBuy = source.includes('buy') || source.includes('ซื้อ');
                                                 const isRent = source.includes('rent') || source.includes('เช่า');
                                                 return (
-                                                    <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${isBuy ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-400 dark:border-emerald-800' : isRent ? 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-900/40 dark:text-indigo-400 dark:border-indigo-800' : 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'}`}>
+                                                    <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${isBuy ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:!border-emerald-700/50 dark:!bg-emerald-950/60 dark:!text-emerald-200' : isRent ? 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:!border-indigo-700/50 dark:!bg-indigo-950/60 dark:!text-indigo-200' : 'bg-slate-100 text-slate-700 border-slate-200 dark:!border-slate-600/70 dark:!bg-slate-800 dark:!text-slate-200'}`}>
                                                         {isBuy ? '💰 ซื้อขาด (Buy)' : isRent ? '🤝 เช่า (Rental)' : selectedComputer.autoupdatesystems_id}
                                                     </span>
                                                 );
@@ -685,12 +685,12 @@ const AssetInventory = ({ issues = [] }) => {
                                             <div className="space-y-2 max-h-52 overflow-y-auto">
                                                 {assetIssues.map(issue => {
                                                     const getIssueStatusStyle = (status) => {
-                                                        if (status === 'Closed') return 'bg-sky-50 dark:bg-sky-900/20 border-sky-200 dark:border-sky-800 text-sky-600';
-                                                        if (status === 'Resolved') return 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 text-emerald-600';
-                                                        if (status === 'External Repair') return 'bg-violet-50 dark:bg-violet-900/20 border-violet-200 dark:border-violet-800 text-violet-600';
-                                                        if (status === 'Waiting for Parts') return 'bg-pink-50 dark:bg-pink-900/20 border-pink-200 dark:border-pink-800 text-pink-600';
-                                                        if (status === 'Cancelled') return 'bg-slate-50 dark:bg-slate-900/20 border-slate-200 dark:border-slate-800 text-slate-600';
-                                                        return 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800 text-amber-600';
+                                                        if (status === 'Closed') return 'bg-sky-50 border-sky-200 text-sky-700 dark:!border-sky-700/50 dark:!bg-sky-950/60 dark:!text-sky-200';
+                                                        if (status === 'Resolved') return 'bg-emerald-50 border-emerald-200 text-emerald-700 dark:!border-emerald-700/50 dark:!bg-emerald-950/60 dark:!text-emerald-200';
+                                                        if (status === 'External Repair') return 'bg-violet-50 border-violet-200 text-violet-700 dark:!border-violet-700/50 dark:!bg-violet-950/60 dark:!text-violet-200';
+                                                        if (status === 'Waiting for Parts') return 'bg-pink-50 border-pink-200 text-pink-700 dark:!border-pink-700/50 dark:!bg-pink-950/60 dark:!text-pink-200';
+                                                        if (status === 'Cancelled') return 'bg-slate-100 border-slate-200 text-slate-700 dark:!border-slate-600/70 dark:!bg-slate-800 dark:!text-slate-200';
+                                                        return 'bg-amber-50 border-amber-200 text-amber-700 dark:!border-amber-700/50 dark:!bg-amber-950/60 dark:!text-amber-200';
                                                     };
                                                     
                                                     const getIssueStatusText = (status) => {
@@ -704,10 +704,10 @@ const AssetInventory = ({ issues = [] }) => {
                                                     };
 
                                                     return (
-                                                        <div key={issue.id} className={`p-3 rounded-xl text-xs border ${getIssueStatusStyle(issue.status).split('text-')[0]}`}>
+                                                        <div key={issue.id} className={`p-3 rounded-xl text-xs border ${getIssueStatusStyle(issue.status)}`}>
                                                             <div className="flex justify-between items-center mb-1">
-                                                                <span className="font-bold text-slate-700 dark:text-slate-200">{issue.id}</span>
-                                                                <span className={`font-semibold ${getIssueStatusStyle(issue.status).match(/text-[a-z]+-[0-9]+/)?.[0] || 'text-amber-600'}`}>
+                                                                <span className="font-bold">{issue.id}</span>
+                                                                <span className="font-semibold">
                                                                     {getIssueStatusText(issue.status)}
                                                                 </span>
                                                             </div>

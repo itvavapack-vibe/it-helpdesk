@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, CheckCircle, Clock, DoorClosed, DoorOpen, RefreshCw, Search, Server, ShieldCheck } from 'lucide-react';
+import { CheckCircle, Clock, DoorClosed, DoorOpen, RefreshCw, Search, Server, ShieldCheck } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { mysql } from '../mysqlClient';
-import { ROLES, canApproveServerRoomEntry, canExitServerRoomEntry, normalizeRoleValue } from '../config/roles';
+import { canApproveServerRoomEntry, canExitServerRoomEntry, normalizeRoleValue } from '../config/roles';
 import { toMysqlDateTime } from '../utils/dateTime';
 
 const STATUS_LABELS = {
@@ -37,7 +37,7 @@ const formatDate = (value) => {
     return date.toLocaleDateString('th-TH');
 };
 
-const ServerRoomManagement = ({ currentAdmin }) => {
+const ServerRoomManagement = ({ currentAdmin, initialStatusFilter = 'All', filterSignal = 0 }) => {
     const [logs, setLogs] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -46,7 +46,6 @@ const ServerRoomManagement = ({ currentAdmin }) => {
     const currentRole = normalizeRoleValue(currentAdmin?.role);
     const canApprove = canApproveServerRoomEntry(currentRole);
     const canExit = canExitServerRoomEntry(currentRole);
-    const shouldShowApprovalNotice = [ROLES.IT_SUPERVISOR, ROLES.IT_MANAGER].includes(currentRole);
 
     const fetchLogs = async ({ silent = false } = {}) => {
         if (!silent) setIsLoading(true);
@@ -79,9 +78,9 @@ const ServerRoomManagement = ({ currentAdmin }) => {
         };
     }, []);
 
-    const pendingApprovalLogs = useMemo(() =>
-        logs.filter((log) => log.status === 'Pending_Approval'),
-    [logs]);
+    useEffect(() => {
+        setStatusFilter(initialStatusFilter || 'All');
+    }, [initialStatusFilter, filterSignal]);
 
     const filteredLogs = useMemo(() => {
         const keyword = searchTerm.trim().toLowerCase();
@@ -126,6 +125,7 @@ const ServerRoomManagement = ({ currentAdmin }) => {
             if (error) throw error;
             setLogs((current) => current.map((item) => (item.id === log.id ? { ...item, ...updatePayload } : item)));
             window.dispatchEvent(new Event('server-room:refresh'));
+            window.dispatchEvent(new Event('approval-queues:refresh'));
             Swal.fire('อนุมัติแล้ว', 'บันทึกการอนุมัติการเข้าห้องแล้ว', 'success');
         } catch (error) {
             console.error('Error approving server room entry:', error);
@@ -161,6 +161,7 @@ const ServerRoomManagement = ({ currentAdmin }) => {
             if (error) throw error;
             setLogs((current) => current.map((item) => (item.id === log.id ? { ...item, ...updatePayload } : item)));
             window.dispatchEvent(new Event('server-room:refresh'));
+            window.dispatchEvent(new Event('approval-queues:refresh'));
             Swal.fire('บันทึกแล้ว', 'บันทึกเวลาออกจากห้องเซิร์ฟเวอร์แล้ว', 'success');
         } catch (error) {
             console.error('Error saving server room exit:', error);
@@ -200,46 +201,6 @@ const ServerRoomManagement = ({ currentAdmin }) => {
                     </div>
                 </div>
             </div>
-
-            {shouldShowApprovalNotice && pendingApprovalLogs.length > 0 && (
-                <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4 shadow-sm dark:border-amber-700/40 dark:bg-amber-500/10">
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                        <div className="flex gap-3">
-                            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-200 dark:ring-1 dark:ring-amber-700/30">
-                                <AlertCircle className="h-5 w-5" />
-                            </div>
-                            <div>
-                                <h3 className="text-base font-bold text-amber-900 dark:text-amber-100">
-                                    มีรายการเข้าห้องเซิร์ฟเวอร์รออนุมัติ {pendingApprovalLogs.length} รายการ
-                                </h3>
-                                <p className="mt-1 text-sm text-amber-800/80 dark:text-amber-100/70">
-                                    แสดงเฉพาะหัวหน้าและผู้จัดการ เพื่อให้ตรวจสอบคำขอเข้าพื้นที่ควบคุมได้เร็วขึ้น
-                                </p>
-                                <div className="mt-3 flex flex-wrap gap-2">
-                                    {pendingApprovalLogs.slice(0, 3).map((log) => (
-                                        <span key={log.id} className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-white/80 px-3 py-1 text-xs font-semibold text-amber-800 dark:border-amber-700/40 dark:bg-slate-950/30 dark:text-amber-100">
-                                            {log.full_name || '-'} · {formatDateTime(log.entry_time)}
-                                        </span>
-                                    ))}
-                                    {pendingApprovalLogs.length > 3 && (
-                                        <span className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold text-amber-800 dark:text-amber-100">
-                                            +{pendingApprovalLogs.length - 3} รายการ
-                                        </span>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                        <button
-                            type="button"
-                            onClick={() => setStatusFilter('Pending_Approval')}
-                            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-700 dark:bg-amber-500 dark:text-slate-950 dark:hover:bg-amber-400"
-                        >
-                            <ShieldCheck className="h-4 w-4" />
-                            ดูรายการรออนุมัติ
-                        </button>
-                    </div>
-                </div>
-            )}
 
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                 {[

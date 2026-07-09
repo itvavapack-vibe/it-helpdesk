@@ -43,7 +43,7 @@ const escapeHtml = (value) => String(value ?? '')
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#039;');
 
-const AdminChangeRequests = ({ currentAdmin }) => {
+const AdminChangeRequests = ({ currentAdmin, initialStatusFilter = 'All', filterSignal = 0 }) => {
     const [requests, setRequests] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -121,6 +121,10 @@ const AdminChangeRequests = ({ currentAdmin }) => {
 
         return () => mysql.removeChannel(subscription);
     }, []);
+
+    useEffect(() => {
+        setStatusFilter(initialStatusFilter || 'All');
+    }, [initialStatusFilter, filterSignal]);
 
     useEffect(() => {
         const adminName = currentAdmin?.name || currentAdmin?.username || '';
