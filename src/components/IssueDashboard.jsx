@@ -603,7 +603,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
             inspectorName: issue.inspectorName || currentAdmin?.name || '',
             inspectorPosition: issue.inspectorPosition || currentAdmin?.position || '',
             inspectorSign: issue.inspectorSign || '',
-            inspectorSignedAt: issue.inspectorSignedAt || ''
+            inspectorSignedAt: toDateTimeLocalValue(issue.inspectorSignedAt)
         });
         setAssetSearchTerm(issue.assetName || issue.assetId || '');
         setPendingEvidenceFiles([]);
@@ -756,9 +756,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
 
             fieldsToSave.inspectorName = inspectorName;
             fieldsToSave.inspectorSign = inspectorSign;
-            if (status === 'Resolved' && currentRepairIssue.status !== 'Resolved') {
-                fieldsToSave.inspectorSignedAt = new Date().toISOString();
-            } else if (hasNewInspectorSignature || !fieldsToSave.inspectorSignedAt) {
+            if (!fieldsToSave.inspectorSignedAt) {
                 fieldsToSave.inspectorSignedAt = new Date().toISOString();
             }
         }
@@ -2051,10 +2049,11 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                     <label htmlFor="edit-user-closed-at" className="block text-sm font-semibold text-slate-700 dark:text-slate-300 ml-1">วันที่แล้วเสร็จ</label>
                                     <input
                                         id="edit-user-closed-at"
-                                        type="text"
-                                        value={currentRepairIssue?.inspectorSignedAt ? formatDate(currentRepairIssue.inspectorSignedAt) : '-'}
-                                        readOnly
-                                        className="w-full input-modern bg-slate-50 dark:bg-slate-900/40"
+                                        type="datetime-local"
+                                        name="inspectorSignedAt"
+                                        value={editFormData.inspectorSignedAt}
+                                        onChange={handleEditFormChange}
+                                        className="w-full input-modern"
                                     />
                                 </div>
                                 <div className="space-y-1">

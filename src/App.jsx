@@ -2,9 +2,9 @@ import { Suspense, lazy, useState, useEffect, useRef } from 'react';
 import SignatureCanvas from 'react-signature-canvas';
 import { getAdminProfile, mysql, updateAdminProfile } from './mysqlClient';
 import ThemePicker from './components/ThemePicker';
-import { Bell, ChevronDown, ClipboardPenLine, LogIn, LogOut, Monitor, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Server, UserCog } from 'lucide-react';
+import { ChevronDown, LogIn, LogOut, Monitor, MoreHorizontal, PanelLeftClose, PanelLeftOpen, UserCog } from 'lucide-react';
 import { ADMIN_SUB_TABS, MAIN_NAV_ITEMS, canSee, normalizeRole } from './config/navigation';
-import { ACCESS_QUEUE_STATUS_BY_ROLE, APPROVAL_QUEUE_STATUS_BY_ROLE, CHANGE_QUEUE_STATUS_BY_ROLE, ROLE_LABELS, SERVER_ROOM_QUEUE_STATUS_BY_ROLE, canHandleChangeRequestCategory, countVisibleQueue } from './config/roles';
+import { ACCESS_QUEUE_STATUS_BY_ROLE, APPROVAL_QUEUE_STATUS_BY_ROLE, CHANGE_QUEUE_STATUS_BY_ROLE, ROLE_LABELS, canApproveServerRoomEntry, canHandleChangeRequestCategory, countVisibleQueue } from './config/roles';
 import Swal from 'sweetalert2';
 import { notifyNewIssue, notifyStatusChange, notifyRepairUpdate } from './telegramNotify';
 import { buildCloseIssueLink, showCloseIssueLinkDialog } from './utils/closeIssueLink';
@@ -92,17 +92,6 @@ const WORKFLOW_QUERY_TABS = {
     acceptChangeReq: 'change_request_acceptance',
     ackAccessReq: 'access_request_acknowledgement',
 };
-const CHANGE_WORK_QUEUE_LABELS = {
-    Pending_IT: 'รับแจ้ง',
-    Pending_IT_Manager: 'ผู้จัดการ',
-    In_Progress: 'รอดำเนินการ',
-    In_Development: 'กำลังดำเนินการ',
-};
-const SERVER_ROOM_WORK_QUEUE_LABELS = {
-    Pending_Approval: 'รออนุมัติ',
-    Approved: 'อยู่ในห้อง',
-};
-
 const PageLoadingFallback = () => (
     <div className="glass-card rounded-3xl p-10 text-center text-sm font-semibold text-slate-500 dark:text-slate-400">
         กำลังโหลดหน้า...
@@ -210,7 +199,6 @@ function App() {
     const [isSavingProfile, setIsSavingProfile] = useState(false);
     const [profileForm, setProfileForm] = useState({ username: '', name: '', position: '', signature: '', password: '' });
     const [approvalQueues, setApprovalQueues] = useState({ access: [], change: [], serverRoom: [] });
-    const [workQueueFilter, setWorkQueueFilter] = useState({ type: 'change', status: 'All', signal: 0 });
     const profileSignatureRef = useRef(null);
     const sessionRefreshRef = useRef({ inFlight: false, lastAt: 0 });
     const currentRole = normalizeRole(isAdminAuth);
@@ -236,9 +224,6 @@ function App() {
     const selectedAdminSubTab = visibleAdminSubTabs.some((item) => item.id === adminSubTab)
         ? adminSubTab
         : visibleAdminSubTabs[0]?.id;
-    const changeQueueCount = countVisibleQueue(approvalQueues.change, currentRole, CHANGE_QUEUE_STATUS_BY_ROLE, canHandleChangeRequestCategory);
-    const serverRoomQueueCount = countVisibleQueue(approvalQueues.serverRoom, currentRole, SERVER_ROOM_QUEUE_STATUS_BY_ROLE);
-    const combinedWorkQueueCount = changeQueueCount + serverRoomQueueCount;
     const isMainMoreSelected = mainMoreItems.some((item) => item.tab === activeTab);
     const isAdminMoreSelected = adminMoreItems.some((item) => item.id === selectedAdminSubTab);
     const isStandaloneSignaturePage = activeTab === 'issue_close' || activeTab === 'issue_waiting_parts' || activeTab === 'change_request_acceptance' || activeTab === 'access_request_acknowledgement';
@@ -1022,104 +1007,6 @@ function App() {
         setActiveTab(nextTab);
     };
 
-    const handleWorkQueueFilterClick = (type, status = 'All') => {
-        setWorkQueueFilter((previous) => ({
-            type,
-            status,
-            signal: previous.signal + 1,
-        }));
-    };
-
-    const getChangeQueueStatusCount = (status) =>
-        approvalQueues.change.filter((item) =>
-            item.status === status && canHandleChangeRequestCategory(currentRole, item)
-        ).length;
-
-    const getServerRoomQueueStatusCount = (status) =>
-        approvalQueues.serverRoom.filter((item) => item.status === status).length;
-
-    const renderWorkQueueNotice = () => {
-        const changeStatuses = CHANGE_QUEUE_STATUS_BY_ROLE[currentRole] || [];
-        const serverRoomStatuses = SERVER_ROOM_QUEUE_STATUS_BY_ROLE[currentRole] || [];
-        const isChangeSelected = workQueueFilter.type === 'change';
-        const isServerRoomSelected = workQueueFilter.type === 'server_room';
-
-        return (
-            <div className="rounded-2xl border border-emerald-100 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                    <div className="flex items-start gap-3">
-                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-200">
-                            <Bell className="h-5 w-5" />
-                        </div>
-                        <div>
-                            <h3 className="text-base font-bold text-slate-900 dark:text-white">แจ้งเตือนรวมงานที่ต้องจัดการ</h3>
-                            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                                รวมคิวขอพัฒนาระบบและห้องเซิร์ฟเวอร์ไว้ในหน้าเดียว กด badge เพื่อกรองตารางและอัพเดทสถานะได้ตามสิทธิ์เดิม
-                            </p>
-                        </div>
-                    </div>
-                    <div className="inline-flex w-fit rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-bold text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
-                        รวม {combinedWorkQueueCount} รายการ
-                    </div>
-                </div>
-
-                <div className="mt-4 flex flex-wrap gap-2">
-                    <button
-                        type="button"
-                        onClick={() => handleWorkQueueFilterClick('change', 'All')}
-                        className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition ${isChangeSelected && workQueueFilter.status === 'All' ? 'border-emerald-500 bg-emerald-600 text-white shadow-sm dark:border-emerald-400 dark:bg-emerald-500 dark:text-slate-950' : 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-700/50 dark:bg-emerald-950/50 dark:text-emerald-200 dark:hover:bg-emerald-900/70'}`}
-                    >
-                        <ClipboardPenLine className="h-4 w-4" />
-                        ขอพัฒนาระบบ
-                        <span className="rounded-full bg-white/25 px-2 py-0.5 text-xs">{changeQueueCount}</span>
-                    </button>
-
-                    {changeStatuses.map((status) => {
-                        const count = getChangeQueueStatusCount(status);
-                        return (
-                            <button
-                                key={status}
-                                type="button"
-                                onClick={() => handleWorkQueueFilterClick('change', status)}
-                                className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition ${isChangeSelected && workQueueFilter.status === status ? 'border-emerald-500 bg-emerald-600 text-white shadow-sm dark:border-emerald-400 dark:bg-emerald-500 dark:text-slate-950' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800'}`}
-                            >
-                                {CHANGE_WORK_QUEUE_LABELS[status] || status}
-                                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700 dark:bg-slate-800 dark:text-slate-200">{count}</span>
-                            </button>
-                        );
-                    })}
-
-                    {serverRoomStatuses.length > 0 && (
-                        <button
-                            type="button"
-                            onClick={() => handleWorkQueueFilterClick('server_room', serverRoomStatuses[0] || 'All')}
-                            className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition ${isServerRoomSelected ? 'border-cyan-500 bg-cyan-600 text-white shadow-sm dark:border-cyan-400 dark:bg-cyan-500 dark:text-slate-950' : 'border-cyan-200 bg-cyan-50 text-cyan-700 hover:bg-cyan-100 dark:border-cyan-700/50 dark:bg-cyan-950/50 dark:text-cyan-200 dark:hover:bg-cyan-900/70'}`}
-                        >
-                            <Server className="h-4 w-4" />
-                            ห้องเซิร์ฟเวอร์
-                            <span className="rounded-full bg-white/25 px-2 py-0.5 text-xs">{serverRoomQueueCount}</span>
-                        </button>
-                    )}
-
-                    {serverRoomStatuses.map((status) => {
-                        const count = getServerRoomQueueStatusCount(status);
-                        return (
-                            <button
-                                key={status}
-                                type="button"
-                                onClick={() => handleWorkQueueFilterClick('server_room', status)}
-                                className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold transition ${isServerRoomSelected && workQueueFilter.status === status ? 'border-cyan-500 bg-cyan-600 text-white shadow-sm dark:border-cyan-400 dark:bg-cyan-500 dark:text-slate-950' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800'}`}
-                            >
-                                {SERVER_ROOM_WORK_QUEUE_LABELS[status] || status}
-                                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700 dark:bg-slate-800 dark:text-slate-200">{count}</span>
-                            </button>
-                        );
-                    })}
-                </div>
-            </div>
-        );
-    };
-
     const renderContent = () => {
         if (activeTab === 'home') {
             return <HomePage onNavigateTo={navigateToTab} currentRole={currentRole} />;
@@ -1253,22 +1140,7 @@ function App() {
                         ) : selectedAdminSubTab === 'access_requests' ? (
                             <AdminAccessRequests currentAdmin={isAdminAuth} />
                         ) : selectedAdminSubTab === 'change_requests' ? (
-                            <div className="space-y-4">
-                                {renderWorkQueueNotice()}
-                                {workQueueFilter.type === 'server_room' ? (
-                                    <ServerRoomManagement
-                                        currentAdmin={isAdminAuth}
-                                        initialStatusFilter={workQueueFilter.status}
-                                        filterSignal={workQueueFilter.signal}
-                                    />
-                                ) : (
-                                    <AdminChangeRequests
-                                        currentAdmin={isAdminAuth}
-                                        initialStatusFilter={workQueueFilter.status}
-                                        filterSignal={workQueueFilter.signal}
-                                    />
-                                )}
-                            </div>
+                            <AdminChangeRequests currentAdmin={isAdminAuth} />
                         ) : selectedAdminSubTab === 'approved_documents' ? (
                             <ApprovedDocuments currentAdmin={isAdminAuth} />
                         ) : selectedAdminSubTab === 'server_room' ? (
@@ -1315,12 +1187,15 @@ function App() {
             return countVisibleQueue(approvalQueues.access, currentRole, ACCESS_QUEUE_STATUS_BY_ROLE);
         }
         if (itemId === 'change_requests') {
-            return countVisibleQueue(approvalQueues.change, currentRole, CHANGE_QUEUE_STATUS_BY_ROLE, canHandleChangeRequestCategory)
-                + countVisibleQueue(approvalQueues.serverRoom, currentRole, SERVER_ROOM_QUEUE_STATUS_BY_ROLE);
+            return countVisibleQueue(approvalQueues.change, currentRole, CHANGE_QUEUE_STATUS_BY_ROLE, canHandleChangeRequestCategory);
         }
         if (itemId === 'approved_documents') {
+            const serverRoomApprovalCount = canApproveServerRoomEntry(currentRole)
+                ? approvalQueues.serverRoom.filter((item) => item.status === 'Pending_Approval').length
+                : 0;
             return countVisibleQueue(approvalQueues.access, currentRole, APPROVAL_QUEUE_STATUS_BY_ROLE)
-                + countVisibleQueue(approvalQueues.change, currentRole, APPROVAL_QUEUE_STATUS_BY_ROLE, (_role, item) => item.status !== 'Pending_IT_Supervisor');
+                + countVisibleQueue(approvalQueues.change, currentRole, APPROVAL_QUEUE_STATUS_BY_ROLE, (_role, item) => item.status !== 'Pending_IT_Supervisor')
+                + serverRoomApprovalCount;
         }
         if (itemId === 'server_room') {
             return 0;

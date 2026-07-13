@@ -145,6 +145,7 @@ const MaintenanceReportPdfPreview = ({ isOpen, onClose, formData }) => {
     const isAutoClosed = formData.userCloseNote === AUTO_CLOSE_NOTE && !formData.userCloseSign;
     const autoCloseSignatureName = formData.userCloseName || formData.name || '-';
     const isCancelled = ['cancelled', 'canceled'].includes(String(formData.status || '').trim().toLowerCase());
+    const completedAt = formData.inspectorSignedAt || formData.userClosedAt || null;
     const requesterSignature = formData.userCloseSign || formData.waitingPartsUserSign || '';
     const requesterName = formData.userCloseName || formData.waitingPartsUserName || formData.name || '-';
     const requesterPosition = formData.userClosePosition || formData.waitingPartsUserPosition || '-';
@@ -380,7 +381,7 @@ const MaintenanceReportPdfPreview = ({ isOpen, onClose, formData }) => {
                                         วันที่แล้วเสร็จ:
                                     </td>
                                     <td style={{ border: '1px solid #cbd5e1', padding: '8px 12px', fontSize: '13px' }}>
-                                        {formatReportDate(formData.userClosedAt)}
+                                        {formatReportDate(completedAt)}
                                     </td>
                                 </tr>
                                 <tr>
