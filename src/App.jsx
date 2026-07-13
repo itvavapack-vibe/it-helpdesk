@@ -1574,8 +1574,8 @@ function App() {
                 </div>
             </header>}
 
-            <main className={`flex-grow relative w-full transition-[margin,width] duration-300 ${isStandaloneSignaturePage ? 'flex min-h-screen items-stretch justify-stretch p-0' : `mx-auto max-w-full px-3 py-4 sm:px-4 xl:p-8 mt-24 xl:mt-0 2xl:max-w-[1500px] mb-24 xl:mb-0 xl:mr-0 ${isSidebarCollapsed ? 'xl:ml-20 xl:w-[calc(100%-5rem)]' : 'xl:ml-80 xl:w-[calc(100%-20rem)]'}`}`}>
-                <div className="animate-fade-in">
+            <main className={`flex-grow relative w-full transition-[margin,width] duration-300 ${isStandaloneSignaturePage ? 'flex min-h-screen items-stretch justify-stretch p-0' : `mx-auto max-w-full px-3 py-4 sm:px-4 xl:p-8 mt-24 xl:mt-0 2xl:max-w-none mb-24 xl:mb-0 xl:mr-0 ${isSidebarCollapsed ? 'xl:ml-20 xl:w-[calc(100%-5rem)]' : 'xl:ml-80 xl:w-[calc(100%-20rem)]'}`}`}>
+                <div className="animate-fade-in w-full">
                     <Suspense fallback={<PageLoadingFallback />}>
                         {renderContent()}
                     </Suspense>

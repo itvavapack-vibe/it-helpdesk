@@ -1250,7 +1250,16 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                     </div>
                 </div>
                 <div className="overflow-x-auto overflow-y-hidden xl:overflow-visible">
-                    <table className="block xl:table w-full text-left border-collapse">
+                    <table className="block xl:table w-full xl:table-fixed text-left border-collapse">
+                        <colgroup>
+                            <col className="hidden xl:table-column xl:w-[5%]" />
+                            <col className="hidden xl:table-column xl:w-[12%]" />
+                            <col className="hidden xl:table-column xl:w-[16%]" />
+                            <col className="hidden xl:table-column xl:w-[14%]" />
+                            <col className="hidden xl:table-column xl:w-[29%] 2xl:w-[32%]" />
+                            <col className="hidden xl:table-column xl:w-[9%] 2xl:w-[8%]" />
+                            <col className="hidden xl:table-column xl:w-[15%] 2xl:w-[13%]" />
+                        </colgroup>
                         <thead className="hidden xl:table-header-group bg-slate-50/50 dark:bg-slate-700/50">
                             <tr>
                                 <th scope="col" className="px-4 xl:px-5 py-4 text-center text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200/60 dark:border-slate-600/60 w-20">ลำดับ</th>
