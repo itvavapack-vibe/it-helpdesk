@@ -92,6 +92,12 @@ const WORKFLOW_QUERY_TABS = {
     acceptChangeReq: 'change_request_acceptance',
     ackAccessReq: 'access_request_acknowledgement',
 };
+const collectQueueStatuses = (...queueMaps) => [
+    ...new Set(queueMaps.flatMap((queueMap) => Object.values(queueMap).flat())),
+];
+const ACCESS_QUEUE_FETCH_STATUSES = collectQueueStatuses(ACCESS_QUEUE_STATUS_BY_ROLE, APPROVAL_QUEUE_STATUS_BY_ROLE);
+const CHANGE_QUEUE_FETCH_STATUSES = collectQueueStatuses(CHANGE_QUEUE_STATUS_BY_ROLE, APPROVAL_QUEUE_STATUS_BY_ROLE);
+const SERVER_ROOM_QUEUE_FETCH_STATUSES = ['Pending_Approval'];
 const PageLoadingFallback = () => (
     <div className="glass-card rounded-3xl p-10 text-center text-sm font-semibold text-slate-500 dark:text-slate-400">
         กำลังโหลดหน้า...
@@ -299,9 +305,9 @@ function App() {
 
         const fetchApprovalQueues = async () => {
             const [accessResult, changeResult, serverRoomResult] = await Promise.all([
-                mysql.from('access_requests').select('id, status'),
-                mysql.from('change_requests').select('id, status, request_category'),
-                mysql.from('controlled_area_logs').select('id, status')
+                mysql.from('access_requests').select('id, status').in('status', ACCESS_QUEUE_FETCH_STATUSES),
+                mysql.from('change_requests').select('id, status, request_category').in('status', CHANGE_QUEUE_FETCH_STATUSES),
+                mysql.from('controlled_area_logs').select('id, status').in('status', SERVER_ROOM_QUEUE_FETCH_STATUSES)
             ]);
             setApprovalQueues({
                 access: accessResult.error ? [] : accessResult.data || [],

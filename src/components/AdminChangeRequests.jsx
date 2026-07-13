@@ -760,7 +760,7 @@ const AdminChangeRequests = ({ currentAdmin, initialStatusFilter = 'All', filter
                         <table className="w-full min-w-[1180px] table-fixed text-left border-collapse">
                             <thead>
                                 <tr className="bg-slate-50 border-b text-center text-slate-500 text-xs uppercase dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-400">
-                                    <th className="w-[130px] p-3 whitespace-nowrap text-center">วันที่ / เลขเอกสาร</th>
+                                    <th className="w-[130px] p-3 whitespace-nowrap text-center">เลขที่เอกสาร</th>
                                     <th className="w-[130px] p-3 whitespace-nowrap text-center">ประเภทการร้องขอ</th>
                                     <th className="w-[170px] p-3 whitespace-nowrap text-center">ผู้ร้องขอ / แผนก</th>
                                     <th className="w-[270px] p-3 text-center">รายละเอียดการขอ (Requirement)</th>
@@ -772,8 +772,8 @@ const AdminChangeRequests = ({ currentAdmin, initialStatusFilter = 'All', filter
                                 {filteredRequests.map((req) => (
                                     <tr key={req.id} className="hover:bg-slate-50 transition-colors dark:hover:bg-slate-900/45">
                                         <td className="p-3 align-top">
-                                            <div className="text-sm font-semibold text-slate-800 dark:text-slate-100">{new Date(req.created_at).toLocaleDateString('th-TH')}</div>
-                                            <div className="text-xs text-emerald-600 font-mono mt-1 dark:text-emerald-300">{req.ticket_number}</div>
+                                            <div className="text-sm font-semibold text-emerald-700 font-mono dark:text-emerald-300">{req.ticket_number}</div>
+                                            <div className="text-xs text-slate-500 mt-1 dark:text-slate-400">{new Date(req.created_at).toLocaleDateString('th-TH')}</div>
                                             <div className="text-xs text-slate-400 mt-1 font-bold">{getChangeRequestTypeLabel(req.req_type)}</div>
                                         </td>
                                         <td className="p-3 align-top">

@@ -1261,7 +1261,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                         <thead className="hidden xl:table-header-group bg-slate-50/50 dark:bg-slate-700/50">
                             <tr>
                                 <th scope="col" className="px-4 xl:px-5 py-4 text-center text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200/60 dark:border-slate-600/60 w-20">ลำดับ</th>
-                                <th scope="col" className="px-4 xl:px-5 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200/60 dark:border-slate-600/60">วัน/เวลา</th>
+                                <th scope="col" className="px-4 xl:px-5 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200/60 dark:border-slate-600/60">เลขที่เอกสาร</th>
                                 <th scope="col" className="px-4 xl:px-5 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200/60 dark:border-slate-600/60">ผู้แจ้ง / แผนก</th>
                                 <th scope="col" className="px-4 xl:px-5 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200/60 dark:border-slate-600/60">หมวดหมู่ / ความรุนแรง</th>
                                 <th scope="col" className="px-4 xl:px-5 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200/60 dark:border-slate-600/60 w-[30%]">ปัญหา</th>

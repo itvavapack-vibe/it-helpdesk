@@ -54,6 +54,7 @@ const SERVER_ROOM_DOCUMENT_LIST_COLUMNS = [
     'status',
     'created_at',
 ].join(',');
+const DOCUMENT_REFRESH_INTERVAL_MS = 30 * 1000;
 
 const ApprovedDocuments = ({ currentAdmin }) => {
     const [documents, setDocuments] = useState([]);
@@ -70,10 +71,19 @@ const ApprovedDocuments = ({ currentAdmin }) => {
     const fetchDocuments = async ({ silent = false } = {}) => {
         if (!silent) setIsLoading(true);
         try {
+            const accessQuery = approvalStatuses.length
+                ? mysql.from('access_requests').select(ACCESS_DOCUMENT_LIST_COLUMNS).in('status', approvalStatuses).order('created_at', { ascending: false })
+                : Promise.resolve({ data: [], error: null });
+            const changeQuery = approvalStatuses.length
+                ? mysql.from('change_requests').select(CHANGE_DOCUMENT_LIST_COLUMNS).in('status', approvalStatuses).not('status', 'Pending_IT_Supervisor').order('created_at', { ascending: false })
+                : Promise.resolve({ data: [], error: null });
+            const serverRoomQuery = canApproveServerRoomDocuments
+                ? mysql.from('controlled_area_logs').select(SERVER_ROOM_DOCUMENT_LIST_COLUMNS).eq('status', 'Pending_Approval').order('entry_time', { ascending: false })
+                : Promise.resolve({ data: [], error: null });
             const [accessResult, changeResult, serverRoomResult] = await Promise.all([
-                mysql.from('access_requests').select(ACCESS_DOCUMENT_LIST_COLUMNS).order('created_at', { ascending: false }),
-                mysql.from('change_requests').select(CHANGE_DOCUMENT_LIST_COLUMNS).order('created_at', { ascending: false }),
-                mysql.from('controlled_area_logs').select(SERVER_ROOM_DOCUMENT_LIST_COLUMNS).order('entry_time', { ascending: false }),
+                accessQuery,
+                changeQuery,
+                serverRoomQuery,
             ]);
 
             if (accessResult.error) throw accessResult.error;
@@ -81,7 +91,6 @@ const ApprovedDocuments = ({ currentAdmin }) => {
             if (serverRoomResult.error) throw serverRoomResult.error;
 
             const accessDocs = (accessResult.data || [])
-                .filter((req) => approvalStatuses.includes(req.status))
                 .map((req) => ({
                     id: `access-${req.id}`,
                     rawId: req.id,
@@ -96,7 +105,6 @@ const ApprovedDocuments = ({ currentAdmin }) => {
                 }));
 
             const changeDocs = (changeResult.data || [])
-                .filter((req) => req.status !== 'Pending_IT_Supervisor' && approvalStatuses.includes(req.status))
                 .map((req) => ({
                     id: `change-${req.id}`,
                     rawId: req.id,
@@ -112,7 +120,6 @@ const ApprovedDocuments = ({ currentAdmin }) => {
                 }));
 
             const serverRoomDocs = (serverRoomResult.data || [])
-                .filter((log) => canApproveServerRoomDocuments && log.status === 'Pending_Approval')
                 .map((log) => ({
                     id: `server_room-${log.id}`,
                     rawId: log.id,
@@ -140,14 +147,14 @@ const ApprovedDocuments = ({ currentAdmin }) => {
         fetchDocuments();
         const intervalId = setInterval(() => {
             if (document.visibilityState === 'visible') fetchDocuments({ silent: true });
-        }, 10000);
+        }, DOCUMENT_REFRESH_INTERVAL_MS);
         const handleRefresh = () => fetchDocuments({ silent: true });
         window.addEventListener('approval-queues:refresh', handleRefresh);
         return () => {
             clearInterval(intervalId);
             window.removeEventListener('approval-queues:refresh', handleRefresh);
         };
-    }, []);
+    }, [approvalStatuses, canApproveServerRoomDocuments]);
 
     useEffect(() => {
         if (!approvalDocument || !selectedApprovalStatus) return;

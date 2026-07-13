@@ -824,14 +824,8 @@ const AdminAccessRequests = ({ currentAdmin }) => {
                             <thead>
                                 <tr className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider">
                                     <th className="p-4 font-semibold whitespace-nowrap">
-                                        <button type="button" onClick={() => toggleSort('created_at')} className="inline-flex items-center gap-1.5 rounded-lg px-1 py-0.5 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200">
-                                            วันที่
-                                            {renderSortIcon('created_at')}
-                                        </button>
-                                    </th>
-                                    <th className="p-4 font-semibold whitespace-nowrap">
                                         <button type="button" onClick={() => toggleSort('ticket_number')} className="inline-flex items-center gap-1.5 rounded-lg px-1 py-0.5 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200">
-                                            เลขที่
+                                            เลขที่เอกสาร
                                             {renderSortIcon('ticket_number')}
                                         </button>
                                     </th>
@@ -850,10 +844,8 @@ const AdminAccessRequests = ({ currentAdmin }) => {
                                     return (
                                     <tr key={req.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                                         <td className="p-4 align-top whitespace-nowrap">
-                                            <div className="text-sm font-semibold text-slate-800 dark:text-slate-200">{new Date(req.created_at).toLocaleDateString('th-TH')}</div>
-                                        </td>
-                                        <td className="p-4 align-top whitespace-nowrap">
                                             <div className="font-mono text-sm font-semibold text-slate-700 dark:text-slate-300">{req.ticket_number || 'ไม่มีเลขที่'}</div>
+                                            <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">{new Date(req.created_at).toLocaleDateString('th-TH')}</div>
                                         </td>
                                         <td className="p-4 align-top whitespace-nowrap">
                                             <span className="font-mono text-sm font-semibold text-slate-700 dark:text-slate-300">{req.employee_id || '-'}</span>
