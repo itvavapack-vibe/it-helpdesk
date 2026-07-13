@@ -34,6 +34,7 @@ const AdminChangeRequests = lazy(() => import('./components/AdminChangeRequests'
 const ApprovedDocuments = lazy(() => import('./components/ApprovedDocuments'));
 const ServerRoomManagement = lazy(() => import('./components/ServerRoomManagement'));
 const IssueCloseSignature = lazy(() => import('./components/IssueCloseSignature'));
+const IssueWaitingPartsSignature = lazy(() => import('./components/IssueWaitingPartsSignature'));
 const ChangeRequestAcceptance = lazy(() => import('./components/ChangeRequestAcceptance'));
 const AccessRequestAcknowledgement = lazy(() => import('./components/AccessRequestAcknowledgement'));
 const BorrowReturnSignature = lazy(() => import('./components/BorrowReturnSignature'));
@@ -46,7 +47,7 @@ const SESSION_REFRESH_THROTTLE_MS = 30 * 1000;
 const ACTIVE_TAB_STORAGE_KEY = 'it-helpdesk-active-tab';
 const ADMIN_SUB_TAB_STORAGE_KEY = 'it-helpdesk-admin-sub-tab';
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'it-helpdesk-sidebar-collapsed';
-const TRANSIENT_TABS = new Set(['manager_approval', 'change_manager_approval', 'it_manager_approval', 'issue_close', 'borrow_return', 'change_request_acceptance', 'access_request_acknowledgement']);
+const TRANSIENT_TABS = new Set(['manager_approval', 'change_manager_approval', 'it_manager_approval', 'issue_close', 'issue_waiting_parts', 'borrow_return', 'change_request_acceptance', 'access_request_acknowledgement']);
 const AUTH_HIDDEN_MAIN_NAV_ITEMS = new Set(['user', 'access_request', 'change_request', 'controlled_area']);
 const BOTTOM_NAV_VISIBLE_LIMIT = 4;
 const TAB_PATHS = {
@@ -65,6 +66,7 @@ const TAB_PATHS = {
     change_manager_approval: '/approve/change',
     it_manager_approval: '/approve/access/it',
     issue_close: '/close-issue',
+    issue_waiting_parts: '/waiting-parts-sign',
     borrow_return: '/return-borrow',
     change_request_acceptance: '/accept-change-request',
     access_request_acknowledgement: '/acknowledge-access-request',
@@ -85,6 +87,7 @@ const WORKFLOW_QUERY_TABS = {
     approveChangeReq: 'change_manager_approval',
     itApproveRequest: 'it_manager_approval',
     closeIssue: 'issue_close',
+    waitingPartsIssue: 'issue_waiting_parts',
     returnBorrowIssue: 'borrow_return',
     acceptChangeReq: 'change_request_acceptance',
     ackAccessReq: 'access_request_acknowledgement',
@@ -174,6 +177,10 @@ function App() {
         const params = new URLSearchParams(window.location.search);
         return params.get('closeIssue');
     });
+    const [waitingPartsIssueId] = useState(() => {
+        const params = new URLSearchParams(window.location.search);
+        return params.get('waitingPartsIssue');
+    });
     const [returnBorrowIssueId] = useState(() => {
         const params = new URLSearchParams(window.location.search);
         return params.get('returnBorrowIssue');
@@ -234,7 +241,7 @@ function App() {
     const combinedWorkQueueCount = changeQueueCount + serverRoomQueueCount;
     const isMainMoreSelected = mainMoreItems.some((item) => item.tab === activeTab);
     const isAdminMoreSelected = adminMoreItems.some((item) => item.id === selectedAdminSubTab);
-    const isStandaloneSignaturePage = activeTab === 'issue_close' || activeTab === 'change_request_acceptance' || activeTab === 'access_request_acknowledgement';
+    const isStandaloneSignaturePage = activeTab === 'issue_close' || activeTab === 'issue_waiting_parts' || activeTab === 'change_request_acceptance' || activeTab === 'access_request_acknowledgement';
 
     // QR parameters are consumed once. Workflow parameters stay in the URL so shared links survive refresh.
     useEffect(() => {
@@ -604,6 +611,10 @@ function App() {
                 inspectorPosition: issue.inspector_position || null,
                 inspectorSign: issue.inspector_sign || null,
                 inspectorSignedAt: issue.inspector_signed_at || null,
+                waitingPartsUserName: issue.waiting_parts_user_name || null,
+                waitingPartsUserPosition: issue.waiting_parts_user_position || null,
+                waitingPartsUserSign: issue.waiting_parts_user_sign || null,
+                waitingPartsSignedAt: issue.waiting_parts_signed_at || null,
                 borrowReturnerName: issue.borrow_returner_name || null,
                 borrowReturnerPosition: issue.borrow_returner_position || null,
                 borrowReturnerSign: issue.borrow_returner_sign || null,
@@ -701,6 +712,10 @@ function App() {
         if (updatedFields.inspectorPosition !== undefined) dbFields.inspector_position = updatedFields.inspectorPosition || null;
         if (updatedFields.inspectorSign !== undefined) dbFields.inspector_sign = updatedFields.inspectorSign || null;
         if (updatedFields.inspectorSignedAt !== undefined) dbFields.inspector_signed_at = updatedFields.inspectorSignedAt ? toMysqlDateTime(updatedFields.inspectorSignedAt) : null;
+        if (updatedFields.waitingPartsUserName !== undefined) dbFields.waiting_parts_user_name = updatedFields.waitingPartsUserName || null;
+        if (updatedFields.waitingPartsUserPosition !== undefined) dbFields.waiting_parts_user_position = updatedFields.waitingPartsUserPosition || null;
+        if (updatedFields.waitingPartsUserSign !== undefined) dbFields.waiting_parts_user_sign = updatedFields.waitingPartsUserSign || null;
+        if (updatedFields.waitingPartsSignedAt !== undefined) dbFields.waiting_parts_signed_at = updatedFields.waitingPartsSignedAt ? toMysqlDateTime(updatedFields.waitingPartsSignedAt) : null;
         if (updatedFields.borrowReturnerName !== undefined) dbFields.borrow_returner_name = updatedFields.borrowReturnerName || null;
         if (updatedFields.borrowReturnerPosition !== undefined) dbFields.borrow_returner_position = updatedFields.borrowReturnerPosition || null;
         if (updatedFields.borrowReturnerSign !== undefined) dbFields.borrow_returner_sign = updatedFields.borrowReturnerSign || null;
@@ -746,7 +761,7 @@ function App() {
         const updateData = { status: newStatus };
         const currentIssue = issues.find(issue => issue.id === id);
         const shouldSetOperationStartedAt =
-            ['In Progress', 'External Repair'].includes(newStatus) &&
+            ['In Progress', 'External Repair', 'Waiting for Parts'].includes(newStatus) &&
             !currentIssue?.operationStartedAt;
         const operationStartedAt = shouldSetOperationStartedAt ? toMysqlDateTime() : null;
         if (adminName) {
@@ -834,6 +849,35 @@ function App() {
             userCloseSign: closeData.signature,
             userClosedAt: payload.user_closed_at,
             ...(closeData.attachments !== undefined ? { attachments: closeData.attachments || [] } : {})
+        } : issue));
+        return true;
+    };
+
+    const signWaitingPartsIssueByUser = async (id, signData) => {
+        const payload = {
+            waiting_parts_user_name: signData.name,
+            waiting_parts_user_position: signData.position,
+            waiting_parts_user_sign: signData.signature,
+            waiting_parts_signed_at: signData.signedAt || toMysqlDateTime(),
+        };
+
+        const { error } = await mysql
+            .from('issues')
+            .update(payload)
+            .eq('id', id);
+
+        if (error) {
+            console.error("Error signing waiting parts issue:", error);
+            Swal.fire('Error', 'ไม่สามารถบันทึกลายเซ็นรับทราบการเปิด PR ขอซื้ออะไหล่ได้', 'error');
+            return false;
+        }
+
+        setIssues(currentIssues => currentIssues.map(issue => issue.id === id ? {
+            ...issue,
+            waitingPartsUserName: signData.name,
+            waitingPartsUserPosition: signData.position,
+            waitingPartsUserSign: signData.signature,
+            waitingPartsSignedAt: payload.waiting_parts_signed_at,
         } : issue));
         return true;
     };
@@ -1119,6 +1163,10 @@ function App() {
 
         if (activeTab === 'issue_close') {
             return <IssueCloseSignature issueId={closeIssueId} onCloseIssue={closeIssueByUser} />;
+        }
+
+        if (activeTab === 'issue_waiting_parts') {
+            return <IssueWaitingPartsSignature issueId={waitingPartsIssueId} onSignWaitingPartsIssue={signWaitingPartsIssueByUser} />;
         }
 
         if (activeTab === 'borrow_return') {

@@ -145,6 +145,15 @@ const MaintenanceReportPdfPreview = ({ isOpen, onClose, formData }) => {
     const isAutoClosed = formData.userCloseNote === AUTO_CLOSE_NOTE && !formData.userCloseSign;
     const autoCloseSignatureName = formData.userCloseName || formData.name || '-';
     const isCancelled = ['cancelled', 'canceled'].includes(String(formData.status || '').trim().toLowerCase());
+    const requesterSignature = formData.userCloseSign || formData.waitingPartsUserSign || '';
+    const requesterName = formData.userCloseName || formData.waitingPartsUserName || formData.name || '-';
+    const requesterPosition = formData.userClosePosition || formData.waitingPartsUserPosition || '-';
+    const requesterSignedAt = formData.userClosedAt || formData.waitingPartsSignedAt || null;
+    const requesterSignatureLabel = formData.userCloseSign
+        ? 'ชื่อผู้แจ้ง'
+        : formData.waitingPartsUserSign
+            ? 'ผู้แจ้งรับทราบเปิด PR ขอซื้ออะไหล่'
+            : 'ชื่อผู้แจ้ง';
 
     const getSeverityText = (severity) => {
         switch (severity) {
@@ -395,7 +404,7 @@ const MaintenanceReportPdfPreview = ({ isOpen, onClose, formData }) => {
                         <div style={{ display: 'flex', justifyContent: 'center', gap: '44px', marginTop: '20px', minHeight: '155px' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', width: '42%' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', borderBottom: '1px dotted #000', height: '78px', margin: '0 auto 8px', width: '90%' }}>
-                                    {formData.userCloseSign && <img src={formData.userCloseSign} alt="ลายเซ็นผู้แจ้ง" style={{ display: 'block', maxHeight: '68px', maxWidth: '112%', objectFit: 'contain', margin: '0 auto', transform: 'scale(1.18)', transformOrigin: 'center' }} />}
+                                    {requesterSignature && <img src={requesterSignature} alt="ลายเซ็นผู้แจ้ง" style={{ display: 'block', maxHeight: '68px', maxWidth: '112%', objectFit: 'contain', margin: '0 auto', transform: 'scale(1.18)', transformOrigin: 'center' }} />}
                                     {isAutoClosed && (
                                         <div style={{ fontSize: '13px', lineHeight: 1.35 }}>
                                             <div style={{ fontWeight: 600 }}>{autoCloseSignatureName}</div>
@@ -403,10 +412,10 @@ const MaintenanceReportPdfPreview = ({ isOpen, onClose, formData }) => {
                                         </div>
                                     )}
                                 </div>
-                                <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '5px' }}>ชื่อผู้แจ้ง</div>
-                                <div style={{ fontSize: '13px', marginBottom: '3px' }}>({formData.userCloseName || formData.name || '-'})</div>
-                                <div style={{ fontSize: '13px', marginBottom: '3px' }}>ตำแหน่ง {formData.userClosePosition || '-'}</div>
-                                <div style={{ fontSize: '13px' }}>วันที่ {formatReportDate(formData.userClosedAt)}</div>
+                                <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '5px' }}>{requesterSignatureLabel}</div>
+                                <div style={{ fontSize: '13px', marginBottom: '3px' }}>({requesterName})</div>
+                                <div style={{ fontSize: '13px', marginBottom: '3px' }}>ตำแหน่ง {requesterPosition}</div>
+                                <div style={{ fontSize: '13px' }}>วันที่ {formatReportDate(requesterSignedAt)}</div>
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', width: '42%' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', borderBottom: '1px dotted #000', height: '78px', margin: '0 auto 8px', width: '90%' }}>

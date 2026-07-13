@@ -4,7 +4,7 @@ import html2canvas from 'html2canvas-pro';
 import jsPDF from 'jspdf';
 import SignatureCanvas from 'react-signature-canvas';
 import { Clock, Edit, CheckCircle2, Download, FileSpreadsheet, Trash2, Search, Filter, AlertTriangle, Eye, Printer, FileSignature, MessageSquare, Monitor, ChevronDown, X, XCircle, Copy, ChevronLeft, ChevronRight, Settings, Save, ImagePlus, Paperclip, Link2, Ticket, Eraser, ZoomIn, ZoomOut } from 'lucide-react';
-import { showBorrowReturnIssueLinkDialog, showCloseIssueLinkDialog } from '../utils/closeIssueLink';
+import { showBorrowReturnIssueLinkDialog, showCloseIssueLinkDialog, showWaitingPartsIssueLinkDialog } from '../utils/closeIssueLink';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Combobox } from './ui/combobox';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, Legend } from 'recharts';
@@ -206,8 +206,14 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
     }, [isRepairModalOpen, currentRepairIssue?.id]);
 
     useEffect(() => {
-        if (!isRepairModalOpen || editFormData.status !== 'Resolved' || editFormData.inspectorSign) return;
-        loadSignatureIntoCanvas(inspectorSignatureRef, currentAdmin?.signature, 150);
+        if (!isRepairModalOpen) return;
+        if (editFormData.inspectorSign) {
+            loadSignatureIntoCanvas(inspectorSignatureRef, editFormData.inspectorSign, 150);
+            return;
+        }
+        if (ASSIGNABLE_STATUSES.includes(editFormData.status)) {
+            loadSignatureIntoCanvas(inspectorSignatureRef, currentAdmin?.signature, 150);
+        }
     }, [currentAdmin?.signature, editFormData.inspectorSign, editFormData.status, isRepairModalOpen]);
 
     useEffect(() => {
@@ -684,21 +690,23 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
         if (shouldAssignCurrentAdmin) {
             fieldsToSave.assignedAdmin = activeAdminName;
         }
-        if (status === 'Resolved') {
+        if (ASSIGNABLE_STATUSES.includes(status)) {
             const inspectorName = (fieldsToSave.inspectorName || currentAdmin?.name || '').trim();
             const hasNewInspectorSignature = inspectorSignatureRef.current && !inspectorSignatureRef.current.isEmpty();
             const inspectorSign = hasNewInspectorSignature
                 ? inspectorSignatureRef.current.getCanvas().toDataURL('image/png')
-                : fieldsToSave.inspectorSign;
+                : fieldsToSave.inspectorSign || currentAdmin?.signature || '';
 
             if (!inspectorName || !fieldsToSave.inspectorPosition.trim() || (!inspectorSign && !isLegacyAdminRole)) {
-                Swal.fire('ข้อมูลผู้ตรวจสอบไม่ครบ', isLegacyAdminRole ? 'กรุณาระบุชื่อและตำแหน่งผู้ตรวจสอบก่อนเปลี่ยนสถานะเป็นเสร็จสิ้น' : 'กรุณาระบุชื่อ ตำแหน่ง และลายเซ็นผู้ตรวจสอบก่อนเปลี่ยนสถานะเป็นเสร็จสิ้น', 'warning');
+                Swal.fire('ข้อมูลผู้ตรวจสอบไม่ครบ', isLegacyAdminRole ? 'กรุณาระบุชื่อและตำแหน่งผู้ตรวจสอบก่อนรับงาน' : 'กรุณาระบุชื่อ ตำแหน่ง และลายเซ็นผู้ตรวจสอบก่อนรับงาน', 'warning');
                 return;
             }
 
             fieldsToSave.inspectorName = inspectorName;
             fieldsToSave.inspectorSign = inspectorSign;
-            if (hasNewInspectorSignature || !fieldsToSave.inspectorSignedAt) {
+            if (status === 'Resolved' && currentRepairIssue.status !== 'Resolved') {
+                fieldsToSave.inspectorSignedAt = new Date().toISOString();
+            } else if (hasNewInspectorSignature || !fieldsToSave.inspectorSignedAt) {
                 fieldsToSave.inspectorSignedAt = new Date().toISOString();
             }
         }
@@ -729,6 +737,9 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
             return;
         }
 
+        const shouldShowWaitingPartsLink = editFormData.status === 'Waiting for Parts' && !currentRepairIssue.waitingPartsUserSign;
+        let didShowWaitingPartsLink = false;
+
         if (editFormData.status && editFormData.status !== currentRepairIssue.status) {
             const adminName = shouldAssignCurrentAdmin ? activeAdminName : null;
             const didSaveStatus = await updateIssueStatus(currentRepairIssue.id, editFormData.status, adminName);
@@ -736,6 +747,22 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                 setIsUploadingEvidence(false);
                 return;
             }
+            if (shouldShowWaitingPartsLink) {
+                didShowWaitingPartsLink = true;
+                await showWaitingPartsIssueLinkDialog({
+                    ...currentRepairIssue,
+                    ...fieldsToSave,
+                    status: editFormData.status
+                });
+            }
+        }
+
+        if (shouldShowWaitingPartsLink && !didShowWaitingPartsLink) {
+            await showWaitingPartsIssueLinkDialog({
+                ...currentRepairIssue,
+                ...fieldsToSave,
+                status: editFormData.status
+            });
         }
 
         setPendingEvidenceFiles([]);
@@ -1272,6 +1299,16 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                                         <Link2 className="w-4 h-4" />
                                                     </button>
                                                 )}
+                                                {issue.status === 'Waiting for Parts' && !issue.waitingPartsUserSign && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => showWaitingPartsIssueLinkDialog(issue)}
+                                                        className="w-9 h-9 flex items-center justify-center text-pink-600 dark:text-pink-400 hover:text-white bg-pink-50 dark:bg-slate-800 hover:bg-pink-600 dark:hover:bg-pink-600 border border-pink-200/80 dark:border-slate-700 hover:border-pink-600 rounded-xl transition-all shadow-sm"
+                                                        title="คัดลอกลิงก์เซ็นรับทราบเปิด PR ขอซื้ออะไหล่"
+                                                    >
+                                                        <Link2 className="w-4 h-4" />
+                                                    </button>
+                                                )}
                                                 {isBorrowIssue(issue) && isIssueClosed(issue) && !issue.borrowReturnedAt && !issue.borrowReturnerSign && (
                                                     <button
                                                         type="button"
@@ -1792,6 +1829,70 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                 ></textarea>
                             </div>
 
+                            {false && (
+                                <div className="space-y-4 rounded-2xl border border-pink-100 bg-pink-50/50 p-4 dark:border-pink-800/60 dark:bg-pink-950/20">
+                                    <div className="flex items-start gap-2 text-sm font-bold text-pink-700 dark:text-pink-300">
+                                        <FileSignature className="mt-0.5 h-4 w-4" />
+                                        <div>
+                                            <div>ลายเซ็นผู้แจ้งรับทราบเพื่อเปิด PR ขอซื้ออะไหล่</div>
+                                            <p className="mt-1 text-xs font-medium text-pink-600/80 dark:text-pink-200/80">
+                                                ใช้ใบแจ้งซ่อมที่มีลายเซ็นนี้แนบเป็นหลักฐานประกอบการเปิด PR ขอซื้ออะไหล่
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                        <div className="space-y-1">
+                                            <label htmlFor="waiting-parts-user-name" className="ml-1 block text-sm font-semibold text-slate-700 dark:text-slate-300">
+                                                ชื่อผู้แจ้ง <span className="text-rose-500">*</span>
+                                            </label>
+                                            <input
+                                                id="waiting-parts-user-name"
+                                                type="text"
+                                                name="waitingPartsUserName"
+                                                value={editFormData.waitingPartsUserName}
+                                                onChange={handleEditFormChange}
+                                                className="w-full input-modern"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label htmlFor="waiting-parts-user-position" className="ml-1 block text-sm font-semibold text-slate-700 dark:text-slate-300">
+                                                ตำแหน่ง
+                                            </label>
+                                            <input
+                                                id="waiting-parts-user-position"
+                                                type="text"
+                                                name="waitingPartsUserPosition"
+                                                value={editFormData.waitingPartsUserPosition}
+                                                onChange={handleEditFormChange}
+                                                className="w-full input-modern"
+                                                placeholder="-"
+                                            />
+                                        </div>
+                                    </div>
+                                    {editFormData.waitingPartsUserSign && (
+                                        <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                                            มีลายเซ็นผู้แจ้งรับทราบการเปิด PR ขอซื้ออะไหล่เดิมแล้ว เซ็นใหม่เฉพาะเมื่อต้องการแทนที่
+                                        </p>
+                                    )}
+                                    <div>
+                                        <div className="mb-2 flex items-center justify-between">
+                                            <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">ลายเซ็นผู้แจ้ง</span>
+                                            <button
+                                                type="button"
+                                                onClick={() => waitingPartsSignatureRef.current?.clear()}
+                                                className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-rose-500"
+                                            >
+                                                <Eraser className="h-3.5 w-3.5" />
+                                                ล้างลายเซ็น
+                                            </button>
+                                        </div>
+                                        <div className="h-36 overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-950">
+                                            <SignatureCanvas ref={waitingPartsSignatureRef} canvasProps={{ className: 'h-full w-full', 'aria-label': 'ลายเซ็นผู้แจ้งรับทราบเพื่อเปิด PR ขอซื้ออะไหล่' }} />
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
                             <div className="rounded-2xl border border-cyan-100 bg-cyan-50/50 p-4 dark:border-cyan-800/60 dark:bg-cyan-900/20">
                                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                                     <div>
@@ -1879,7 +1980,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                 </div>
                             </div>
 
-                            {(editFormData.status === 'Resolved' || editFormData.inspectorSign) && (
+                            {(ASSIGNABLE_STATUSES.includes(editFormData.status) || editFormData.inspectorSign) && (
                                 <div className="space-y-4 rounded-2xl border border-indigo-100 bg-indigo-50/40 p-4 dark:border-indigo-800/60 dark:bg-indigo-900/20">
                                     <div className="flex items-center gap-2 text-sm font-bold text-indigo-700 dark:text-indigo-300">
                                         <FileSignature className="w-4 h-4" />

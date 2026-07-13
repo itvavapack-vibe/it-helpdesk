@@ -21,6 +21,10 @@ const columns = [
   ['inspector_position', 'VARCHAR(255) NULL AFTER inspector_name'],
   ['inspector_sign', 'MEDIUMTEXT NULL AFTER inspector_position'],
   ['inspector_signed_at', 'DATETIME NULL AFTER inspector_sign'],
+  ['waiting_parts_user_name', 'VARCHAR(255) NULL AFTER inspector_signed_at'],
+  ['waiting_parts_user_position', 'VARCHAR(255) NULL AFTER waiting_parts_user_name'],
+  ['waiting_parts_user_sign', 'MEDIUMTEXT NULL AFTER waiting_parts_user_position'],
+  ['waiting_parts_signed_at', 'DATETIME NULL AFTER waiting_parts_user_sign'],
 ]
 
 try {

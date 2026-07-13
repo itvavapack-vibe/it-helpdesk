@@ -18,6 +18,10 @@ export function buildBorrowReturnIssueLink(issueId) {
   return buildWorkflowLink('/return-borrow', 'returnBorrowIssue', issueId)
 }
 
+export function buildWaitingPartsIssueLink(issueId) {
+  return buildWorkflowLink('/waiting-parts-sign', 'waitingPartsIssue', issueId)
+}
+
 export function buildAcceptChangeRequestLink(requestId) {
   return buildWorkflowLink('/accept-change-request', 'acceptChangeReq', requestId)
 }
@@ -93,6 +97,39 @@ export async function showBorrowReturnIssueLinkDialog(issue) {
     cancelButtonText: 'ปิด',
     didOpen: () => {
       const input = document.getElementById('borrow-return-link')
+      input?.addEventListener('click', () => input.select())
+    },
+  })
+
+  if (result.isConfirmed) {
+    await copyText(link)
+    Swal.fire({
+      toast: true,
+      position: 'top-end',
+      icon: 'success',
+      title: 'คัดลอกลิงก์แล้ว',
+      showConfirmButton: false,
+      timer: 2000,
+    })
+  }
+  return link
+}
+
+export async function showWaitingPartsIssueLinkDialog(issue) {
+  const link = buildWaitingPartsIssueLink(issue.id)
+  const result = await Swal.fire({
+    title: 'ส่งลิงก์เซ็นรับทราบเปิด PR ขอซื้ออะไหล่',
+    html: `
+      <p class="text-sm text-slate-600 mb-3">สถานะ <b>รออะไหล่</b> แล้ว — ส่งลิงก์ให้ <b>${issue.name}</b> เซ็นรับทราบ เพื่อใช้ใบแจ้งซ่อมแนบหลักฐานเปิด PR ขอซื้ออะไหล่</p>
+      <input id="waiting-parts-link" readonly value="${link.replace(/"/g, '&quot;')}"
+        class="w-full text-xs p-3 rounded-lg border border-slate-200 bg-slate-50 font-mono text-indigo-700" />
+    `,
+    icon: 'success',
+    showCancelButton: true,
+    confirmButtonText: 'คัดลอกลิงก์',
+    cancelButtonText: 'ปิด',
+    didOpen: () => {
+      const input = document.getElementById('waiting-parts-link')
       input?.addEventListener('click', () => input.select())
     },
   })
