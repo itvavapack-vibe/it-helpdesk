@@ -20,7 +20,7 @@ import { toMysqlDateTime } from '../utils/dateTime';
 import { getStatusBadgeClass, getStatusIconClass } from '../utils/statusStyles';
 import { MAX_ATTACHMENT_FILES, uploadAttachmentFiles } from '../utils/fileUpload';
 
-const ITEMS_PER_PAGE = 10;
+const DEFAULT_ITEMS_PER_PAGE = 10;
 const PDF_ITEMS_PER_PAGE = 6;
 const STATUS_FLOW = ['Pending', 'In Progress', 'External Repair', 'Waiting for Parts', 'Resolved', 'Cancelled'];
 const ASSIGNABLE_STATUSES = ['In Progress', 'External Repair', 'Waiting for Parts', 'Resolved'];
@@ -98,6 +98,8 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
     const [filterDateTo, setFilterDateTo] = useState('');
     const [filterAdmin, setFilterAdmin] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize, setPageSize] = useState(DEFAULT_ITEMS_PER_PAGE);
+    const [pageSizeInput, setPageSizeInput] = useState(String(DEFAULT_ITEMS_PER_PAGE));
     const [isExportingPdf, setIsExportingPdf] = useState(false);
     const [isIssueListPdfPreviewOpen, setIsIssueListPdfPreviewOpen] = useState(false);
 
@@ -527,8 +529,56 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
     }, [issuesMatchingBaseFilters]);
 
     // Pagination
-    const totalPages = Math.ceil(filteredIssues.length / ITEMS_PER_PAGE);
-    const paginatedIssues = filteredIssues.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+    const totalPages = Math.max(1, Math.ceil(filteredIssues.length / pageSize));
+    const paginatedIssues = filteredIssues.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+    const firstVisibleIssue = filteredIssues.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+    const lastVisibleIssue = Math.min(currentPage * pageSize, filteredIssues.length);
+    const paginationPages = useMemo(() => {
+        if (totalPages <= 7) return Array.from({ length: totalPages }, (_, index) => index + 1);
+
+        const nearbyPages = new Set([1, totalPages, currentPage - 1, currentPage, currentPage + 1]);
+        if (currentPage <= 3) [2, 3, 4].forEach((page) => nearbyPages.add(page));
+        if (currentPage >= totalPages - 2) [totalPages - 3, totalPages - 2, totalPages - 1].forEach((page) => nearbyPages.add(page));
+
+        const pages = Array.from(nearbyPages)
+            .filter((page) => page >= 1 && page <= totalPages)
+            .sort((a, b) => a - b);
+
+        return pages.flatMap((page, index) => {
+            const previousPage = pages[index - 1];
+            return previousPage && page - previousPage > 1 ? [`gap-${previousPage}-${page}`, page] : [page];
+        });
+    }, [currentPage, totalPages]);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm, filterStatus, filterCategory, filterDateFrom, filterDateTo, filterAdmin, pageSize]);
+
+    useEffect(() => {
+        if (currentPage > totalPages) setCurrentPage(totalPages);
+    }, [currentPage, totalPages]);
+
+    const updatePageSizeInput = (value) => {
+        const digitsOnly = value.replace(/\D/g, '');
+        setPageSizeInput(digitsOnly);
+
+        const nextPageSize = Number.parseInt(digitsOnly, 10);
+        if (Number.isFinite(nextPageSize) && nextPageSize > 0) {
+            setPageSize(nextPageSize);
+        }
+    };
+
+    const normalizePageSizeInput = () => {
+        const nextPageSize = Number.parseInt(pageSizeInput, 10);
+        if (!Number.isFinite(nextPageSize) || nextPageSize <= 0) {
+            setPageSize(DEFAULT_ITEMS_PER_PAGE);
+            setPageSizeInput(String(DEFAULT_ITEMS_PER_PAGE));
+            return;
+        }
+
+        setPageSize(nextPageSize);
+        setPageSizeInput(String(nextPageSize));
+    };
 
     // Handlers for Repair Details Page
     const openRepairModal = (issue) => {
@@ -1162,7 +1212,24 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                     <h3 className="text-lg font-bold text-indigo-950 dark:text-indigo-100 flex items-center gap-2">
                         <div className="w-2 h-6 bg-indigo-500 rounded-full"></div> รายการแจ้งซ่อมทั้งหมด <span className="text-sm font-medium text-slate-500 dark:text-slate-300 bg-white dark:bg-slate-700 px-2 py-0.5 rounded-full border border-slate-200 dark:border-slate-600">{filteredIssues.length} รายการ</span>
                     </h3>
-                    <div className="flex gap-3">
+                    <div className="flex flex-wrap items-center justify-end gap-3">
+                        <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                            <span>แสดง</span>
+                            <input
+                                type="text"
+                                inputMode="numeric"
+                                pattern="[0-9]*"
+                                value={pageSizeInput}
+                                onChange={(event) => updatePageSizeInput(event.target.value)}
+                                onBlur={normalizePageSizeInput}
+                                onKeyDown={(event) => {
+                                    if (event.key === 'Enter') event.currentTarget.blur();
+                                }}
+                                className="h-8 w-20 rounded-full border border-slate-200 bg-slate-50 px-3 text-center text-sm font-semibold text-slate-700 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+                                aria-label="จำนวนรายการต่อหน้า"
+                            />
+                            <span>รายการ</span>
+                        </div>
                         <button
                             onClick={() => setIsIssueListPdfPreviewOpen(true)}
                             disabled={filteredIssues.length === 0}
@@ -1403,10 +1470,10 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                 </div>
 
                 {/* Pagination Controls */}
-                {totalPages > 1 && (
-                    <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between bg-white/40 dark:bg-slate-800/40">
+                {filteredIssues.length > 0 && (
+                    <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-700 flex flex-col gap-3 bg-white/40 dark:bg-slate-800/40 sm:flex-row sm:items-center sm:justify-between">
                         <p className="text-sm text-slate-500 dark:text-slate-400">
-                            แสดง {(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredIssues.length)} จาก {filteredIssues.length} รายการ
+                            แสดง {firstVisibleIssue}-{lastVisibleIssue} จาก {filteredIssues.length} รายการ
                         </p>
                         <div className="flex items-center gap-2">
                             <button
@@ -1416,17 +1483,23 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                             >
                                 <ChevronLeft className="w-4 h-4" />
                             </button>
-                            {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-                                <button
-                                    key={page}
-                                    onClick={() => setCurrentPage(page)}
-                                    className={`w-8 h-8 rounded-lg text-sm font-semibold transition-all ${currentPage === page
-                                        ? 'bg-indigo-600 text-white shadow-md'
-                                        : 'border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/40'
-                                        }`}
-                                >
-                                    {page}
-                                </button>
+                            {paginationPages.map(page => (
+                                typeof page === 'string' ? (
+                                    <span key={page} className="px-1 text-sm font-semibold text-slate-400 dark:text-slate-500">
+                                        ...
+                                    </span>
+                                ) : (
+                                    <button
+                                        key={page}
+                                        onClick={() => setCurrentPage(page)}
+                                        className={`w-8 h-8 rounded-lg text-sm font-semibold transition-all ${currentPage === page
+                                            ? 'bg-indigo-600 text-white shadow-md'
+                                            : 'border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/40'
+                                            }`}
+                                    >
+                                        {page}
+                                    </button>
+                                )
                             ))}
                             <button
                                 onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
