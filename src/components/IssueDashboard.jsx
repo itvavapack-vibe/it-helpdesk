@@ -10,6 +10,7 @@ import { Combobox } from './ui/combobox';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, Legend } from 'recharts';
 import PdfPreviewModal from './PdfPreviewModal';
 import MaintenanceReportPdfPreview from './MaintenanceReportPdfPreview';
+import IssueEvidenceReportPreview from './IssueEvidenceReportPreview';
 import Swal from 'sweetalert2';
 import { mysql, API_URL } from '../mysqlClient';
 import { ISSUE_CATEGORIES } from '../config/issueOptions';
@@ -17,16 +18,24 @@ import { canDeleteRecords, canManageAllWork } from '../config/roles';
 import { loadSignatureIntoCanvas } from '../utils/signatureCanvas';
 import { toMysqlDateTime } from '../utils/dateTime';
 import { getStatusBadgeClass, getStatusIconClass } from '../utils/statusStyles';
+import { MAX_ATTACHMENT_FILES, uploadAttachmentFiles } from '../utils/fileUpload';
 
 const ITEMS_PER_PAGE = 10;
 const PDF_ITEMS_PER_PAGE = 6;
 const STATUS_FLOW = ['Pending', 'In Progress', 'External Repair', 'Waiting for Parts', 'Resolved', 'Cancelled'];
 const ASSIGNABLE_STATUSES = ['In Progress', 'External Repair', 'Waiting for Parts', 'Resolved'];
+const IMAGE_ATTACHMENT_PATTERN = /\.(png|jpe?g|gif|webp|bmp|avif)(?:\?.*)?$/i;
 const BORROW_IT_CATEGORY = 'ยืมคอมพิวเตอร์/อุปกรณ์IT';
 
 const isIssueClosed = (issue) => issue?.status === 'Closed' || Boolean(issue?.userCloseSign || issue?.userClosedAt);
 const normalizeBorrowCategory = (value) => String(value || '').replace(/\s+/g, '');
 const isBorrowIssue = (issue) => normalizeBorrowCategory(issue?.category) === normalizeBorrowCategory(BORROW_IT_CATEGORY);
+const isImageAttachment = (file) => {
+    const mimeType = String(file?.type || file?.mimetype || file?.mimeType || '').toLowerCase();
+    const fileRef = String(file?.url || file?.path || file?.name || '').toLowerCase();
+    return mimeType.startsWith('image/') || IMAGE_ATTACHMENT_PATTERN.test(fileRef);
+};
+const getIssueEvidenceAttachments = (issue) => (Array.isArray(issue?.attachments) ? issue.attachments.filter(isImageAttachment) : []);
 
 const toDateTimeLocalValue = (value) => {
     if (!value) return '';
@@ -118,6 +127,10 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
     const [currentPdfIssue, setCurrentPdfIssue] = useState(null);
     const [isMaintenanceReportOpen, setIsMaintenanceReportOpen] = useState(false);
     const [currentMaintenanceIssue, setCurrentMaintenanceIssue] = useState(null);
+    const [isEvidenceReportOpen, setIsEvidenceReportOpen] = useState(false);
+    const [currentEvidenceIssue, setCurrentEvidenceIssue] = useState(null);
+    const [pendingEvidenceFiles, setPendingEvidenceFiles] = useState([]);
+    const [isUploadingEvidence, setIsUploadingEvidence] = useState(false);
     const [returnInfoIssue, setReturnInfoIssue] = useState(null);
 
     // Asset and User states for the repair details page
@@ -129,6 +142,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
     const [assetSearchTerm, setAssetSearchTerm] = useState('');
     const [isAssetDropdownOpen, setIsAssetDropdownOpen] = useState(false);
     const inspectorSignatureRef = useRef(null);
+    const evidenceInputRef = useRef(null);
     const repairListScrollYRef = useRef(0);
     const canDeleteRecord = canDeleteRecords(currentAdmin?.role);
     const canEditAllWork = canManageAllWork(currentAdmin?.role);
@@ -534,6 +548,8 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
             inspectorSignedAt: issue.inspectorSignedAt || ''
         });
         setAssetSearchTerm(issue.assetName || issue.assetId || '');
+        setPendingEvidenceFiles([]);
+        if (evidenceInputRef.current) evidenceInputRef.current.value = '';
         setIsRepairModalOpen(true);
         requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'auto' }));
     };
@@ -541,6 +557,9 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
     const closeRepairPage = () => {
         setIsRepairModalOpen(false);
         setCurrentRepairIssue(null);
+        setPendingEvidenceFiles([]);
+        setIsUploadingEvidence(false);
+        if (evidenceInputRef.current) evidenceInputRef.current.value = '';
         setIsAssetDropdownOpen(false);
         requestAnimationFrame(() => window.scrollTo({ top: repairListScrollYRef.current, behavior: 'auto' }));
     };
@@ -607,6 +626,41 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
         }
     };
 
+    const handleEvidenceFileChange = (event) => {
+        const selectedFiles = Array.from(event.target.files || []);
+        if (!selectedFiles.length) return;
+
+        const imageFiles = selectedFiles.filter((file) => file.type.startsWith('image/'));
+        if (imageFiles.length !== selectedFiles.length) {
+            Swal.fire('แนบได้เฉพาะรูปภาพ', 'กรุณาเลือกไฟล์รูปภาพเท่านั้น เช่น JPG, PNG หรือ WEBP', 'warning');
+        }
+
+        if (!imageFiles.length) {
+            event.target.value = '';
+            return;
+        }
+
+        setPendingEvidenceFiles((currentFiles) => {
+            const availableSlots = Math.max(0, MAX_ATTACHMENT_FILES - currentFiles.length);
+            if (availableSlots === 0) {
+                Swal.fire('แนบได้สูงสุด 5 รูปต่อครั้ง', 'กรุณาบันทึกชุดนี้ก่อน แล้วค่อยแนบรูปเพิ่มเติม', 'info');
+                return currentFiles;
+            }
+
+            if (imageFiles.length > availableSlots) {
+                Swal.fire('เลือกเกินจำนวนที่กำหนด', `ระบบจะเพิ่มเฉพาะ ${availableSlots} รูปแรก`, 'info');
+            }
+
+            return [...currentFiles, ...imageFiles.slice(0, availableSlots)];
+        });
+
+        event.target.value = '';
+    };
+
+    const removePendingEvidenceFile = (indexToRemove) => {
+        setPendingEvidenceFiles((currentFiles) => currentFiles.filter((_, index) => index !== indexToRemove));
+    };
+
     const handleSaveRepairDetails = async () => {
         if (!currentRepairIssue) return;
 
@@ -648,15 +702,44 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                 fieldsToSave.inspectorSignedAt = new Date().toISOString();
             }
         }
+
+        if (pendingEvidenceFiles.length > 0) {
+            setIsUploadingEvidence(true);
+            try {
+                const uploadedEvidenceFiles = await uploadAttachmentFiles(pendingEvidenceFiles, {
+                    uploadedBy: activeAdminName || 'IT',
+                    uploadedByType: 'it',
+                    source: 'repair_evidence',
+                    evidenceType: 'repair_photo'
+                });
+                fieldsToSave.attachments = [
+                    ...(Array.isArray(currentRepairIssue.attachments) ? currentRepairIssue.attachments : []),
+                    ...uploadedEvidenceFiles
+                ];
+            } catch (error) {
+                setIsUploadingEvidence(false);
+                Swal.fire('อัปโหลดรูปหลักฐานไม่สำเร็จ', error?.message || 'กรุณาลองใหม่อีกครั้ง', 'error');
+                return;
+            }
+        }
+
         const didSaveDetails = await updateIssueFullDetails(currentRepairIssue.id, fieldsToSave);
-        if (didSaveDetails === false) return;
+        if (didSaveDetails === false) {
+            setIsUploadingEvidence(false);
+            return;
+        }
 
         if (editFormData.status && editFormData.status !== currentRepairIssue.status) {
             const adminName = shouldAssignCurrentAdmin ? activeAdminName : null;
             const didSaveStatus = await updateIssueStatus(currentRepairIssue.id, editFormData.status, adminName);
-            if (didSaveStatus === false) return;
+            if (didSaveStatus === false) {
+                setIsUploadingEvidence(false);
+                return;
+            }
         }
 
+        setPendingEvidenceFiles([]);
+        setIsUploadingEvidence(false);
         closeRepairPage();
     };
 
@@ -710,6 +793,11 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
     const handleOpenMaintenanceReport = (issue) => {
         setCurrentMaintenanceIssue(issue);
         setIsMaintenanceReportOpen(true);
+    };
+
+    const handleOpenEvidenceReport = (issue) => {
+        setCurrentEvidenceIssue(issue);
+        setIsEvidenceReportOpen(true);
     };
 
     const handleReceiveBorrowReturn = async (issue) => {
@@ -1228,6 +1316,14 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                             >
                                                 <Printer className="w-4 h-4 group-hover:scale-110 transition-transform" />
                                             </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleOpenEvidenceReport(issue)}
+                                                className="w-9 h-9 flex items-center justify-center text-cyan-600 dark:text-cyan-400 hover:text-white bg-cyan-50 dark:bg-slate-800 hover:bg-cyan-600 dark:hover:bg-cyan-600 border border-cyan-200/80 dark:border-slate-700 hover:border-cyan-600 rounded-xl transition-all shadow-sm group"
+                                                title={`รายงานรูปหลักฐาน (${getIssueEvidenceAttachments(issue).length} รูป)`}
+                                            >
+                                                <ImagePlus className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                                            </button>
                                             {canDeleteRecord && (
                                                 <>
                                                     <div className="w-px h-5 bg-slate-200 dark:bg-slate-700 mx-1"></div>
@@ -1696,6 +1792,55 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                 ></textarea>
                             </div>
 
+                            <div className="rounded-2xl border border-cyan-100 bg-cyan-50/50 p-4 dark:border-cyan-800/60 dark:bg-cyan-900/20">
+                                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                    <div>
+                                        <div className="flex items-center gap-2 text-sm font-bold text-cyan-800 dark:text-cyan-200">
+                                            <ImagePlus className="h-4 w-4" />
+                                            รูปหลักฐานการซ่อมโดย IT
+                                        </div>
+                                        <p className="mt-1 text-xs text-cyan-700 dark:text-cyan-300">
+                                            แนบรูปหลักฐานการซ่อมก่อนส่งลิงก์ให้ผู้แจ้งเซ็นปิดจบงาน
+                                        </p>
+                                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                                            รูปหลักฐานในระบบแล้ว {getIssueEvidenceAttachments(currentRepairIssue).length} รูป
+                                        </p>
+                                    </div>
+                                    <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-cyan-200 bg-white px-4 py-2 text-sm font-semibold text-cyan-700 shadow-sm transition hover:bg-cyan-50 dark:border-cyan-700 dark:bg-slate-800 dark:text-cyan-300 dark:hover:bg-cyan-900/40">
+                                        <ImagePlus className="h-4 w-4" />
+                                        เพิ่มรูปหลักฐาน IT
+                                        <input
+                                            ref={evidenceInputRef}
+                                            type="file"
+                                            accept="image/*"
+                                            multiple
+                                            className="hidden"
+                                            onChange={handleEvidenceFileChange}
+                                        />
+                                    </label>
+                                </div>
+                                {pendingEvidenceFiles.length > 0 && (
+                                    <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                        {pendingEvidenceFiles.map((file, index) => (
+                                            <div key={`${file.name}-${file.lastModified}-${index}`} className="flex items-center justify-between gap-3 rounded-xl border border-cyan-100 bg-white px-3 py-2 text-sm dark:border-cyan-800/50 dark:bg-slate-900/70">
+                                                <div className="min-w-0">
+                                                    <div className="truncate font-semibold text-slate-700 dark:text-slate-200">{file.name}</div>
+                                                    <div className="text-xs text-slate-500 dark:text-slate-400">{(file.size / 1024 / 1024).toFixed(2)} MB</div>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => removePendingEvidenceFile(index)}
+                                                    className="shrink-0 rounded-full p-1 text-slate-400 transition hover:bg-rose-50 hover:text-rose-500 dark:hover:bg-rose-900/30"
+                                                    title="เอารูปนี้ออก"
+                                                >
+                                                    <X className="h-4 w-4" />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                 <div className="space-y-1">
                                     <label htmlFor="edit-operation-started-at" className="block text-sm font-semibold text-slate-700 dark:text-slate-300 ml-1">วันที่ดำเนินการ</label>
@@ -1798,7 +1943,8 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                 <button
                                     type="button"
                                     onClick={handleSaveRepairDetails}
-                                    className="flex-1 px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 shadow-md shadow-indigo-200 flex items-center justify-center gap-2 transform hover:-translate-y-0.5 transition-all"
+                                    disabled={isUploadingEvidence}
+                                    className="flex-1 px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 shadow-md shadow-indigo-200 flex items-center justify-center gap-2 transform hover:-translate-y-0.5 transition-all disabled:cursor-not-allowed disabled:opacity-60 disabled:transform-none"
                                 >
                                     <Save className="w-4 h-4" /> บันทึกข้อมูล
                                 </button>
@@ -2002,6 +2148,12 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                 isOpen={isMaintenanceReportOpen}
                 onClose={() => setIsMaintenanceReportOpen(false)}
                 formData={currentMaintenanceIssue}
+            />
+
+            <IssueEvidenceReportPreview
+                isOpen={isEvidenceReportOpen}
+                onClose={() => setIsEvidenceReportOpen(false)}
+                issue={currentEvidenceIssue}
             />
 
             {/* Read More Modal */}

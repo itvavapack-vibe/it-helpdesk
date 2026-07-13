@@ -810,7 +810,8 @@ function App() {
             user_close_position: closeData.position,
             user_close_note: closeData.note || '',
             user_close_sign: closeData.signature,
-            user_closed_at: toMysqlDateTime()
+            user_closed_at: toMysqlDateTime(),
+            ...(closeData.attachments !== undefined ? { attachments_json: JSON.stringify(closeData.attachments || []) } : {})
         };
 
         const { error } = await mysql
@@ -831,7 +832,8 @@ function App() {
             userClosePosition: closeData.position,
             userCloseNote: closeData.note || '',
             userCloseSign: closeData.signature,
-            userClosedAt: payload.user_closed_at
+            userClosedAt: payload.user_closed_at,
+            ...(closeData.attachments !== undefined ? { attachments: closeData.attachments || [] } : {})
         } : issue));
         return true;
     };

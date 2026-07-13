@@ -270,7 +270,7 @@ const AdminChangeRequests = ({ currentAdmin, initialStatusFilter = 'All', filter
             event.target.value = '';
             return;
         }
-        const oversizedFile = files.find((file) => file.size > MAX_ATTACHMENT_SIZE);
+        const oversizedFile = files.find((file) => file.size > MAX_ATTACHMENT_SIZE && !file.type.startsWith('image/'));
         if (oversizedFile) {
             Swal.fire('ไฟล์ใหญ่เกินไป', `ไฟล์ ${oversizedFile.name} มีขนาดเกิน 5 MB`, 'warning');
             event.target.value = '';

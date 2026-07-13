@@ -3,8 +3,9 @@ import { CheckCircle, ClipboardList, Monitor, X, ImagePlus } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Combobox } from './ui/combobox';
 import Swal from 'sweetalert2';
-import { mysql, API_URL } from '../mysqlClient';
+import { mysql } from '../mysqlClient';
 import { DEFAULT_ISSUE_CATEGORY, ISSUE_CATEGORIES } from '../config/issueOptions';
+import { uploadAttachmentFiles } from '../utils/fileUpload';
 
 const BORROW_IT_CATEGORY = 'ยืมคอมพิวเตอร์/อุปกรณ์IT';
 
@@ -201,24 +202,8 @@ const IssueForm = ({ addIssue, qrParams = null }) => {
         if (selectedFiles.length === 0) return [];
         
         setIsUploading(true);
-        const formData = new FormData();
-        selectedFiles.forEach(f => {
-            formData.append('files', f.file);
-        });
-
         try {
-            const response = await fetch(`${API_URL}/api/upload`, {
-                method: 'POST',
-                body: formData
-            });
-            const result = await response.json().catch(() => null);
-            if (shouldFallbackToInlineUpload(response, result)) {
-                return buildInlineAttachments();
-            }
-            if (!response.ok || result?.error) {
-                throw new Error(result?.error || response.statusText || 'Upload failed');
-            }
-            return result.data; // [{name, url}]
+            return await uploadAttachmentFiles(selectedFiles.map(({ file }) => file));
         } catch (error) {
             console.error('Upload failed:', error);
             throw error;

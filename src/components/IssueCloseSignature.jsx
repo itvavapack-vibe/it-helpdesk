@@ -97,6 +97,7 @@ const IssueCloseSignature = ({ issueId, onCloseIssue }) => {
         const signature = hasCanvasSignature
             ? signatureRef.current.getCanvas().toDataURL('image/png')
             : latestCloseSignature;
+
         const ok = await onCloseIssue(issue.id, {
             name: formData.name.trim(),
             position: formData.position.trim(),
