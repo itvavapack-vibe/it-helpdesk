@@ -21,6 +21,7 @@ import { getStatusBadgeClass, getStatusIconClass } from '../utils/statusStyles';
 import { MAX_ATTACHMENT_FILES, uploadAttachmentFiles } from '../utils/fileUpload';
 
 const DEFAULT_ITEMS_PER_PAGE = 10;
+const MIN_ITEMS_PER_PAGE = 5;
 const PDF_ITEMS_PER_PAGE = 6;
 const STATUS_FLOW = ['Pending', 'In Progress', 'External Repair', 'Waiting for Parts', 'Resolved', 'Cancelled'];
 const ASSIGNABLE_STATUSES = ['In Progress', 'External Repair', 'Waiting for Parts', 'Resolved'];
@@ -564,7 +565,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
 
         const nextPageSize = Number.parseInt(digitsOnly, 10);
         if (Number.isFinite(nextPageSize) && nextPageSize > 0) {
-            setPageSize(nextPageSize);
+            setPageSize(Math.max(MIN_ITEMS_PER_PAGE, nextPageSize));
         }
     };
 
@@ -576,8 +577,9 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
             return;
         }
 
-        setPageSize(nextPageSize);
-        setPageSizeInput(String(nextPageSize));
+        const normalizedPageSize = Math.max(MIN_ITEMS_PER_PAGE, nextPageSize);
+        setPageSize(normalizedPageSize);
+        setPageSizeInput(String(normalizedPageSize));
     };
 
     // Handlers for Repair Details Page
@@ -1251,6 +1253,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                     <table className="block xl:table w-full text-left border-collapse">
                         <thead className="hidden xl:table-header-group bg-slate-50/50 dark:bg-slate-700/50">
                             <tr>
+                                <th scope="col" className="px-4 xl:px-5 py-4 text-center text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200/60 dark:border-slate-600/60 w-20">ลำดับ</th>
                                 <th scope="col" className="px-4 xl:px-5 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200/60 dark:border-slate-600/60">วัน/เวลา</th>
                                 <th scope="col" className="px-4 xl:px-5 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200/60 dark:border-slate-600/60">ผู้แจ้ง / แผนก</th>
                                 <th scope="col" className="px-4 xl:px-5 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200/60 dark:border-slate-600/60">หมวดหมู่ / ความรุนแรง</th>
@@ -1262,15 +1265,23 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                         <tbody className="block xl:table-row-group bg-transparent xl:bg-white/40 dark:bg-transparent xl:dark:bg-slate-800/40 xl:divide-y xl:divide-slate-100 dark:divide-slate-700/50 space-y-4 xl:space-y-0 p-4 xl:p-0">
                             {isLoading ? (
                                 <tr className="block xl:table-row">
-                                    <td colSpan="6" className="block xl:table-cell px-6 py-16 text-center bg-white dark:bg-slate-800 rounded-2xl xl:rounded-none shadow-sm xl:shadow-none border border-slate-100 dark:border-slate-700 xl:border-none">
+                                    <td colSpan="7" className="block xl:table-cell px-6 py-16 text-center bg-white dark:bg-slate-800 rounded-2xl xl:rounded-none shadow-sm xl:shadow-none border border-slate-100 dark:border-slate-700 xl:border-none">
                                         <div className="flex flex-col items-center justify-center space-y-4">
                                             <div className="w-10 h-10 border-4 border-indigo-200 dark:border-indigo-900/50 border-t-indigo-600 dark:border-t-indigo-400 rounded-full animate-spin"></div>
                                             <p className="text-sm font-medium text-slate-500 dark:text-slate-400 animate-pulse">กำลังโหลดข้อมูลการแจ้งซ่อม...</p>
                                         </div>
                                     </td>
                                 </tr>
-                            ) : paginatedIssues.map((issue) => (
+                            ) : paginatedIssues.map((issue, index) => (
                                 <tr key={issue.id} className="block xl:table-row bg-white xl:bg-transparent dark:bg-slate-800 xl:dark:bg-transparent rounded-2xl xl:rounded-none shadow-sm xl:shadow-none border border-slate-100 dark:border-slate-700 xl:border-none hover:bg-indigo-50/40 dark:hover:bg-indigo-900/20 transition-colors relative">
+                                    <td className="block xl:table-cell px-4 xl:px-5 py-3 xl:py-4 text-center align-top border-b border-slate-100 dark:border-slate-700/50 xl:border-none">
+                                        <div className="flex items-center justify-between xl:justify-center">
+                                            <span className="xl:hidden text-xs font-semibold text-slate-500 dark:text-slate-400">ลำดับ</span>
+                                            <span className="inline-flex h-8 min-w-8 items-center justify-center rounded-full bg-slate-100 px-2 text-sm font-bold text-slate-700 dark:bg-slate-700 dark:text-slate-100">
+                                                {(currentPage - 1) * pageSize + index + 1}
+                                            </span>
+                                        </div>
+                                    </td>
                                     <td className="block xl:table-cell px-4 xl:px-5 py-3 xl:py-4 xl:whitespace-nowrap align-top border-b border-slate-100 dark:border-slate-700/50 xl:border-none">
                                         <div className="flex justify-between items-start xl:block">
                                             <div>
@@ -1460,7 +1471,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
 
                             {!isLoading && filteredIssues.length === 0 && (
                                 <tr className="block xl:table-row">
-                                    <td colSpan="6" className="block xl:table-cell px-6 py-12 text-center text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 rounded-2xl xl:rounded-none shadow-sm xl:shadow-none border border-slate-100 dark:border-slate-700 xl:border-none">
+                                    <td colSpan="7" className="block xl:table-cell px-6 py-12 text-center text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 rounded-2xl xl:rounded-none shadow-sm xl:shadow-none border border-slate-100 dark:border-slate-700 xl:border-none">
                                         ไม่พบรายการแจ้งซ่อมที่ค้นหา
                                     </td>
                                 </tr>
