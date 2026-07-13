@@ -1256,9 +1256,9 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                             <col className="hidden xl:table-column xl:w-[12%]" />
                             <col className="hidden xl:table-column xl:w-[16%]" />
                             <col className="hidden xl:table-column xl:w-[14%]" />
-                            <col className="hidden xl:table-column xl:w-[29%] 2xl:w-[32%]" />
+                            <col className="hidden xl:table-column xl:w-[27%] 2xl:w-[29%]" />
                             <col className="hidden xl:table-column xl:w-[9%] 2xl:w-[8%]" />
-                            <col className="hidden xl:table-column xl:w-[15%] 2xl:w-[13%]" />
+                            <col className="hidden xl:table-column xl:w-[17%] 2xl:w-[16%]" />
                         </colgroup>
                         <thead className="hidden xl:table-header-group bg-slate-50/50 dark:bg-slate-700/50">
                             <tr>
@@ -1370,12 +1370,12 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                     <td className="hidden xl:table-cell px-4 xl:px-5 py-4 whitespace-nowrap align-top">
                                         {getStatusBadge(issue.status, isIssueClosed(issue))}
                                     </td>
-                                    <td className="block xl:table-cell px-4 xl:px-5 py-3 xl:py-4 whitespace-nowrap text-right text-sm font-medium align-top bg-slate-50/50 dark:bg-slate-700/20 xl:bg-transparent rounded-b-2xl xl:rounded-none">
-                                        <div className="flex items-center justify-between xl:justify-end gap-2">
+                                    <td className="block xl:table-cell px-4 xl:px-5 py-3 xl:py-4 text-right text-sm font-medium align-top bg-slate-50/50 dark:bg-slate-700/20 xl:bg-transparent rounded-b-2xl xl:rounded-none">
+                                        <div className="flex items-center justify-between xl:justify-end gap-3">
                                             <div className="xl:hidden text-left flex-1 items-center flex">
                                                 <span className="opacity-0 w-0"></span>
                                             </div>
-                                            <div className="flex items-center justify-end gap-2">
+                                            <div className="flex flex-wrap items-center justify-end gap-2.5">
                                                 {issue.status === 'Resolved' && !isIssueClosed(issue) && (
                                                     <button
                                                         type="button"
@@ -1450,7 +1450,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                             </button>
                                             {canDeleteRecord && (
                                                 <>
-                                                    <div className="w-px h-5 bg-slate-200 dark:bg-slate-700 mx-1"></div>
+                                                    <div className="hidden 2xl:block w-px h-5 bg-slate-200 dark:bg-slate-700 mx-1"></div>
                                                     <button
                                                         onClick={() => handleDelete(issue.id)}
                                                         className="w-9 h-9 flex items-center justify-center text-rose-600 dark:text-rose-400 hover:text-white bg-rose-50 dark:bg-slate-800 hover:bg-rose-600 dark:hover:bg-rose-600 border border-rose-200/80 dark:border-slate-700 hover:border-rose-600 rounded-xl transition-all shadow-sm group"
@@ -1462,7 +1462,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                             )}
                                             {(!canDeleteRecord || canEditAllWork) && issue.status !== 'Cancelled' && issue.status !== 'Closed' && (
                                                 <>
-                                                    <div className="w-px h-5 bg-slate-200 dark:bg-slate-700 mx-1"></div>
+                                                    <div className="hidden 2xl:block w-px h-5 bg-slate-200 dark:bg-slate-700 mx-1"></div>
                                                     <button
                                                         onClick={() => handleCancelIssue(issue)}
                                                         className="w-9 h-9 flex items-center justify-center text-rose-600 dark:text-rose-400 hover:text-white bg-rose-50 dark:bg-slate-800 hover:bg-rose-600 dark:hover:bg-rose-600 border border-rose-200/80 dark:border-slate-700 hover:border-rose-600 rounded-xl transition-all shadow-sm group"
