@@ -20,6 +20,7 @@
     "migrate:employee-position": "node scripts/run-migrate-employee-position.mjs",
     "migrate:employee-transfer-history": "node scripts/run-migrate-employee-transfer-history.mjs",
     "migrate:controlled-area-logs": "node scripts/run-migrate-controlled-area-logs.mjs",
+    "migrate:asset-pm-records": "node scripts/run-migrate-asset-pm-records.mjs",
     "migrate:employee-name-en": "node scripts/run-migrate-employee-name-en.mjs",
     "import:employees": "node scripts/import-employees-xlsx.mjs",
     "import:access-requests": "node scripts/import-access-requests-xlsx.mjs",

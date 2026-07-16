@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { CheckCircle, ClipboardList, Monitor, X, ImagePlus } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Combobox } from './ui/combobox';
@@ -34,6 +34,8 @@ const IssueForm = ({ addIssue, qrParams = null }) => {
     });
     const [selectedFiles, setSelectedFiles] = useState([]);
     const [isUploading, setIsUploading] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const submitLockRef = useRef(false);
     const [computers, setComputers] = useState([]);
     const [glpiUsers, setGlpiUsers] = useState([]);
     const [glpiUsersRaw, setGlpiUsersRaw] = useState([]); // เก็บ object เต็มไว้แปลง AD Username เป็น ชื่อจริง
@@ -346,6 +348,7 @@ const IssueForm = ({ addIssue, qrParams = null }) => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (submitLockRef.current || isSubmitting) return;
         if (!formData.name || !formData.department || !formData.description) {
             Swal.fire({
                 title: 'ข้อมูลไม่ครบถ้วน',
@@ -399,6 +402,8 @@ const IssueForm = ({ addIssue, qrParams = null }) => {
         });
 
         if (confirm.isConfirmed) {
+            submitLockRef.current = true;
+            setIsSubmitting(true);
             try {
                 // Upload files first
                 const attachments = await uploadFiles();
@@ -437,6 +442,9 @@ const IssueForm = ({ addIssue, qrParams = null }) => {
                 });
             } catch (error) {
                 Swal.fire('Error', 'ไม่สามารถส่งข้อมูลได้: ' + error.message, 'error');
+            } finally {
+                submitLockRef.current = false;
+                setIsSubmitting(false);
             }
         }
     };
@@ -611,7 +619,7 @@ const IssueForm = ({ addIssue, qrParams = null }) => {
                                         accept="image/*"
                                         className="hidden"
                                         onChange={handleFileChange}
-                                        disabled={isUploading}
+                                        disabled={isUploading || isSubmitting}
                                     />
                                 </label>
                             )}
@@ -621,10 +629,10 @@ const IssueForm = ({ addIssue, qrParams = null }) => {
                     <div className="pt-6 flex justify-center">
                         <button
                             type="submit"
-                            disabled={isUploading}
+                            disabled={isUploading || isSubmitting}
                             className="app-primary-button w-full sm:w-auto text-white font-semibold py-3 px-8 rounded-xl shadow-lg shadow-indigo-200/50 dark:shadow-indigo-900/30 transform hover:-translate-y-0.5 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
                         >
-                            {isUploading ? (
+                            {isUploading || isSubmitting ? (
                                 <>
                                     <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                                     กำลังส่งข้อมูล...

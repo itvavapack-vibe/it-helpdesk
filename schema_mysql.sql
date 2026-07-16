@@ -220,6 +220,30 @@ CREATE TABLE IF NOT EXISTS assets (
 CREATE INDEX idx_assets_glpi_id ON assets(glpi_id);
 CREATE INDEX idx_assets_name ON assets(name);
 
+-- Asset PM records (FMIT08)
+CREATE TABLE IF NOT EXISTS asset_pm_records (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  asset_glpi_id INT NOT NULL,
+  asset_name VARCHAR(512),
+  asset_code VARCHAR(128),
+  serial VARCHAR(128),
+  user_name VARCHAR(255),
+  location_name VARCHAR(512),
+  source_type VARCHAR(128),
+  pm_date DATE NOT NULL,
+  inspector_name VARCHAR(255) NOT NULL,
+  overall_status VARCHAR(50) NOT NULL DEFAULT 'Pass',
+  checklist_json LONGTEXT NOT NULL,
+  note TEXT,
+  next_due_date DATE,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_asset_pm_records_asset_glpi_id ON asset_pm_records(asset_glpi_id);
+CREATE INDEX idx_asset_pm_records_pm_date ON asset_pm_records(pm_date);
+CREATE INDEX idx_asset_pm_records_overall_status ON asset_pm_records(overall_status);
+
 -- GLPI Users (synced)
 CREATE TABLE IF NOT EXISTS glpi_users (
   id INT NOT NULL PRIMARY KEY,

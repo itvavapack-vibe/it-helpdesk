@@ -1,5 +1,6 @@
 import {
     ClipboardList,
+    ClipboardCheck,
     FileCheck2,
     Home,
     Key,
@@ -35,6 +36,16 @@ const ALL_IT_ROLES = [
     NAV_ROLES.SUPERADMIN,
 ];
 
+const ASSET_PM_SUB_TAB = {
+    id: 'asset_pm',
+    parentId: 'assets',
+    label: 'PM คอมพิวเตอร์',
+    icon: ClipboardCheck,
+    iconColor: 'text-teal-600 dark:text-teal-300',
+    iconAura: '20, 184, 166',
+    roles: ALL_IT_ROLES,
+};
+
 export const normalizeRole = (admin) => {
     if (!admin) return NAV_ROLES.PUBLIC;
     return normalizeRoleValue(admin.role);
@@ -64,7 +75,7 @@ export const HOME_QUICK_ACTIONS = [
     { id: 'admin', label: 'Admin', icon: Settings, tab: 'admin', roles: [...ALL_IT_ROLES, NAV_ROLES.HR] },
 ];
 
-export const ADMIN_SUB_TABS = [
+const BASE_ADMIN_SUB_TABS = [
     { id: 'stats', label: 'Dashboard', icon: TrendingUp, iconColor: 'text-orange-600 dark:text-orange-300', iconAura: '249, 115, 22', roles: ALL_IT_ROLES },
     { id: 'issues', label: 'แจ้งซ่อม/ปัญหา/ขอติดตั้ง', icon: Ticket, iconColor: 'text-rose-600 dark:text-rose-300', iconAura: '244, 63, 94', roles: ALL_IT_ROLES },
     { id: 'assets', label: 'ทรัพย์สิน', icon: Monitor, iconColor: 'text-sky-600 dark:text-sky-300', iconAura: '14, 165, 233', roles: ALL_IT_ROLES },
@@ -75,3 +86,7 @@ export const ADMIN_SUB_TABS = [
     { id: 'employees', label: 'พนักงาน', icon: Users, iconColor: 'text-blue-600 dark:text-blue-300', iconAura: '37, 99, 235', roles: [...ALL_IT_ROLES, NAV_ROLES.HR] },
     { id: 'users', label: 'ผู้ใช้งาน', icon: Users, iconColor: 'text-fuchsia-600 dark:text-fuchsia-300', iconAura: '192, 38, 211', roles: [NAV_ROLES.SUPERADMIN] },
 ];
+
+export const ADMIN_SUB_TABS = BASE_ADMIN_SUB_TABS.flatMap((item) =>
+    item.id === 'assets' ? [item, ASSET_PM_SUB_TAB] : [item],
+);

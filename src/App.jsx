@@ -74,6 +74,7 @@ const TAB_PATHS = {
 const ADMIN_SUB_TAB_PATHS = {
     issues: 'issues',
     assets: 'assets',
+    asset_pm: 'assets/pm',
     access_requests: 'access-requests',
     change_requests: 'change-requests',
     approved_documents: 'approved-documents',
@@ -98,6 +99,7 @@ const collectQueueStatuses = (...queueMaps) => [
 const ACCESS_QUEUE_FETCH_STATUSES = collectQueueStatuses(ACCESS_QUEUE_STATUS_BY_ROLE, APPROVAL_QUEUE_STATUS_BY_ROLE);
 const CHANGE_QUEUE_FETCH_STATUSES = collectQueueStatuses(CHANGE_QUEUE_STATUS_BY_ROLE, APPROVAL_QUEUE_STATUS_BY_ROLE);
 const SERVER_ROOM_QUEUE_FETCH_STATUSES = ['Pending_Approval'];
+const ISSUE_DUPLICATE_WINDOW_MS = 2 * 60 * 1000;
 const PageLoadingFallback = () => (
     <div className="glass-card rounded-3xl p-10 text-center text-sm font-semibold text-slate-500 dark:text-slate-400">
         กำลังโหลดหน้า...
@@ -134,6 +136,19 @@ const updateBrowserPath = (path, { replace = false } = {}) => {
     if (normalizePathname(window.location.pathname) === normalizePathname(path) && !window.location.search) return;
     window.history[replace ? 'replaceState' : 'pushState']({}, document.title, path);
 };
+
+const normalizeIssueDuplicateValue = (value) =>
+    String(value ?? '').trim().replace(/\s+/g, ' ').toLowerCase();
+
+const buildIssueDuplicateKey = (issue) => [
+    issue.name,
+    issue.department,
+    issue.category,
+    issue.severity,
+    issue.description,
+    issue.assetId ?? issue.asset_id ?? '',
+    issue.assetName ?? issue.asset_name ?? '',
+].map(normalizeIssueDuplicateValue).join('|');
 
 function App() {
     const [activeTab, setActiveTab] = useState(() => {
@@ -623,6 +638,36 @@ function App() {
     };
 
     const addIssue = async (newIssue) => {
+        const createdAt = new Date(newIssue.createdAt || Date.now());
+        const duplicateWindowStart = new Date(createdAt.getTime() - ISSUE_DUPLICATE_WINDOW_MS);
+        const duplicateKey = buildIssueDuplicateKey(newIssue);
+        const { data: recentIssues, error: duplicateCheckError } = await mysql
+            .from('issues')
+            .select('id, name, department, category, severity, description, asset_id, asset_name, created_at')
+            .gte('created_at', toMysqlDateTime(duplicateWindowStart))
+            .lte('created_at', toMysqlDateTime(new Date(createdAt.getTime() + 5000)))
+            .limit(50);
+
+        if (duplicateCheckError) {
+            console.warn('Duplicate issue check failed:', duplicateCheckError);
+        } else {
+            const duplicateIssue = (recentIssues || []).find((issue) => buildIssueDuplicateKey(issue) === duplicateKey);
+            if (duplicateIssue) {
+                setIssues((currentIssues) => {
+                    if (currentIssues.some((issue) => issue.id === duplicateIssue.id)) return currentIssues;
+                    return [{
+                        ...newIssue,
+                        id: duplicateIssue.id,
+                        repairDetails: '',
+                        assignedAdmin: null,
+                        attachments: newIssue.attachments || [],
+                        createdAt: duplicateIssue.created_at || newIssue.createdAt,
+                    }, ...currentIssues];
+                });
+                return duplicateIssue.id;
+            }
+        }
+
         const { generatedTicket: issueId } = await insertWithMonthlyDocumentNumber({
             mysql,
             table: 'issues',
@@ -658,6 +703,7 @@ function App() {
 
         // Send Telegram notification
         notifyNewIssue(issueWithId);
+        return issueId;
     };
 
     const updateIssueRepairDetails = async (id, details) => {
@@ -1143,6 +1189,8 @@ function App() {
                             />
                         ) : selectedAdminSubTab === 'assets' ? (
                             <AssetInventory issues={issues} />
+                        ) : selectedAdminSubTab === 'asset_pm' ? (
+                            <AssetInventory issues={issues} view="pm" />
                         ) : selectedAdminSubTab === 'access_requests' ? (
                             <AdminAccessRequests currentAdmin={isAdminAuth} />
                         ) : selectedAdminSubTab === 'change_requests' ? (
@@ -1257,23 +1305,24 @@ function App() {
                                 const Icon = item.icon;
                                 const pendingCount = getAdminNavPendingCount(item.id);
                                 const isSelected = activeTab === 'admin' && selectedAdminSubTab === item.id;
+                                const isChild = Boolean(item.parentId);
                                 return (
                                     <button
                                         key={item.id}
                                         type="button"
                                         onClick={() => handleAdminSidebarClick(item)}
-                                        className={`sidebar-nav-button ${isSelected ? 'is-active' : ''} w-full min-w-0 rounded-xl py-2.5 text-left transition-colors flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3'} ${isSelected ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200 dark:bg-indigo-500 dark:shadow-indigo-950/40' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-900'}`}
+                                        className={`sidebar-nav-button ${isSelected ? 'is-active' : ''} w-full min-w-0 rounded-xl text-left transition-colors flex items-center ${isSidebarCollapsed ? 'justify-center px-2 py-2.5' : `${isChild ? 'ml-7 w-[calc(100%-1.75rem)] gap-2 px-3 py-2 text-sm' : 'gap-3 px-3 py-2.5'}`} ${isSelected ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200 dark:bg-indigo-500 dark:shadow-indigo-950/40' : isChild ? 'text-slate-500 hover:bg-sky-50 hover:text-sky-700 dark:text-slate-400 dark:hover:bg-sky-950/30 dark:hover:text-sky-200' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-900'}`}
                                         title={isSidebarCollapsed ? item.label : undefined}
                                     >
                                         <span className="sidebar-nav-icon relative shrink-0" style={{ '--sidebar-icon-aura': item.iconAura || '99, 102, 241' }}>
-                                            <Icon className={`h-5 w-5 ${item.iconColor || ''}`} strokeWidth={isSelected ? 2.5 : 2} />
+                                            <Icon className={`${isChild && !isSidebarCollapsed ? 'h-4 w-4' : 'h-5 w-5'} ${item.iconColor || ''}`} strokeWidth={isSelected ? 2.5 : 2} />
                                             {pendingCount > 0 && (
                                                 <span className="absolute -right-2.5 -top-2.5 min-w-4 h-4 px-1 rounded-full bg-red-500 text-white text-[10px] leading-4 text-center shadow">
                                                     {pendingCount > 99 ? '99+' : pendingCount}
                                                 </span>
                                             )}
                                         </span>
-                                        <span className={`truncate text-sm font-semibold ${isSidebarCollapsed ? 'hidden' : ''}`}>{item.label}</span>
+                                        <span className={`truncate ${isChild ? 'text-xs' : 'text-sm'} font-semibold ${isSidebarCollapsed ? 'hidden' : ''}`}>{item.label}</span>
                                     </button>
                                 );
                             })}
