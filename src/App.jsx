@@ -46,6 +46,7 @@ const SESSION_REFRESH_THROTTLE_MS = 30 * 1000;
 
 const ACTIVE_TAB_STORAGE_KEY = 'it-helpdesk-active-tab';
 const ADMIN_SUB_TAB_STORAGE_KEY = 'it-helpdesk-admin-sub-tab';
+const ADMIN_SUBMENU_STORAGE_KEY = 'it-helpdesk-admin-submenus-open';
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'it-helpdesk-sidebar-collapsed';
 const TRANSIENT_TABS = new Set(['manager_approval', 'change_manager_approval', 'it_manager_approval', 'issue_close', 'issue_waiting_parts', 'borrow_return', 'change_request_acceptance', 'access_request_acknowledgement']);
 const AUTH_HIDDEN_MAIN_NAV_ITEMS = new Set(['user', 'access_request', 'change_request', 'controlled_area']);
@@ -217,6 +218,13 @@ function App() {
     const [isMainMoreOpen, setIsMainMoreOpen] = useState(false);
     const [isAdminMoreOpen, setIsAdminMoreOpen] = useState(false);
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === 'true');
+    const [openAdminSubmenus, setOpenAdminSubmenus] = useState(() => {
+        try {
+            return JSON.parse(localStorage.getItem(ADMIN_SUBMENU_STORAGE_KEY) || '{"assets":true}');
+        } catch {
+            return { assets: true };
+        }
+    });
     const [isSavingProfile, setIsSavingProfile] = useState(false);
     const [profileForm, setProfileForm] = useState({ username: '', name: '', position: '', signature: '', password: '' });
     const [approvalQueues, setApprovalQueues] = useState({ access: [], change: [], serverRoom: [] });
@@ -230,6 +238,14 @@ function App() {
         (!isAdminAuth || !AUTH_HIDDEN_MAIN_NAV_ITEMS.has(item.id))
     );
     const visibleAdminSubTabs = ADMIN_SUB_TABS.filter((item) => canSee(item.roles, currentRole));
+    const visibleAdminRootTabs = visibleAdminSubTabs.filter((item) => !item.parentId);
+    const adminSubTabsByParent = visibleAdminSubTabs.reduce((groups, item) => {
+        if (!item.parentId) return groups;
+        return {
+            ...groups,
+            [item.parentId]: [...(groups[item.parentId] || []), item],
+        };
+    }, {});
     const mainBottomItems = visibleMainNavItems.length > BOTTOM_NAV_VISIBLE_LIMIT
         ? visibleMainNavItems.slice(0, BOTTOM_NAV_VISIBLE_LIMIT)
         : visibleMainNavItems;
@@ -294,6 +310,10 @@ function App() {
     useEffect(() => {
         localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, String(isSidebarCollapsed));
     }, [isSidebarCollapsed]);
+
+    useEffect(() => {
+        localStorage.setItem(ADMIN_SUBMENU_STORAGE_KEY, JSON.stringify(openAdminSubmenus));
+    }, [openAdminSubmenus]);
 
     useEffect(() => {
         if (!isAdminAuth || TRANSIENT_TABS.has(activeTab)) return;
@@ -1261,6 +1281,13 @@ function App() {
         handleAdminBottomNavClick(item);
     };
 
+    const toggleAdminSubmenu = (itemId) => {
+        setOpenAdminSubmenus((current) => ({
+            ...current,
+            [itemId]: !current[itemId],
+        }));
+    };
+
     return (
         <div className="min-h-screen font-sans text-slate-800 dark:text-slate-200 flex flex-col relative w-full overflow-x-hidden">
             {!isStandaloneSignaturePage && <aside className={`hidden xl:flex fixed inset-y-0 left-0 z-[60] flex-col border-r border-slate-200/80 bg-white/95 py-5 shadow-xl shadow-slate-200/50 backdrop-blur-xl transition-[width,padding] duration-300 dark:border-slate-800 dark:bg-slate-950/95 dark:shadow-slate-950/40 ${isSidebarCollapsed ? 'w-20 px-2' : 'w-80 px-5'}`}>
@@ -1301,29 +1328,75 @@ function App() {
                     {isAdminAuth && visibleAdminSubTabs.length > 0 && (
                         <div className={`${isSidebarCollapsed ? 'mt-3 border-t border-slate-100 pt-3 dark:border-slate-800' : 'mt-6'} space-y-1`}>
                             <p className={`px-3 pb-2 text-[11px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500 ${isSidebarCollapsed ? 'hidden' : ''}`}>Admin Menu</p>
-                            {visibleAdminSubTabs.map((item) => {
+                            {visibleAdminRootTabs.map((item) => {
                                 const Icon = item.icon;
+                                const childItems = adminSubTabsByParent[item.id] || [];
+                                const hasChildren = childItems.length > 0;
+                                const isGroupOpen = Boolean(openAdminSubmenus[item.id]);
+                                const isChildSelected = childItems.some((child) => selectedAdminSubTab === child.id);
                                 const pendingCount = getAdminNavPendingCount(item.id);
                                 const isSelected = activeTab === 'admin' && selectedAdminSubTab === item.id;
-                                const isChild = Boolean(item.parentId);
+                                const isGroupActive = isSelected || (activeTab === 'admin' && isChildSelected);
                                 return (
-                                    <button
-                                        key={item.id}
-                                        type="button"
-                                        onClick={() => handleAdminSidebarClick(item)}
-                                        className={`sidebar-nav-button ${isSelected ? 'is-active' : ''} w-full min-w-0 rounded-xl text-left transition-colors flex items-center ${isSidebarCollapsed ? 'justify-center px-2 py-2.5' : `${isChild ? 'ml-7 w-[calc(100%-1.75rem)] gap-2 px-3 py-2 text-sm' : 'gap-3 px-3 py-2.5'}`} ${isSelected ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200 dark:bg-indigo-500 dark:shadow-indigo-950/40' : isChild ? 'text-slate-500 hover:bg-sky-50 hover:text-sky-700 dark:text-slate-400 dark:hover:bg-sky-950/30 dark:hover:text-sky-200' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-900'}`}
-                                        title={isSidebarCollapsed ? item.label : undefined}
-                                    >
-                                        <span className="sidebar-nav-icon relative shrink-0" style={{ '--sidebar-icon-aura': item.iconAura || '99, 102, 241' }}>
-                                            <Icon className={`${isChild && !isSidebarCollapsed ? 'h-4 w-4' : 'h-5 w-5'} ${item.iconColor || ''}`} strokeWidth={isSelected ? 2.5 : 2} />
-                                            {pendingCount > 0 && (
-                                                <span className="absolute -right-2.5 -top-2.5 min-w-4 h-4 px-1 rounded-full bg-red-500 text-white text-[10px] leading-4 text-center shadow">
-                                                    {pendingCount > 99 ? '99+' : pendingCount}
+                                    <div key={item.id} className="space-y-1">
+                                        <div className={`flex min-w-0 items-center gap-1 ${isSidebarCollapsed ? 'justify-center' : ''}`}>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleAdminSidebarClick(item)}
+                                                className={`sidebar-nav-button ${isGroupActive ? 'is-active' : ''} min-w-0 flex-1 rounded-xl py-2.5 text-left transition-colors flex items-center ${isSidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-3'} ${isSelected ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200 dark:bg-indigo-500 dark:shadow-indigo-950/40' : isGroupActive ? 'bg-sky-50 text-sky-700 dark:bg-sky-950/30 dark:text-sky-200' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-900'}`}
+                                                title={isSidebarCollapsed ? item.label : undefined}
+                                            >
+                                                <span className="sidebar-nav-icon relative shrink-0" style={{ '--sidebar-icon-aura': item.iconAura || '99, 102, 241' }}>
+                                                    <Icon className={`h-5 w-5 ${item.iconColor || ''}`} strokeWidth={isGroupActive ? 2.5 : 2} />
+                                                    {pendingCount > 0 && (
+                                                        <span className="absolute -right-2.5 -top-2.5 min-w-4 h-4 px-1 rounded-full bg-red-500 text-white text-[10px] leading-4 text-center shadow">
+                                                            {pendingCount > 99 ? '99+' : pendingCount}
+                                                        </span>
+                                                    )}
                                                 </span>
+                                                <span className={`truncate text-sm font-semibold ${isSidebarCollapsed ? 'hidden' : ''}`}>{item.label}</span>
+                                            </button>
+                                            {hasChildren && !isSidebarCollapsed && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => toggleAdminSubmenu(item.id)}
+                                                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-slate-100 hover:text-sky-600 dark:hover:bg-slate-900 dark:hover:text-sky-300 ${isGroupOpen ? 'text-sky-600 dark:text-sky-300' : ''}`}
+                                                    aria-label={isGroupOpen ? `หุบเมนูย่อย ${item.label}` : `กางเมนูย่อย ${item.label}`}
+                                                    aria-expanded={isGroupOpen}
+                                                >
+                                                    <ChevronDown className={`h-4 w-4 transition-transform ${isGroupOpen ? 'rotate-180' : ''}`} />
+                                                </button>
                                             )}
-                                        </span>
-                                        <span className={`truncate ${isChild ? 'text-xs' : 'text-sm'} font-semibold ${isSidebarCollapsed ? 'hidden' : ''}`}>{item.label}</span>
-                                    </button>
+                                        </div>
+
+                                        {hasChildren && !isSidebarCollapsed && isGroupOpen && (
+                                            <div className="ml-7 space-y-1 border-l border-slate-200 pl-3 dark:border-slate-800">
+                                                {childItems.map((child) => {
+                                                    const ChildIcon = child.icon;
+                                                    const childPendingCount = getAdminNavPendingCount(child.id);
+                                                    const isChildActive = activeTab === 'admin' && selectedAdminSubTab === child.id;
+                                                    return (
+                                                        <button
+                                                            key={child.id}
+                                                            type="button"
+                                                            onClick={() => handleAdminSidebarClick(child)}
+                                                            className={`sidebar-nav-button ${isChildActive ? 'is-active' : ''} flex w-full min-w-0 items-center gap-2 rounded-xl px-3 py-2 text-left transition-colors ${isChildActive ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200 dark:bg-indigo-500 dark:shadow-indigo-950/40' : 'text-slate-500 hover:bg-sky-50 hover:text-sky-700 dark:text-slate-400 dark:hover:bg-sky-950/30 dark:hover:text-sky-200'}`}
+                                                        >
+                                                            <span className="sidebar-nav-icon relative shrink-0" style={{ '--sidebar-icon-aura': child.iconAura || '20, 184, 166' }}>
+                                                                <ChildIcon className={`h-4 w-4 ${child.iconColor || ''}`} strokeWidth={isChildActive ? 2.5 : 2} />
+                                                                {childPendingCount > 0 && (
+                                                                    <span className="absolute -right-2.5 -top-2.5 min-w-4 h-4 px-1 rounded-full bg-red-500 text-white text-[10px] leading-4 text-center shadow">
+                                                                        {childPendingCount > 99 ? '99+' : childPendingCount}
+                                                                    </span>
+                                                                )}
+                                                            </span>
+                                                            <span className="truncate text-xs font-semibold">{child.label}</span>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
                                 );
                             })}
                         </div>
