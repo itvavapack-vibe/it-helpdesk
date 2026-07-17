@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ClipboardPenLine, Edit, FileCheck2, Key, Search, Server, XCircle } from 'lucide-react';
+import { ClipboardPenLine, Edit, Eye, FileCheck2, FileText, Key, Search, Server, X, XCircle } from 'lucide-react';
 import SignatureCanvas from 'react-signature-canvas';
 import Swal from 'sweetalert2';
 import { mysql } from '../mysqlClient';
@@ -7,6 +7,8 @@ import { APPROVAL_QUEUE_STATUS_BY_ROLE, canApproveServerRoomEntry, normalizeRole
 import { toMysqlDateTime } from '../utils/dateTime';
 import { loadSignatureIntoCanvas } from '../utils/signatureCanvas';
 import { getStatusBadgeClass } from '../utils/statusStyles';
+import Fmit12PdfPreview from './Fmit12PdfPreview';
+import Fmit15PdfPreview from './Fmit15PdfPreview';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
 const STATUS_LABELS = {
@@ -56,12 +58,46 @@ const SERVER_ROOM_DOCUMENT_LIST_COLUMNS = [
 ].join(',');
 const DOCUMENT_REFRESH_INTERVAL_MS = 30 * 1000;
 
+const normalizeSystems = (systems) => {
+    if (!systems) return {};
+    if (typeof systems === 'object') return systems;
+    try {
+        const parsed = JSON.parse(systems);
+        return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+        return {};
+    }
+};
+
+const formatDateTime = (value) => {
+    if (!value) return '-';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '-';
+    return date.toLocaleString('th-TH', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+    });
+};
+
+const formatDate = (value) => {
+    if (!value) return '-';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '-';
+    return date.toLocaleDateString('th-TH');
+};
+
 const ApprovedDocuments = ({ currentAdmin }) => {
     const [documents, setDocuments] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [typeFilter, setTypeFilter] = useState('all');
     const [searchTerm, setSearchTerm] = useState('');
     const [approvalDocument, setApprovalDocument] = useState(null);
+    const [detailDocument, setDetailDocument] = useState(null);
+    const [accessReportData, setAccessReportData] = useState(null);
+    const [changeReportData, setChangeReportData] = useState(null);
     const [selectedApprovalStatus, setSelectedApprovalStatus] = useState('');
     const signatureRef = useRef(null);
     const currentRole = normalizeRoleValue(currentAdmin?.role);
@@ -198,6 +234,195 @@ const ApprovedDocuments = ({ currentAdmin }) => {
         setApprovalDocument(doc);
         setSelectedApprovalStatus('');
     };
+
+    const fetchFullDocument = async (doc) => {
+        const table = doc.type === 'server_room'
+            ? 'controlled_area_logs'
+            : doc.type === 'access'
+                ? 'access_requests'
+                : 'change_requests';
+
+        const { data, error } = await mysql
+            .from(table)
+            .select('*')
+            .eq('id', doc.rawId)
+            .single();
+
+        if (error) throw error;
+        return {
+            ...doc,
+            raw: doc.type === 'access'
+                ? { ...data, systems: normalizeSystems(data?.systems) }
+                : data,
+        };
+    };
+
+    const showDocumentLoading = () => {
+        Swal.fire({
+            title: 'กำลังโหลดเอกสาร...',
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            showConfirmButton: false,
+            didOpen: () => Swal.showLoading(),
+        });
+    };
+
+    const openDetail = async (doc) => {
+        try {
+            showDocumentLoading();
+            const fullDocument = await fetchFullDocument(doc);
+            Swal.close();
+            setDetailDocument(fullDocument);
+        } catch (error) {
+            console.error('Error loading approval document detail:', error);
+            Swal.fire('Error', 'ไม่สามารถโหลดรายละเอียดเอกสารได้', 'error');
+        }
+    };
+
+    const buildAccessReportData = (doc) => {
+        const req = doc.raw || {};
+        return {
+            ticketNumber: req.ticket_number,
+            nameTh: req.name_th,
+            nameEn: req.name_en,
+            department: req.department,
+            position: req.position,
+            internalPhone: req.internal_phone,
+            systems: normalizeSystems(req.systems),
+            otherSystemDetails: req.other_system_details || '',
+            requestDetails: req.request_details || '',
+            requesterSign: req.requester_sign || null,
+            managerSign: req.manager_sign || null,
+            managerDate: req.manager_date || null,
+            itSign: req.it_staff_sign || req.it_sign || null,
+            itStaffDate: req.it_staff_date || null,
+            itManagerSign: req.it_manager_sign || null,
+            itManagerDate: req.it_manager_date || null,
+            itSupervisorSign: req.it_supervisor_sign || null,
+            itSupervisorDate: req.it_supervisor_date || null,
+            itStaffName: req.it_staff_name || '',
+            actionResult: req.action_result || '',
+            userAcknowledgeSign: req.user_acknowledge_sign || null,
+            userAcknowledgeDate: req.user_acknowledge_date || null,
+            createdAt: req.created_at || null,
+            status: req.status || '',
+            cancelledAt: req.cancelled_at || null,
+            cancelReason: req.cancel_reason || '',
+            cancelItName: req.cancel_it_name || '',
+            cancelItSign: req.cancel_it_sign || null,
+        };
+    };
+
+    const buildChangeReportData = (doc) => {
+        const req = doc.raw || {};
+        return {
+            ticketNumber: req.ticket_number,
+            createdAt: req.created_at || null,
+            reqType: req.req_type,
+            reqTypeOther: req.req_type_other || '',
+            department: req.department,
+            requestDetails: req.details,
+            reason: req.reason,
+            requesterName: req.requester_name,
+            requesterPosition: req.requester_position,
+            requesterSign: req.requester_sign || null,
+            managerSign: req.manager_sign || null,
+            managerPosition: req.manager_position || '',
+            managerDate: req.manager_date || null,
+            itReceivedDate: req.it_received_date || '',
+            itOperationDate: req.it_operation_date || '',
+            itTargetDate: req.it_target_date || '',
+            itApprovalStatus: req.it_approval_status || '',
+            itRejectReason: req.it_reject_reason || '',
+            itManagerSign: req.it_manager_sign || null,
+            itManagerPosition: req.it_manager_position || '',
+            itManagerDate: req.it_manager_date || null,
+            itSolution: req.it_solution || '',
+            itStaffSign: req.it_staff_sign || null,
+            itStaffName: req.it_staff_name || '',
+            itStaffDate: req.it_staff_date || null,
+            itStaffPosition: req.it_staff_position || '',
+            userAcceptance: req.user_acceptance || '',
+            userRejectReason: req.user_reject_reason || '',
+            userAcceptSign: req.user_accept_sign || null,
+            userAcceptDate: req.user_accept_date || null,
+            status: req.status || '',
+            cancelledAt: req.cancelled_at || null,
+        };
+    };
+
+    const openReport = async (doc) => {
+        if (doc.type === 'server_room') {
+            Swal.fire('ยังไม่มีแบบฟอร์มรายงาน', 'รายการเข้าห้องเซิร์ฟเวอร์สามารถดูรายละเอียดได้จากปุ่มดูรายละเอียดก่อน', 'info');
+            return;
+        }
+
+        try {
+            showDocumentLoading();
+            const fullDocument = await fetchFullDocument(doc);
+            Swal.close();
+            if (fullDocument.type === 'access') {
+                setAccessReportData(buildAccessReportData(fullDocument));
+            } else {
+                setChangeReportData(buildChangeReportData(fullDocument));
+            }
+        } catch (error) {
+            console.error('Error loading approval document report:', error);
+            Swal.fire('Error', 'ไม่สามารถโหลดรายงานเอกสารได้', 'error');
+        }
+    };
+
+    const detailRows = useMemo(() => {
+        if (!detailDocument) return [];
+        const raw = detailDocument.raw || {};
+        if (detailDocument.type === 'access') {
+            const systemNames = Object.entries(normalizeSystems(raw.systems))
+                .filter(([, enabled]) => enabled)
+                .map(([key]) => key === 'other' ? `Other: ${raw.other_system_details || '-'}` : key)
+                .join(', ');
+            return [
+                ['เลขที่เอกสาร', raw.ticket_number || '-'],
+                ['ผู้ร้องขอ', raw.name_th || raw.name_en || '-'],
+                ['รหัสพนักงาน', raw.employee_id || '-'],
+                ['แผนก', raw.department || '-'],
+                ['ตำแหน่ง', raw.position || '-'],
+                ['เบอร์ภายใน', raw.internal_phone || '-'],
+                ['ระบบที่ขอสิทธิ์', systemNames || '-'],
+                ['รายละเอียด', raw.request_details || raw.other_system_details || '-'],
+                ['สถานะ', STATUS_LABELS[raw.status] || raw.status || '-'],
+                ['วันที่สร้าง', formatDateTime(raw.created_at)],
+                ['หัวหน้าอนุมัติ', formatDateTime(raw.manager_date)],
+                ['IT Supervisor', raw.it_supervisor_name ? `${raw.it_supervisor_name} (${formatDateTime(raw.it_supervisor_date)})` : formatDateTime(raw.it_supervisor_date)],
+                ['IT Manager', raw.it_manager_name ? `${raw.it_manager_name} (${formatDateTime(raw.it_manager_date)})` : formatDateTime(raw.it_manager_date)],
+            ];
+        }
+        if (detailDocument.type === 'change') {
+            return [
+                ['เลขที่เอกสาร', raw.ticket_number || '-'],
+                ['ผู้ร้องขอ', raw.requester_name || '-'],
+                ['แผนก', raw.department || '-'],
+                ['ประเภท', raw.req_type || '-'],
+                ['รายละเอียด', raw.details || '-'],
+                ['เหตุผล', raw.reason || '-'],
+                ['สถานะ', STATUS_LABELS[raw.status] || raw.status || '-'],
+                ['วันที่สร้าง', formatDateTime(raw.created_at)],
+                ['หัวหน้าอนุมัติ', formatDateTime(raw.manager_date)],
+                ['IT Manager', raw.it_manager_name ? `${raw.it_manager_name} (${formatDateTime(raw.it_manager_date)})` : formatDateTime(raw.it_manager_date)],
+                ['กำหนดแล้วเสร็จ', formatDate(raw.it_target_date)],
+            ];
+        }
+        return [
+            ['เลขที่รายการ', `SR-${raw.id || detailDocument.rawId}`],
+            ['ผู้ขอเข้า', raw.full_name || '-'],
+            ['แผนก', raw.department || '-'],
+            ['วันที่เข้า', formatDate(raw.entry_date)],
+            ['เวลาเข้า', raw.entry_time || '-'],
+            ['เหตุผล', raw.reason || '-'],
+            ['สถานะ', STATUS_LABELS[raw.status] || raw.status || '-'],
+            ['ผู้อนุมัติ', raw.approved_by || '-'],
+            ['เวลาอนุมัติ', formatDateTime(raw.approved_at)],
+        ];
+    }, [detailDocument]);
 
     const handleApprove = async () => {
         if (!selectedApprovalStatus) {
@@ -370,7 +595,25 @@ const ApprovedDocuments = ({ currentAdmin }) => {
                                             </span>
                                         </td>
                                         <td className="p-4 align-top text-right">
-                                            <div className="flex justify-end gap-2">
+                                            <div className="flex flex-wrap justify-end gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => openDetail(doc)}
+                                                    className="inline-flex items-center gap-1.5 rounded-lg bg-sky-50 px-3 py-1.5 text-xs font-semibold text-sky-600 transition-colors hover:bg-sky-600 hover:text-white dark:bg-sky-950/50 dark:text-sky-300 dark:hover:bg-sky-600 dark:hover:text-white"
+                                                    title="ดูรายละเอียดเอกสาร"
+                                                >
+                                                    <Eye className="w-4 h-4" /> รายละเอียด
+                                                </button>
+                                                {doc.type !== 'server_room' && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => openReport(doc)}
+                                                        className="inline-flex items-center gap-1.5 rounded-lg bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-600 transition-colors hover:bg-violet-600 hover:text-white dark:bg-violet-950/50 dark:text-violet-300 dark:hover:bg-violet-600 dark:hover:text-white"
+                                                        title="เปิดรีพอร์ต"
+                                                    >
+                                                        <FileText className="w-4 h-4" /> รีพอร์ต
+                                                    </button>
+                                                )}
                                                 {canApprove(doc) && (
                                                     <button type="button" onClick={() => openApproval(doc)} className="inline-flex items-center gap-1.5 rounded-lg bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-600 transition-colors hover:bg-amber-600 hover:text-white">
                                                         <Edit className="w-4 h-4" /> เปลี่ยนสถานะ
@@ -433,6 +676,56 @@ const ApprovedDocuments = ({ currentAdmin }) => {
                     </div>
                 </div>
             )}
+
+            {detailDocument && (
+                <div className="fixed inset-0 z-[150] flex items-start justify-center overflow-y-auto bg-slate-900/60 p-3 backdrop-blur-sm sm:items-center sm:p-4">
+                    <div className="w-full max-w-3xl rounded-3xl border border-slate-100 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-800">
+                        <div className="flex items-start justify-between gap-4 border-b border-slate-100 p-5 dark:border-slate-700 sm:p-6">
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    {detailDocument.type === 'access' ? <Key className="h-5 w-5 text-indigo-500" /> : detailDocument.type === 'server_room' ? <Server className="h-5 w-5 text-cyan-500" /> : <ClipboardPenLine className="h-5 w-5 text-emerald-500" />}
+                                    <h3 className="text-lg font-bold text-slate-800 dark:text-white">รายละเอียดเอกสาร</h3>
+                                </div>
+                                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{detailDocument.typeLabel} • {detailDocument.ticketNumber || '-'}</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setDetailDocument(null)}
+                                className="rounded-xl p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-rose-500 dark:hover:bg-slate-700"
+                                aria-label="ปิด"
+                            >
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+                        <div className="max-h-[70vh] overflow-y-auto p-5 sm:p-6">
+                            <div className="grid gap-3 sm:grid-cols-2">
+                                {detailRows.map(([label, value]) => (
+                                    <div key={label} className="rounded-xl border border-slate-100 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900/40">
+                                        <div className="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">{label}</div>
+                                        <div className="mt-1 whitespace-pre-wrap break-words text-sm font-semibold text-slate-700 dark:text-slate-200">{value || '-'}</div>
+                                    </div>
+                                ))}
+                            </div>
+                            {detailDocument.raw?.cancel_reason && (
+                                <div className="mt-3 rounded-xl border border-rose-100 bg-rose-50 p-3 text-sm text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-200">
+                                    <span className="font-bold">เหตุผลยกเลิก: </span>{detailDocument.raw.cancel_reason}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            <Fmit12PdfPreview
+                isOpen={Boolean(accessReportData)}
+                onClose={() => setAccessReportData(null)}
+                formData={accessReportData}
+            />
+            <Fmit15PdfPreview
+                isOpen={Boolean(changeReportData)}
+                onClose={() => setChangeReportData(null)}
+                formData={changeReportData}
+            />
         </div>
     );
 };
