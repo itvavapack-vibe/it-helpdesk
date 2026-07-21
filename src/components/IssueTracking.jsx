@@ -35,6 +35,19 @@ const isImageAttachment = (file) => {
     return mimeType.startsWith('image/') || imageExtensionPattern.test(url);
 };
 
+const isRepairEvidenceAttachment = (file) => {
+    const uploadedByType = String(file?.uploadedByType || '').toLowerCase();
+    const source = String(file?.source || '').toLowerCase();
+    return uploadedByType === 'it' || source === 'repair_evidence';
+};
+
+const getAttachmentGroups = (attachments = []) => attachments.reduce((groups, file, index) => {
+    const entry = { file, index };
+    if (isRepairEvidenceAttachment(file)) groups.repairEvidence.push(entry);
+    else groups.requester.push(entry);
+    return groups;
+}, { requester: [], repairEvidence: [] });
+
 const getStatusBadge = (status) => {
     const badgeClass = `inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-semibold ${getStatusBadgeClass(status)}`;
     switch (status) {
@@ -88,6 +101,7 @@ const IssueTracking = ({ issues = [], isLoading = false }) => {
             issueId: issue?.id,
             url: resolveAttachmentUrl(file.url || file.path),
             isImage: isImageAttachment(file),
+            typeLabel: isRepairEvidenceAttachment(file) ? 'หลักฐานการซ่อม / การแก้ไข' : 'ไฟล์ที่ผู้แจ้งแนบ',
         });
         setPreviewZoom(1);
     };
@@ -193,20 +207,51 @@ const IssueTracking = ({ issues = [], isLoading = false }) => {
                                     </p>
                                 )}
                                 {issue.attachments && issue.attachments.length > 0 && (
-                                    <div className="mt-3 flex flex-wrap gap-2">
-                                        {issue.attachments.map((file, index) => (
-                                            <button
-                                                key={`${file.url || file.name || 'attachment'}-${index}`}
-                                                type="button"
-                                                onClick={() => openAttachmentPreview(file, index, issue)}
-                                                className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-600 shadow-sm transition-all hover:bg-indigo-100 dark:border-indigo-800/50 dark:bg-indigo-900/30 dark:text-indigo-400 dark:hover:bg-indigo-900/50"
-                                                title={file.name || `ไฟล์แนบ ${index + 1}`}
-                                            >
-                                                <Paperclip className="h-3.5 w-3.5" />
-                                                <span>ไฟล์แนบ {issue.attachments.length > 1 ? index + 1 : ''}</span>
-                                            </button>
-                                        ))}
-                                    </div>
+                                    (() => {
+                                        const attachmentGroups = getAttachmentGroups(issue.attachments);
+                                        return (
+                                            <div className="mt-3 space-y-2">
+                                                {attachmentGroups.requester.length > 0 && (
+                                                    <div>
+                                                        <div className="mb-1 text-[11px] font-bold text-indigo-600 dark:text-indigo-300">ไฟล์ที่ผู้แจ้งแนบ</div>
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {attachmentGroups.requester.map(({ file, index }, groupIndex) => (
+                                                                <button
+                                                                    key={`${file.url || file.name || 'requester'}-${index}`}
+                                                                    type="button"
+                                                                    onClick={() => openAttachmentPreview(file, index, issue)}
+                                                                    className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-600 shadow-sm transition-all hover:bg-indigo-100 dark:border-indigo-800/50 dark:bg-indigo-900/30 dark:text-indigo-400 dark:hover:bg-indigo-900/50"
+                                                                    title={file.name || `ไฟล์ผู้แจ้ง ${groupIndex + 1}`}
+                                                                >
+                                                                    <Paperclip className="h-3.5 w-3.5" />
+                                                                    <span>ผู้แจ้ง {attachmentGroups.requester.length > 1 ? groupIndex + 1 : ''}</span>
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                {attachmentGroups.repairEvidence.length > 0 && (
+                                                    <div>
+                                                        <div className="mb-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-300">หลักฐานการซ่อม / การแก้ไข</div>
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {attachmentGroups.repairEvidence.map(({ file, index }, groupIndex) => (
+                                                                <button
+                                                                    key={`${file.url || file.name || 'repair'}-${index}`}
+                                                                    type="button"
+                                                                    onClick={() => openAttachmentPreview(file, index, issue)}
+                                                                    className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 shadow-sm transition-all hover:bg-emerald-100 dark:border-emerald-800/50 dark:bg-emerald-900/30 dark:text-emerald-300 dark:hover:bg-emerald-900/50"
+                                                                    title={file.name || `หลักฐานการซ่อม ${groupIndex + 1}`}
+                                                                >
+                                                                    <Paperclip className="h-3.5 w-3.5" />
+                                                                    <span>หลักฐาน {attachmentGroups.repairEvidence.length > 1 ? groupIndex + 1 : ''}</span>
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })()
                                 )}
                                 {isBorrowIssue(issue) && (issue.borrowReturnerSign || issue.borrowReturnedAt) && (
                                     <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/80 p-3 dark:border-amber-900/60 dark:bg-amber-950/20">
@@ -315,28 +360,55 @@ const IssueTracking = ({ issues = [], isLoading = false }) => {
                             </div>
 
                             {selectedIssue.attachments && selectedIssue.attachments.length > 0 && (
-                                <div className="mt-6">
-                                    <div className="mb-3 text-sm font-bold text-slate-700 dark:text-slate-300">ไฟล์แนบ ({selectedIssue.attachments.length})</div>
-                                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                                        {selectedIssue.attachments.map((file, index) => (
-                                            <button
-                                                key={`${file.url || file.name || 'file'}-${index}`}
-                                                type="button"
-                                                onClick={() => openAttachmentPreview(file, index, selectedIssue)}
-                                                className="group overflow-hidden rounded-xl border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600 transition-colors hover:border-indigo-200 hover:text-indigo-700 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300"
-                                            >
-                                                {isImageAttachment(file) ? (
-                                                    <img src={resolveAttachmentUrl(file.url || file.path)} alt={file.name || `ไฟล์แนบ ${index + 1}`} className="aspect-video w-full object-cover" />
-                                                ) : (
-                                                    <div className="flex aspect-video w-full items-center justify-center bg-slate-100 dark:bg-slate-800">
-                                                        <Paperclip className="h-8 w-8 text-slate-400" />
-                                                    </div>
-                                                )}
-                                                <div className="truncate px-3 py-2">{file.name || `ไฟล์แนบ ${index + 1}`}</div>
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
+                                (() => {
+                                    const attachmentGroups = getAttachmentGroups(selectedIssue.attachments);
+                                    const renderAttachmentCards = (items, groupName, accentClass) => (
+                                        <div className={`rounded-2xl border p-4 ${accentClass}`}>
+                                            <div className="mb-3 flex items-center justify-between gap-2">
+                                                <div className="flex items-center gap-2 text-sm font-bold">
+                                                    <Paperclip className="h-4 w-4" />
+                                                    {groupName}
+                                                </div>
+                                                <span className="rounded-full bg-white/80 px-2 py-0.5 text-xs font-bold dark:bg-slate-950/40">{items.length} ไฟล์</span>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                                                {items.map(({ file, index }, groupIndex) => (
+                                                    <button
+                                                        key={`${file.url || file.name || groupName}-${index}`}
+                                                        type="button"
+                                                        onClick={() => openAttachmentPreview(file, index, selectedIssue)}
+                                                        className="group overflow-hidden rounded-xl border border-white/70 bg-white text-left text-xs font-semibold text-slate-600 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-300"
+                                                    >
+                                                        {isImageAttachment(file) ? (
+                                                            <img src={resolveAttachmentUrl(file.url || file.path)} alt={file.name || `${groupName} ${groupIndex + 1}`} className="aspect-video w-full object-cover" />
+                                                        ) : (
+                                                            <div className="flex aspect-video w-full items-center justify-center bg-slate-100 dark:bg-slate-800">
+                                                                <Paperclip className="h-8 w-8 text-slate-400" />
+                                                            </div>
+                                                        )}
+                                                        <div className="truncate px-3 py-2">{file.name || `${groupName} ${groupIndex + 1}`}</div>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    );
+
+                                    return (
+                                        <div className="mt-6 space-y-4">
+                                            <div className="text-sm font-bold text-slate-700 dark:text-slate-300">ไฟล์แนบ ({selectedIssue.attachments.length})</div>
+                                            {attachmentGroups.requester.length > 0 && renderAttachmentCards(
+                                                attachmentGroups.requester,
+                                                'ไฟล์ที่ผู้แจ้งแนบ',
+                                                'border-indigo-100 bg-indigo-50/70 text-indigo-700 dark:border-indigo-900/50 dark:bg-indigo-950/20 dark:text-indigo-200'
+                                            )}
+                                            {attachmentGroups.repairEvidence.length > 0 && renderAttachmentCards(
+                                                attachmentGroups.repairEvidence,
+                                                'หลักฐานการซ่อม / การแก้ไข',
+                                                'border-emerald-100 bg-emerald-50/70 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/20 dark:text-emerald-200'
+                                            )}
+                                        </div>
+                                    );
+                                })()
                             )}
                         </div>
                         <div className="flex justify-end border-t border-slate-100 bg-slate-50 px-5 py-4 dark:border-slate-700 dark:bg-slate-700/30">
@@ -368,6 +440,13 @@ const IssueTracking = ({ issues = [], isLoading = false }) => {
                                 </div>
                                 <div className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                                     {previewAttachment.issueId ? `เลขที่เอกสาร ${previewAttachment.issueId}` : 'ไฟล์แนบรายการแจ้งซ่อม'}
+                                </div>
+                                <div className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[11px] font-bold ${
+                                    previewAttachment.typeLabel === 'หลักฐานการซ่อม / การแก้ไข'
+                                        ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-200'
+                                        : 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-200'
+                                }`}>
+                                    {previewAttachment.typeLabel}
                                 </div>
                             </div>
                             <div className="flex items-center justify-end gap-2">
