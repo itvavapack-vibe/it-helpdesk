@@ -3,7 +3,6 @@ import { BarChart3, FileText } from 'lucide-react';
 
 const PM_CHART_COLORS = {
     Pass: '#10b981',
-    Watch: '#f59e0b',
     Fail: '#f43f5e',
     total: '#0ea5e9',
 };
@@ -36,9 +35,8 @@ const AssetPmDashboardCharts = ({
                             <RechartsTooltip />
                             <Legend />
                             <Line type="monotone" dataKey="total" name="รวม" stroke={PM_CHART_COLORS.total} strokeWidth={3} dot={{ r: 4 }} />
-                            <Line type="monotone" dataKey="Pass" name="ปกติ" stroke={PM_CHART_COLORS.Pass} strokeWidth={2} />
-                            <Line type="monotone" dataKey="Watch" name="เฝ้าระวัง" stroke={PM_CHART_COLORS.Watch} strokeWidth={2} />
-                            <Line type="monotone" dataKey="Fail" name="ต้องแก้ไข" stroke={PM_CHART_COLORS.Fail} strokeWidth={2} />
+                            <Line type="monotone" dataKey="Pass" name="ผ่าน" stroke={PM_CHART_COLORS.Pass} strokeWidth={2} />
+                            <Line type="monotone" dataKey="Fail" name="ไม่ผ่าน" stroke={PM_CHART_COLORS.Fail} strokeWidth={2} />
                         </LineChart>
                     </ResponsiveContainer>
                 </div>
@@ -62,10 +60,9 @@ const AssetPmDashboardCharts = ({
                         </PieChart>
                     </ResponsiveContainer>
                 </div>
-                <div className="grid grid-cols-3 gap-2 text-center text-xs font-bold">
-                    <div className="rounded-xl bg-emerald-50 p-2 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-200">ปกติ<br /><span className="text-lg">{pmMonthSummary.pass}</span></div>
-                    <div className="rounded-xl bg-amber-50 p-2 text-amber-700 dark:bg-amber-950/50 dark:text-amber-200">เฝ้าระวัง<br /><span className="text-lg">{pmMonthSummary.watch}</span></div>
-                    <div className="rounded-xl bg-rose-50 p-2 text-rose-700 dark:bg-rose-950/50 dark:text-rose-200">ต้องแก้ไข<br /><span className="text-lg">{pmMonthSummary.fail}</span></div>
+                <div className="grid grid-cols-2 gap-2 text-center text-xs font-bold">
+                    <div className="rounded-xl bg-emerald-50 p-2 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-200">ผ่าน<br /><span className="text-lg">{pmMonthSummary.pass}</span></div>
+                    <div className="rounded-xl bg-rose-50 p-2 text-rose-700 dark:bg-rose-950/50 dark:text-rose-200">ไม่ผ่าน<br /><span className="text-lg">{pmMonthSummary.fail}</span></div>
                 </div>
             </div>
         </div>

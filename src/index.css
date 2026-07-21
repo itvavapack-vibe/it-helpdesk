@@ -102,7 +102,7 @@ html[data-app-theme="amber"] {
   body {
     margin: 0;
     min-height: 100vh;
-    font-family: 'Inter', sans-serif;
+    font-family: 'Sarabun', 'Inter', sans-serif;
     background: #f8fafc;
     background-image:
       radial-gradient(at 40% 20%, rgba(var(--theme-soft-rgb), 0.9) 0px, transparent 50%),
@@ -111,8 +111,8 @@ html[data-app-theme="amber"] {
     background-attachment: fixed;
     color: #1e293b;
     /* slate-800 */
-    transition: background-color 0.5s ease;
-    overflow-x: hidden;
+    transition: background-color 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+    overflow-x: clip;
   }
 
   input,
@@ -151,6 +151,10 @@ html[data-app-theme="amber"] {
     transition-duration: 180ms;
     -webkit-tap-highlight-color: transparent;
   }
+
+  .font-sans {
+    font-family: 'Sarabun', 'Inter', sans-serif !important;
+  }
 }
 
 /* The project historically uses indigo utilities as its accent token. */
@@ -188,11 +192,11 @@ html[data-app-theme="amber"] {
 .focus\:border-indigo-400:focus { border-color: var(--theme-400) !important; }
 .app-primary-button {
   background-color: var(--theme-600) !important;
-  background-image: linear-gradient(to right, var(--theme-600), var(--theme-700)) !important;
+  background-image: none !important;
 }
 .app-primary-button:hover {
-  background-color: var(--theme-500) !important;
-  background-image: linear-gradient(to right, var(--theme-500), var(--theme-600)) !important;
+  background-color: var(--theme-700) !important;
+  background-image: none !important;
 }
 .dark .dark\:bg-indigo-500 { background-color: var(--theme-500) !important; }
 .dark .dark\:bg-indigo-900\/20 { background-color: rgba(var(--theme-dark-rgb), 0.2) !important; }
@@ -330,15 +334,15 @@ html[data-app-theme="amber"] {
   }
 
   .glass-panel {
-    @apply bg-white/70 backdrop-blur-xl border border-white/50 shadow-lg shadow-indigo-100/50 dark:bg-slate-900/70 dark:border-slate-700/50 dark:shadow-indigo-900/20 text-slate-800 dark:text-slate-100;
+    @apply bg-white/90 backdrop-blur-md border border-slate-200/80 shadow-sm dark:bg-slate-950/90 dark:border-slate-800 dark:shadow-none text-slate-800 dark:text-slate-100;
   }
 
   .glass-card {
-    @apply bg-white/80 backdrop-blur-md border border-white/60 shadow-md shadow-indigo-100/40 dark:bg-slate-800/80 dark:border-slate-700/60 dark:shadow-indigo-900/20 text-slate-800 dark:text-slate-100;
+    @apply bg-white border border-slate-200/80 shadow-sm dark:bg-slate-800 dark:border-slate-700 dark:shadow-none text-slate-800 dark:text-slate-100;
   }
 
   .input-modern {
-    @apply bg-white/60 border border-slate-200/80 rounded-xl px-4 py-2.5 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-400 transition-all duration-300 dark:bg-slate-900/60 dark:border-slate-700/80 dark:text-white dark:focus:bg-slate-800 dark:focus:ring-indigo-500/40 dark:focus:border-indigo-400;
+    @apply bg-white border border-slate-200/80 rounded-xl px-4 py-2.5 outline-none transition-colors duration-200 focus:bg-white focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/40 dark:bg-slate-900 dark:border-slate-700/80 dark:text-white dark:focus:bg-slate-800 dark:focus:ring-indigo-500/35 dark:focus:border-indigo-400;
   }
 
   datalist {
@@ -371,4 +375,27 @@ html[data-app-theme="amber"] {
 
 .animate-float {
   animation: float 4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 1ms !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+  }
+
+  .animate-float,
+  .sidebar-nav-button.is-active .sidebar-nav-icon {
+    animation: none !important;
+  }
+
+  button,
+  [role="button"],
+  select,
+  .btn-anim {
+    transform: none !important;
+  }
 }

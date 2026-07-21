@@ -109,15 +109,17 @@ const getIssueEffectiveStatus = (issue) => (
         : issue?.status || 'Pending'
 );
 
-const SummaryCard = ({ icon: Icon, title, value, detail, color, cardClassName = '', iconClassName = 'text-white' }) => (
-    <div className={`glass-card rounded-3xl p-5 shadow-sm ${cardClassName}`}>
+const DASHBOARD_PANEL_CLASS = 'rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800';
+
+const SummaryCard = ({ icon: Icon, title, value, detail, color, cardClassName = '', iconClassName = '' }) => (
+    <div className={`rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800 ${cardClassName}`}>
         <div className="flex items-start justify-between gap-4">
-            <div>
+            <div className="min-w-0">
                 <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">{title}</p>
                 <p className="mt-2 text-3xl font-black text-slate-800 dark:text-white">{value}</p>
                 <p className="mt-2 text-xs font-medium text-slate-500 dark:text-slate-400">{detail}</p>
             </div>
-            <div className={`flex h-11 w-11 items-center justify-center rounded-2xl shadow-lg ${color}`}>
+            <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border ${color}`}>
                 <Icon className={`h-5 w-5 ${iconClassName}`} />
             </div>
         </div>
@@ -125,7 +127,7 @@ const SummaryCard = ({ icon: Icon, title, value, detail, color, cardClassName = 
 );
 
 const MetricCard = ({ title, value, icon: Icon, iconColor = 'text-indigo-500' }) => (
-    <div className="rounded-2xl border border-slate-100 bg-white/60 p-4 dark:border-slate-700 dark:bg-slate-800/40">
+    <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-700 dark:bg-slate-900/35">
         <div className="flex items-center justify-between gap-3">
             <p className="text-[0.7rem] font-semibold text-slate-500 dark:text-slate-400">{title}</p>
             <Icon className={`h-4 w-4 ${iconColor}`} />
@@ -134,11 +136,11 @@ const MetricCard = ({ title, value, icon: Icon, iconColor = 'text-indigo-500' })
     </div>
 );
 
-const AssetMetricCard = ({ title, value, detail, icon: Icon, iconColor = 'text-sky-500', cardClassName = 'border-sky-100 bg-gradient-to-br from-sky-50 to-white dark:border-sky-900/50 dark:from-sky-950/40 dark:to-slate-900/50', valueClassName = 'text-sky-700 dark:text-sky-200' }) => (
-    <div className={`rounded-2xl border p-4 shadow-sm shadow-slate-200/40 dark:shadow-none ${cardClassName}`}>
+const AssetMetricCard = ({ title, value, detail, icon: Icon, iconColor = 'text-sky-500', cardClassName = 'border-sky-200 bg-sky-50 dark:border-sky-800/70 dark:bg-sky-950/35', valueClassName = 'text-sky-700 dark:text-sky-200' }) => (
+    <div className={`rounded-2xl border p-4 shadow-sm dark:shadow-none ${cardClassName}`}>
         <div className="flex items-center justify-between gap-3">
             <p className="text-base font-bold text-slate-600 dark:text-slate-300">{title}</p>
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/80 shadow-sm dark:bg-slate-900/50">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/70 bg-white/80 shadow-sm dark:border-slate-700 dark:bg-slate-900/50">
                 <Icon className={`h-4 w-4 ${iconColor}`} />
             </div>
         </div>
@@ -148,8 +150,8 @@ const AssetMetricCard = ({ title, value, detail, icon: Icon, iconColor = 'text-s
 );
 
 const AssetSourceCard = ({ title, total, items, iconColor, accentClass }) => (
-    <div className={`relative h-full overflow-hidden rounded-3xl border p-5 shadow-sm shadow-slate-200/50 dark:shadow-none ${accentClass}`}>
-        <div className="absolute inset-x-0 top-0 h-1.5 bg-current opacity-70" />
+    <div className={`relative h-full overflow-hidden rounded-3xl border p-5 shadow-sm dark:shadow-none ${accentClass}`}>
+        <div className="absolute inset-x-0 top-0 h-1 bg-current opacity-70" />
         <div className="mb-4 flex items-center justify-between gap-3">
             <div>
                 <p className="text-sm font-black text-slate-600 dark:text-slate-200">{title}</p>
@@ -195,7 +197,7 @@ const ChartTooltip = ({ active, payload }) => {
     if (!active || !payload?.length) return null;
     const item = payload[0];
     return (
-        <div className="rounded-xl border border-slate-100 bg-white p-3 shadow-xl dark:border-slate-700 dark:bg-slate-800">
+        <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-800">
             <p className="font-medium text-slate-800 dark:text-slate-200">{item.name}</p>
             <p className="mt-1 text-sm font-bold" style={{ color: item.payload.color }}>
                 {item.value} รายการ
@@ -513,20 +515,20 @@ const IssueStatistics = ({ issues = [], currentAdmin }) => {
 
     return (
         <div className="space-y-6 animate-fade-in">
-            <div className="glass-card rounded-3xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.2)]">
+            <div className={DASHBOARD_PANEL_CLASS}>
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center gap-4">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-100 text-orange-600 shadow-lg shadow-orange-100 dark:bg-orange-900/50 dark:text-orange-300 dark:shadow-orange-950/30">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-orange-200 bg-orange-50 text-orange-600 dark:border-orange-800/70 dark:bg-orange-950/35 dark:text-orange-300">
                             <TrendingUp className="h-6 w-6" />
                         </div>
                         <div>
-                            <h2 className="bg-gradient-to-r from-indigo-700 to-violet-700 bg-clip-text text-xl font-bold text-transparent dark:from-indigo-400 dark:to-violet-400">Dashboard</h2>
+                            <h2 className="text-xl font-bold text-slate-900 dark:text-white">Dashboard</h2>
                             <p className="text-sm font-medium text-slate-500 dark:text-slate-400">รายงานการแจ้งซ่อม คำร้องขอสิทธิ์ พัฒนา และทรัพย์สินแผนกเทคโนโลยีสารสนเทศ</p>
                             <p className="mt-1 text-xs font-bold text-indigo-600 dark:text-indigo-300">{dashboardOwnerLabel}</p>
                         </div>
                     </div>
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-                        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white/70 p-2 dark:border-slate-700 dark:bg-slate-800/60">
+                        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-2 dark:border-slate-700 dark:bg-slate-900/35">
                             <CalendarDays className="h-4 w-4 text-indigo-500" />
                             <select
                                 value={dateFilter.type}
@@ -567,7 +569,7 @@ const IssueStatistics = ({ issues = [], currentAdmin }) => {
                             type="button"
                             onClick={() => fetchDetails()}
                             disabled={isLoadingDetails}
-                            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white/70 px-4 py-2 text-sm font-bold text-slate-600 transition hover:border-indigo-200 hover:text-indigo-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300"
+                            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-600 transition-colors hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900/35 dark:text-slate-300 dark:hover:bg-indigo-950/35"
                         >
                             <RefreshCw className={`h-4 w-4 ${isLoadingDetails ? 'animate-spin' : ''}`} />
                             รีเฟรชข้อมูล
@@ -584,17 +586,16 @@ const IssueStatistics = ({ issues = [], currentAdmin }) => {
             )}
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                <SummaryCard icon={AlertCircle} title="แจ้งซ่อม" value={filteredIssues.length} detail={`${periodLabel} / ค้างดำเนินการ ${openIssueCount} รายการ`} color="bg-gradient-to-br from-orange-500 to-amber-500" />
+                <SummaryCard icon={AlertCircle} title="แจ้งซ่อม" value={filteredIssues.length} detail={`${periodLabel} / ค้างดำเนินการ ${openIssueCount} รายการ`} color="border-orange-200 bg-orange-50 text-orange-600 dark:border-orange-800/70 dark:bg-orange-950/35 dark:text-orange-300" />
                 <SummaryCard
                     icon={ClipboardList}
                     title="ใบคำร้อง"
                     value={allRequests.length}
                     detail={`${periodLabel} / รอดำเนินการ ${pendingRequestCount} รายการ`}
-                    color="bg-violet-100 ring-1 ring-violet-200 dark:bg-violet-900/40 dark:ring-violet-700"
-                    iconClassName="text-violet-700 dark:text-violet-200"
-                    cardClassName="border border-violet-100/80 bg-violet-50/60 dark:border-violet-900/50 dark:bg-violet-950/20"
+                    color="border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-800/70 dark:bg-violet-950/35 dark:text-violet-300"
+                    cardClassName="border-violet-200 dark:border-violet-800/70"
                 />
-                <SummaryCard icon={Monitor} title="ทรัพย์สิน" value={activeAssets.length} detail={`มีผู้ใช้งาน ${assignedAssets.length} เครื่อง`} color="bg-gradient-to-br from-sky-500 to-cyan-500" />
+                <SummaryCard icon={Monitor} title="ทรัพย์สิน" value={activeAssets.length} detail={`มีผู้ใช้งาน ${assignedAssets.length} เครื่อง`} color="border-sky-200 bg-sky-50 text-sky-600 dark:border-sky-800/70 dark:bg-sky-950/35 dark:text-sky-300" />
             </div>
 
             <section className="space-y-4">
@@ -603,7 +604,7 @@ const IssueStatistics = ({ issues = [], currentAdmin }) => {
                     <p className="text-sm text-slate-500 dark:text-slate-400">สถานะ หมวดหมู่ และแผนกที่แจ้งปัญหาเข้ามาในช่วง {periodLabel}</p>
                 </div>
                 <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-                    <div className="glass-card rounded-3xl p-6 shadow-sm">
+                    <div className={DASHBOARD_PANEL_CLASS}>
                         <div className="mb-6 flex items-center gap-2">
                             <BarChart3 className="h-5 w-5 text-indigo-500" />
                             <h4 className="text-lg font-bold text-slate-800 dark:text-slate-100">สถานะงานแจ้งซ่อม</h4>
@@ -632,7 +633,7 @@ const IssueStatistics = ({ issues = [], currentAdmin }) => {
                         )}
                     </div>
 
-                    <div className="glass-card rounded-3xl p-6 shadow-sm">
+                    <div className={DASHBOARD_PANEL_CLASS}>
                         <div className="mb-6 flex flex-col gap-4">
                             <div className="flex items-center gap-2">
                                 <BarChart3 className="h-5 w-5 text-violet-500" />
@@ -750,7 +751,7 @@ const IssueStatistics = ({ issues = [], currentAdmin }) => {
                     <p className="text-sm text-slate-500 dark:text-slate-400">ภาพรวมการร้องขอสิทธิ์และคำร้องขอพัฒนาในช่วง {periodLabel}</p>
                 </div>
                 <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-                    <div className="glass-card rounded-3xl p-6 shadow-sm">
+                    <div className={DASHBOARD_PANEL_CLASS}>
                         <div className="mb-5 flex items-center gap-2">
                             <UserCheck className="h-5 w-5 text-sky-500" />
                             <h4 className="text-lg font-bold text-slate-800 dark:text-slate-100">คำร้องขอสิทธิ์</h4>
@@ -797,7 +798,7 @@ const IssueStatistics = ({ issues = [], currentAdmin }) => {
                         </div>
                     </div>
 
-                    <div className="glass-card rounded-3xl p-6 shadow-sm">
+                    <div className={DASHBOARD_PANEL_CLASS}>
                         <div className="mb-5 flex items-center gap-2">
                             <ClipboardList className="h-5 w-5 text-violet-500" />
                             <h4 className="text-lg font-bold text-slate-800 dark:text-slate-100">คำร้องขอพัฒนาระบบ</h4>
@@ -853,7 +854,7 @@ const IssueStatistics = ({ issues = [], currentAdmin }) => {
                     <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">ทรัพย์สินด้าน Computer</h3>
                     <p className="text-sm text-slate-500 dark:text-slate-400">สรุปเครื่องที่ Sync จาก GLPI และสถานะการใช้งาน</p>
                 </div>
-                <div className="glass-card space-y-6 rounded-3xl p-6 shadow-sm">
+                <div className={`${DASHBOARD_PANEL_CLASS} space-y-6`}>
                     <div className="rounded-3xl border border-slate-100 bg-white/70 p-5 shadow-sm shadow-slate-200/40 dark:border-slate-700 dark:bg-slate-800/50 dark:shadow-none">
                         <div className="mb-4 flex items-center gap-2">
                             <PieChartIcon className="h-4 w-4 text-sky-500" />
@@ -886,7 +887,7 @@ const IssueStatistics = ({ issues = [], currentAdmin }) => {
                                 value={activeAssets.length}
                                 icon={Monitor}
                                 iconColor="text-sky-500"
-                                cardClassName="border-sky-100 bg-gradient-to-br from-sky-50 via-cyan-50 to-white dark:border-sky-900/50 dark:from-sky-950/45 dark:via-cyan-950/25 dark:to-slate-900/50"
+                                cardClassName="border-sky-200 bg-sky-50 dark:border-sky-800/70 dark:bg-sky-950/35"
                                 valueClassName="text-sky-700 dark:text-sky-200"
                             />
                             <AssetMetricCard
@@ -894,7 +895,7 @@ const IssueStatistics = ({ issues = [], currentAdmin }) => {
                                 value={assignedAssets.length}
                                 icon={UserCheck}
                                 iconColor="text-emerald-500"
-                                cardClassName="border-emerald-100 bg-gradient-to-br from-emerald-50 via-teal-50 to-white dark:border-emerald-900/50 dark:from-emerald-950/45 dark:via-teal-950/25 dark:to-slate-900/50"
+                                cardClassName="border-emerald-200 bg-emerald-50 dark:border-emerald-800/70 dark:bg-emerald-950/35"
                                 valueClassName="text-emerald-700 dark:text-emerald-200"
                             />
                             <AssetMetricCard
@@ -902,7 +903,7 @@ const IssueStatistics = ({ issues = [], currentAdmin }) => {
                                 value={activeAssets.length - assignedAssets.length}
                                 icon={Users}
                                 iconColor="text-amber-500"
-                                cardClassName="border-amber-100 bg-gradient-to-br from-amber-50 via-orange-50 to-white dark:border-amber-900/50 dark:from-amber-950/45 dark:via-orange-950/25 dark:to-slate-900/50"
+                                cardClassName="border-amber-200 bg-amber-50 dark:border-amber-800/70 dark:bg-amber-950/35"
                                 valueClassName="text-amber-700 dark:text-amber-200"
                             />
                         </div>
@@ -912,14 +913,14 @@ const IssueStatistics = ({ issues = [], currentAdmin }) => {
                                 total={assetSourceSummary.buy}
                                 items={assetSourceTypeItems.buy}
                                 iconColor="text-emerald-500"
-                                accentClass="border-emerald-100 bg-gradient-to-br from-emerald-100/90 via-teal-50/95 to-white text-emerald-500 dark:border-emerald-900/50 dark:from-emerald-950/45 dark:via-teal-950/25 dark:to-slate-900/45"
+                                accentClass="border-emerald-200 bg-emerald-50 text-emerald-500 dark:border-emerald-800/70 dark:bg-emerald-950/35"
                             />
                             <AssetSourceCard
                                 title="คอมพิวเตอร์เช่า"
                                 total={assetSourceSummary.rent}
                                 items={assetSourceTypeItems.rent}
                                 iconColor="text-indigo-500"
-                                accentClass="border-indigo-100 bg-gradient-to-br from-indigo-100/90 via-violet-50/95 to-white text-indigo-500 dark:border-indigo-900/50 dark:from-indigo-950/45 dark:via-violet-950/25 dark:to-slate-900/45"
+                                accentClass="border-indigo-200 bg-indigo-50 text-indigo-500 dark:border-indigo-800/70 dark:bg-indigo-950/35"
                             />
                         </div>
                     </div>

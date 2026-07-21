@@ -7,6 +7,7 @@ import Swal from 'sweetalert2';
 import * as XLSX from 'xlsx';
 import { withGlpiSession, getComputers, getUsers, getComputerDetail, extractIpAddresses } from '../glpiClient';
 import { mysql } from '../mysqlClient';
+import { MAX_ATTACHMENT_FILES, resolveAttachmentUrl, uploadAttachmentFiles } from '../utils/fileUpload';
 
 const AssetPmDashboardCharts = lazy(() => import('./AssetPmDashboardCharts'));
 import { notifyGlpiSync } from '../telegramNotify';
@@ -31,20 +32,40 @@ const PM_CHECKLIST = [
 ];
 
 const PM_STATUS_LABELS = {
-    Pass: 'ปกติ',
-    Watch: 'เฝ้าระวัง',
-    Fail: 'ต้องแก้ไข',
+    Pass: 'ผ่าน',
+    Fail: 'ไม่ผ่าน',
 };
 
 const PM_STATUS_STYLES = {
     Pass: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200',
-    Watch: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-200',
     Fail: 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-800 dark:bg-rose-950/50 dark:text-rose-200',
 };
+
+const ASSET_PANEL_CLASS = 'rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800';
+const ASSET_TOOL_BUTTON_CLASS = 'inline-flex items-center gap-2 rounded-xl border bg-white px-4 py-2 text-sm font-semibold shadow-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-900/35';
 
 const createDefaultPmChecklist = () => Object.fromEntries(
     PM_CHECKLIST.map((item) => [item.id, { status: 'Pass', note: '' }])
 );
+
+const normalizePmStatus = (status) => (status === 'Pass' ? 'Pass' : 'Fail');
+
+const derivePmOverallStatus = (checklist = {}) => (
+    PM_CHECKLIST.some((item) => normalizePmStatus(checklist[item.id]?.status) === 'Fail') ? 'Fail' : 'Pass'
+);
+
+const parseJsonArray = (value) => {
+    if (Array.isArray(value)) return value;
+    if (!value) return [];
+    try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? parsed : [];
+    } catch {
+        return [];
+    }
+};
+
+const isImageAttachment = (file) => String(file?.type || file?.mimetype || '').startsWith('image/');
 
 const toMonthKey = (value) => {
     if (!value) return '';
@@ -103,11 +124,12 @@ const AssetInventory = ({ issues = [], view = 'inventory' }) => {
     const [pmComputer, setPmComputer] = useState(null);
     const [pmReportRecord, setPmReportRecord] = useState(null);
     const [pmMonth, setPmMonth] = useState(() => new Date().toISOString().slice(0, 7));
+    const [pmAttachmentFiles, setPmAttachmentFiles] = useState([]);
+    const [isSavingPm, setIsSavingPm] = useState(false);
     const [pmForm, setPmForm] = useState(() => ({
         pmDate: new Date().toISOString().slice(0, 10),
         inspectorName: '',
         nextDueDate: '',
-        overallStatus: 'Pass',
         checklist: createDefaultPmChecklist(),
         note: '',
     }));
@@ -401,11 +423,14 @@ const AssetInventory = ({ issues = [], view = 'inventory' }) => {
 
     const getLatestPmRecord = useCallback((computer) => getComputerPmRecords(computer)[0] || null, [getComputerPmRecords]);
 
-    const getPmStatusBadge = (status) => (
-        <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${PM_STATUS_STYLES[status] || PM_STATUS_STYLES.Pass}`}>
-            {PM_STATUS_LABELS[status] || status || '-'}
+    const getPmStatusBadge = (status) => {
+        const normalizedStatus = normalizePmStatus(status);
+        return (
+        <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${PM_STATUS_STYLES[normalizedStatus] || PM_STATUS_STYLES.Pass}`}>
+            {PM_STATUS_LABELS[normalizedStatus] || status || '-'}
         </span>
-    );
+        );
+    };
 
     const openPmForm = (computer) => {
         const latestRecord = getLatestPmRecord(computer);
@@ -413,11 +438,11 @@ const AssetInventory = ({ issues = [], view = 'inventory' }) => {
         const nextDue = new Date();
         nextDue.setMonth(nextDue.getMonth() + 6);
         setPmComputer(computer);
+        setPmAttachmentFiles([]);
         setPmForm({
             pmDate: new Date().toISOString().slice(0, 10),
             inspectorName: lastInspector,
             nextDueDate: nextDue.toISOString().slice(0, 10),
-            overallStatus: 'Pass',
             checklist: createDefaultPmChecklist(),
             note: '',
         });
@@ -454,7 +479,7 @@ const AssetInventory = ({ issues = [], view = 'inventory' }) => {
             dueDate.setHours(0, 0, 0, 0);
             return dueDate <= today;
         });
-        const issueRecords = latestBuyRecords.filter((record) => record.overall_status === 'Watch' || record.overall_status === 'Fail');
+        const issueRecords = latestBuyRecords.filter((record) => normalizePmStatus(record.overall_status) === 'Fail');
         return {
             buyTotal: buyComputers.length,
             checked: latestBuyRecords.length,
@@ -478,17 +503,16 @@ const AssetInventory = ({ issues = [], view = 'inventory' }) => {
             return {
                 month: label,
                 total: records.length,
-                Pass: records.filter((record) => record.overall_status === 'Pass').length,
-                Watch: records.filter((record) => record.overall_status === 'Watch').length,
-                Fail: records.filter((record) => record.overall_status === 'Fail').length,
+                Pass: records.filter((record) => normalizePmStatus(record.overall_status) === 'Pass').length,
+                Fail: records.filter((record) => normalizePmStatus(record.overall_status) === 'Fail').length,
             };
         });
     }, [pmRecords]);
 
     const pmStatusChartData = useMemo(() => (
-        ['Pass', 'Watch', 'Fail'].map((status) => ({
+        ['Pass', 'Fail'].map((status) => ({
             name: PM_STATUS_LABELS[status],
-            value: selectedMonthRecords.filter((record) => record.overall_status === status).length,
+            value: selectedMonthRecords.filter((record) => normalizePmStatus(record.overall_status) === status).length,
             status,
         }))
     ), [selectedMonthRecords]);
@@ -506,13 +530,11 @@ const AssetInventory = ({ issues = [], view = 'inventory' }) => {
     }, [selectedMonthRecords]);
 
     const pmMonthSummary = useMemo(() => {
-        const pass = selectedMonthRecords.filter((record) => record.overall_status === 'Pass').length;
-        const watch = selectedMonthRecords.filter((record) => record.overall_status === 'Watch').length;
-        const fail = selectedMonthRecords.filter((record) => record.overall_status === 'Fail').length;
+        const pass = selectedMonthRecords.filter((record) => normalizePmStatus(record.overall_status) === 'Pass').length;
+        const fail = selectedMonthRecords.filter((record) => normalizePmStatus(record.overall_status) === 'Fail').length;
         return {
             total: selectedMonthRecords.length,
             pass,
-            watch,
             fail,
             monthLabel: getMonthLabel(pmMonth),
         };
@@ -562,7 +584,7 @@ const AssetInventory = ({ issues = [], view = 'inventory' }) => {
     };
 
     const savePmRecord = async () => {
-        if (!pmComputer) return;
+        if (!pmComputer || isSavingPm) return;
         if (!pmForm.inspectorName.trim()) {
             Swal.fire('ข้อมูลไม่ครบ', 'กรุณาระบุชื่อผู้ตรวจเช็ค', 'warning');
             return;
@@ -571,6 +593,27 @@ const AssetInventory = ({ issues = [], view = 'inventory' }) => {
             Swal.fire('ข้อมูลไม่ครบ', 'กรุณาระบุวันที่ตรวจเช็ค PM', 'warning');
             return;
         }
+        if (pmAttachmentFiles.length === 0) {
+            Swal.fire('ยังไม่ได้แนบรูป', 'กรุณาแนบรูปหลังทำ PM อย่างน้อย 1 รูป', 'warning');
+            return;
+        }
+        if (pmAttachmentFiles.length > MAX_ATTACHMENT_FILES) {
+            Swal.fire('ไฟล์แนบเกินกำหนด', `แนบรูปได้สูงสุด ${MAX_ATTACHMENT_FILES} ไฟล์`, 'warning');
+            return;
+        }
+
+        const normalizedChecklist = Object.fromEntries(
+            PM_CHECKLIST.map((item) => {
+                const value = pmForm.checklist[item.id] || {};
+                return [item.id, {
+                    status: normalizePmStatus(value.status),
+                    note: value.note || '',
+                }];
+            })
+        );
+        const overallStatus = derivePmOverallStatus(normalizedChecklist);
+
+        setIsSavingPm(true);
 
         const payload = {
             asset_glpi_id: pmComputer.id,
@@ -582,23 +625,32 @@ const AssetInventory = ({ issues = [], view = 'inventory' }) => {
             source_type: formatUpdateSourceTEXT(pmComputer.autoupdatesystems_id),
             pm_date: pmForm.pmDate,
             inspector_name: pmForm.inspectorName.trim(),
-            overall_status: pmForm.overallStatus,
-            checklist_json: JSON.stringify(pmForm.checklist),
+            overall_status: overallStatus,
+            checklist_json: JSON.stringify(normalizedChecklist),
             note: pmForm.note || '',
             next_due_date: pmForm.nextDueDate || null,
         };
 
         try {
+            const attachments = await uploadAttachmentFiles(pmAttachmentFiles, {
+                category: 'asset_pm_after',
+                assetId: pmComputer.id,
+                source: 'asset_pm_records',
+            });
+            payload.attachments_json = JSON.stringify(attachments);
             const { data, error } = await mysql.from('asset_pm_records').insert([payload]).select('*');
             if (error) throw new Error(error);
             const savedRecord = Array.isArray(data) ? data[0] : null;
             await loadPmRecords({ silent: true });
             setPmComputer(null);
+            setPmAttachmentFiles([]);
             if (savedRecord) setPmReportRecord(savedRecord);
             Swal.fire('บันทึกแล้ว', 'บันทึกผลตรวจ PM และสร้างรายงาน FMIT08 แล้ว', 'success');
         } catch (error) {
             console.error('Save PM record failed:', error);
             Swal.fire('บันทึกไม่สำเร็จ', 'กรุณาตรวจสอบว่ารัน migration asset_pm_records แล้ว', 'error');
+        } finally {
+            setIsSavingPm(false);
         }
     };
 
@@ -607,10 +659,17 @@ const AssetInventory = ({ issues = [], view = 'inventory' }) => {
         try {
             const canvas = await html2canvas(pmReportRef.current, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
             const imageData = canvas.toDataURL('image/png');
-            const pdf = new jsPDF('p', 'mm', 'a4');
+            const pdf = new jsPDF('l', 'mm', 'a4');
             const pdfWidth = pdf.internal.pageSize.getWidth();
-            const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-            pdf.addImage(imageData, 'PNG', 0, 0, pdfWidth, Math.min(pdfHeight, pdf.internal.pageSize.getHeight()));
+            const pdfPageHeight = pdf.internal.pageSize.getHeight();
+            const imageHeight = (canvas.height * pdfWidth) / canvas.width;
+            let position = 0;
+            pdf.addImage(imageData, 'PNG', 0, position, pdfWidth, imageHeight);
+            while (position + imageHeight > pdfPageHeight) {
+                position -= pdfPageHeight;
+                pdf.addPage('a4', 'l');
+                pdf.addImage(imageData, 'PNG', 0, position, pdfWidth, imageHeight);
+            }
             pdf.save(`FMIT08_PM_${pmReportRecord?.asset_name || pmReportRecord?.asset_glpi_id || Date.now()}.pdf`);
         } catch (error) {
             console.error('Download PM report failed:', error);
@@ -642,7 +701,7 @@ const AssetInventory = ({ issues = [], view = 'inventory' }) => {
                 <head>
                     <title>FMIT08 PM Report</title>
                     <style>
-                        @page { size: A4 portrait; margin: 10mm; }
+                        @page { size: A4 landscape; margin: 8mm; }
                         * { box-sizing: border-box; }
                         body { margin: 0; font-family: Arial, sans-serif; color: #0f172a; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
                     </style>
@@ -670,6 +729,8 @@ const AssetInventory = ({ issues = [], view = 'inventory' }) => {
         }
     };
 
+    const getPmReportAttachments = (record) => parseJsonArray(record?.attachments_json).filter(isImageAttachment);
+
     const getQrUrl = (computer) => {
         const base = `${window.location.origin}/report-issue`;
         return `${base}?assetId=${computer.id}&assetName=${encodeURIComponent(computer.name || '')}`;
@@ -688,7 +749,7 @@ const AssetInventory = ({ issues = [], view = 'inventory' }) => {
                     { label: 'กำลังซ่อม', value: stats.repairing, color: 'bg-amber-50 text-amber-700 border-amber-200 dark:!border-amber-700/50 dark:!bg-amber-950/60 dark:!text-amber-200', dot: 'bg-amber-500 dark:bg-amber-300' },
                     { label: 'แจ้งซ่อมบ่อยสุด', value: stats.topAsset ? `${stats.topAsset.name} (${stats.topAsset.count} ครั้ง)` : '-', color: 'bg-rose-50 text-rose-700 border-rose-200 dark:!border-rose-700/50 dark:!bg-rose-950/60 dark:!text-rose-200', dot: 'bg-rose-500 dark:bg-rose-300' },
                 ].map(s => (
-                    <div key={s.label} className={`glass-card rounded-2xl p-4 border ${s.color}`}>
+                    <div key={s.label} className={`rounded-2xl border p-4 shadow-sm ${s.color}`}>
                         <div className="flex items-center gap-2 mb-1">
                             <span className={`w-2 h-2 rounded-full ${s.dot}`}></span>
                             <span className="text-xs font-semibold uppercase tracking-wide opacity-70">{s.label}</span>
@@ -700,10 +761,10 @@ const AssetInventory = ({ issues = [], view = 'inventory' }) => {
 
             {/* PM Dashboard */}
             {isPmView && <div className="space-y-5">
-                <div className="overflow-hidden rounded-3xl border border-sky-100 bg-gradient-to-br from-sky-50 via-white to-teal-50 p-5 shadow-sm dark:border-slate-700 dark:from-slate-900 dark:via-slate-800 dark:to-sky-950/50">
+                <div className={`${ASSET_PANEL_CLASS} overflow-hidden p-5`}>
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div className="flex items-center gap-3">
-                        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-sky-100 text-sky-700 dark:bg-sky-950/60 dark:text-sky-200">
+                        <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-800/70 dark:bg-sky-950/35 dark:text-sky-200">
                             <BarChart3 className="h-5 w-5" />
                         </div>
                         <div>
@@ -724,7 +785,7 @@ const AssetInventory = ({ issues = [], view = 'inventory' }) => {
                         <button
                             type="button"
                             onClick={() => loadPmRecords()}
-                            className="inline-flex items-center justify-center gap-2 rounded-xl border border-sky-200 bg-white/80 px-3 py-2 text-sm font-bold text-sky-700 transition hover:bg-sky-50 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-200 dark:hover:bg-sky-900/60"
+                            className="inline-flex items-center justify-center gap-2 rounded-xl border border-sky-200 bg-white px-3 py-2 text-sm font-bold text-sky-700 transition-colors hover:bg-sky-50 dark:border-sky-800/70 dark:bg-sky-950/35 dark:text-sky-200 dark:hover:bg-sky-950/55"
                         >
                             <RefreshCw className="h-4 w-4" />
                             รีเฟรช PM
@@ -733,11 +794,11 @@ const AssetInventory = ({ issues = [], view = 'inventory' }) => {
                 </div>
                 <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
                     {[
-                        ['เครื่อง Buy', pmDashboard.buyTotal, 'border-emerald-100 bg-emerald-50 text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-200'],
-                        ['ตรวจแล้ว', pmDashboard.checked, 'border-sky-100 bg-sky-50 text-sky-700 dark:border-sky-900/60 dark:bg-sky-950/40 dark:text-sky-200'],
-                        ['ยังไม่เคย PM', pmDashboard.neverChecked, 'border-amber-100 bg-amber-50 text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200'],
-                        ['ครบกำหนด', pmDashboard.due, 'border-orange-100 bg-orange-50 text-orange-700 dark:border-orange-900/60 dark:bg-orange-950/40 dark:text-orange-200'],
-                        ['พบประเด็น', pmDashboard.issue, 'border-rose-100 bg-rose-50 text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-200'],
+                        ['เครื่อง Buy', pmDashboard.buyTotal, 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800/70 dark:bg-emerald-950/35 dark:text-emerald-200'],
+                        ['ตรวจแล้ว', pmDashboard.checked, 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-800/70 dark:bg-sky-950/35 dark:text-sky-200'],
+                        ['ยังไม่เคย PM', pmDashboard.neverChecked, 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800/70 dark:bg-amber-950/35 dark:text-amber-200'],
+                        ['ครบกำหนด', pmDashboard.due, 'border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-800/70 dark:bg-orange-950/35 dark:text-orange-200'],
+                        ['พบประเด็น', pmDashboard.issue, 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-800/70 dark:bg-rose-950/35 dark:text-rose-200'],
                     ].map(([label, value, className]) => (
                         <div key={label} className={`rounded-2xl border p-3 ${className}`}>
                             <div className="text-xs font-bold uppercase tracking-wide opacity-75">{label}</div>
@@ -754,7 +815,7 @@ const AssetInventory = ({ issues = [], view = 'inventory' }) => {
                         <button
                             type="button"
                             onClick={() => setPmReportRecord(pmDashboard.latest)}
-                            className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-1.5 text-xs font-bold text-sky-700 shadow-sm transition hover:bg-sky-50 dark:bg-slate-800 dark:text-sky-200 dark:hover:bg-slate-700"
+                            className="inline-flex items-center gap-2 rounded-lg border border-sky-200 bg-white px-3 py-1.5 text-xs font-bold text-sky-700 shadow-sm transition-colors hover:bg-sky-50 dark:border-sky-800/70 dark:bg-sky-950/35 dark:text-sky-200 dark:hover:bg-sky-950/55"
                         >
                             <FileText className="h-4 w-4" />
                             เปิดรายงานล่าสุด
@@ -783,9 +844,9 @@ const AssetInventory = ({ issues = [], view = 'inventory' }) => {
 
             {/* Header Area */}
             {!isPmView && <div className="flex flex-col gap-3">
-                <div className="glass-card rounded-3xl p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div className={`${ASSET_PANEL_CLASS} flex flex-col items-start justify-between gap-4 p-6 sm:flex-row sm:items-center`}>
                     <div className="flex items-center gap-3">
-                        <div className="w-11 h-11 rounded-xl bg-sky-100 dark:bg-sky-900/40 flex items-center justify-center">
+                        <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-sky-200 bg-sky-50 dark:border-sky-800/70 dark:bg-sky-950/35">
                             <Monitor className="w-6 h-6 text-sky-600 dark:text-sky-300" />
                         </div>
                         <div>
@@ -793,18 +854,18 @@ const AssetInventory = ({ issues = [], view = 'inventory' }) => {
                             <p className="text-sm text-slate-500 dark:text-slate-400">GLPI + MySQL · {computers.length} เครื่อง (Active)</p>
                         </div>
                     </div>
-                    <div className="flex gap-2 flex-wrap">
+                    <div className="flex flex-wrap gap-2">
                         <button onClick={syncToMysql} disabled={isLoading || isSyncing || computers.length === 0}
-                            className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-white dark:bg-slate-800 text-violet-600 dark:text-violet-400 border border-violet-200 dark:border-violet-700 rounded-full hover:bg-violet-50 dark:hover:bg-violet-900/40 transition-all disabled:opacity-40">
+                            className={`${ASSET_TOOL_BUTTON_CLASS} border-violet-200 text-violet-600 hover:bg-violet-50 dark:border-violet-800/70 dark:text-violet-300 dark:hover:bg-violet-950/35`}>
                             <Upload className={`w-4 h-4 ${isSyncing ? 'animate-bounce' : ''}`} />
                             {isSyncing ? 'กำลัง Sync...' : 'Sync → MySQL'}
                         </button>
                         <button onClick={exportToExcel} disabled={isLoading || computers.length === 0}
-                            className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-700 rounded-full hover:bg-emerald-50 dark:hover:bg-emerald-900/40 transition-all disabled:opacity-40">
+                            className={`${ASSET_TOOL_BUTTON_CLASS} border-emerald-200 text-emerald-600 hover:bg-emerald-50 dark:border-emerald-800/70 dark:text-emerald-300 dark:hover:bg-emerald-950/35`}>
                             <FileSpreadsheet className="w-4 h-4" /> Excel
                         </button>
                         <button onClick={fetchComputers} disabled={isLoading}
-                            className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-700 rounded-full hover:bg-indigo-50 dark:hover:bg-indigo-900/40 transition-all disabled:opacity-50">
+                            className={`${ASSET_TOOL_BUTTON_CLASS} border-indigo-200 text-indigo-600 hover:bg-indigo-50 dark:border-indigo-800/70 dark:text-indigo-300 dark:hover:bg-indigo-950/35`}>
                             <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} /> รีเฟรช
                         </button>
                     </div>
@@ -856,22 +917,22 @@ const AssetInventory = ({ issues = [], view = 'inventory' }) => {
                 </div>
                 
                 {/* Source Filter Capsules */}
-                <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl w-full sm:w-auto">
+                <div className="flex w-full rounded-xl border border-slate-200 bg-slate-100 p-1 dark:border-slate-700 dark:bg-slate-900/35 sm:w-auto">
                         <button 
                         onClick={() => setSourceFilter('buyrent')}
-                        className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${sourceFilter === 'buyrent' ? 'bg-violet-500 text-white shadow-sm shadow-violet-200 dark:shadow-none' : 'text-slate-500 hover:text-violet-600 dark:text-slate-400 dark:hover:text-violet-400'}`}
+                        className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-bold transition-colors sm:flex-none ${sourceFilter === 'buyrent' ? 'bg-violet-600 text-white shadow-sm dark:bg-violet-500 dark:shadow-none' : 'text-slate-500 hover:text-violet-600 dark:text-slate-400 dark:hover:text-violet-300'}`}
                     >
                         🧩 เช่า+ซื้อ <span className={`text-xs px-2 py-0.5 rounded-full ${sourceFilter === 'buyrent' ? 'bg-violet-600 text-violet-50 dark:!bg-violet-950/70 dark:!text-violet-100' : 'bg-violet-100 text-violet-700 dark:!bg-violet-950/60 dark:!text-violet-200'}`}>{filterCounts.buyrent}</span>
                     </button>
                     <button 
                         onClick={() => setSourceFilter('buy')}
-                        className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${sourceFilter === 'buy' ? 'bg-emerald-500 text-white shadow-sm shadow-emerald-200 dark:shadow-none' : 'text-slate-500 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-400'}`}
+                        className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-bold transition-colors sm:flex-none ${sourceFilter === 'buy' ? 'bg-emerald-600 text-white shadow-sm dark:bg-emerald-500 dark:shadow-none' : 'text-slate-500 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-300'}`}
                     >
                         💰 ซื้อขาด <span className={`text-xs px-2 py-0.5 rounded-full ${sourceFilter === 'buy' ? 'bg-emerald-600 text-emerald-50 dark:!bg-emerald-950/70 dark:!text-emerald-100' : 'bg-emerald-100 text-emerald-700 dark:!bg-emerald-950/60 dark:!text-emerald-200'}`}>{filterCounts.buy}</span>
                     </button>
                     <button 
                         onClick={() => setSourceFilter('rent')}
-                        className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${sourceFilter === 'rent' ? 'bg-indigo-500 text-white shadow-sm shadow-indigo-200 dark:shadow-none' : 'text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400'}`}
+                        className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-bold transition-colors sm:flex-none ${sourceFilter === 'rent' ? 'bg-indigo-600 text-white shadow-sm dark:bg-indigo-500 dark:shadow-none' : 'text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-300'}`}
                     >
                         🤝 เช่า <span className={`text-xs px-2 py-0.5 rounded-full ${sourceFilter === 'rent' ? 'bg-indigo-600 text-indigo-50 dark:!bg-indigo-950/70 dark:!text-indigo-100' : 'bg-indigo-100 text-indigo-700 dark:!bg-indigo-950/60 dark:!text-indigo-200'}`}>{filterCounts.rent}</span>
                     </button>
@@ -880,7 +941,7 @@ const AssetInventory = ({ issues = [], view = 'inventory' }) => {
 
             {/* Warning (MySQL cache when GLPI unavailable) */}
             {!isPmView && warning && (
-                <div className="glass-card rounded-xl p-4 flex items-center gap-3 border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 text-sm">
+                <div className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700 shadow-sm dark:border-amber-800/70 dark:bg-amber-950/35 dark:text-amber-300">
                     <Clock className="w-5 h-5 flex-shrink-0" />
                     <p>{warning}</p>
                 </div>
@@ -888,7 +949,7 @@ const AssetInventory = ({ issues = [], view = 'inventory' }) => {
 
             {/* Error */}
             {!isPmView && error && (
-                <div className="glass-card rounded-2xl p-6 flex items-start gap-4 border border-rose-200 dark:border-rose-800 bg-rose-50/50 dark:bg-rose-900/20">
+                <div className="flex items-start gap-4 rounded-2xl border border-rose-200 bg-rose-50 p-6 shadow-sm dark:border-rose-800/70 dark:bg-rose-950/35">
                     <AlertCircle className="w-6 h-6 text-rose-500 flex-shrink-0 mt-0.5" />
                     <div>
                         <p className="font-semibold text-rose-700 dark:text-rose-400">เกิดข้อผิดพลาดในการโหลดข้อมูล</p>
@@ -900,7 +961,7 @@ const AssetInventory = ({ issues = [], view = 'inventory' }) => {
             {/* Loading */}
             {
                 !isPmView && isLoading && !error && (
-                    <div className="glass-card rounded-3xl p-16 flex flex-col items-center gap-4">
+                    <div className={`${ASSET_PANEL_CLASS} flex flex-col items-center gap-4 p-16`}>
                         <div className="w-10 h-10 border-4 border-indigo-200 dark:border-indigo-900 border-t-indigo-600 dark:border-t-indigo-400 rounded-full animate-spin" />
                         <p className="text-sm text-slate-500 dark:text-slate-400 animate-pulse">กำลังดึงข้อมูลจาก GLPI...</p>
                     </div>
@@ -913,7 +974,7 @@ const AssetInventory = ({ issues = [], view = 'inventory' }) => {
                     <>
                         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
                             {filtered.length === 0 ? (
-                                <div className="col-span-full glass-card rounded-2xl p-12 text-center text-slate-400 dark:text-slate-500">ไม่พบข้อมูลที่ค้นหา</div>
+                                <div className="col-span-full rounded-2xl border border-slate-200 bg-white p-12 text-center text-slate-400 shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-500">ไม่พบข้อมูลที่ค้นหา</div>
                             ) : filtered.map(computer => {
                                 const openIssues = getOpenIssues(computer);
                                 const allIssues = getAssetIssues(computer);
@@ -932,16 +993,16 @@ const AssetInventory = ({ issues = [], view = 'inventory' }) => {
                                                 return extractIpAddresses(detail);
                                             }).then(ips => setIpAddresses(ips)).catch(() => setIpAddresses([])).finally(() => setIpLoading(false));
                                         }}
-                                        className={`glass-card rounded-2xl p-5 cursor-pointer hover:shadow-lg transition-all duration-200 group relative ${isRepairing ? 'border-amber-300 dark:border-amber-700 border' : 'hover:border-indigo-200 dark:hover:border-indigo-700'}`}>
+                                        className={`group relative cursor-pointer rounded-2xl border bg-white p-5 shadow-sm transition-colors dark:bg-slate-800 ${isRepairing ? 'border-amber-300 dark:border-amber-700' : 'border-slate-200 hover:border-indigo-300 dark:border-slate-700 dark:hover:border-indigo-700'}`}>
                                         {/* กำลังซ่อม badge */}
                                         {isRepairing && (
-                                            <div className="absolute -top-2 -right-2 bg-amber-500 text-white text-xs font-bold px-2 py-0.5 rounded-full shadow-md flex items-center gap-1">
+                                                <div className="absolute -right-2 -top-2 flex items-center gap-1 rounded-full bg-amber-500 px-2 py-0.5 text-xs font-bold text-white shadow-sm">
                                                 🔧 กำลังซ่อม
                                             </div>
                                         )}
                                         <div className="flex items-start justify-between mb-3">
                                             <div className="flex items-center gap-3">
-                                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${isRepairing ? 'bg-amber-50 dark:!bg-amber-950/60' : 'bg-indigo-50 dark:!bg-indigo-950/60 group-hover:bg-indigo-100 dark:group-hover:!bg-indigo-900/70'}`}>
+                                                <div className={`flex h-10 w-10 items-center justify-center rounded-xl border transition-colors ${isRepairing ? 'border-amber-200 bg-amber-50 dark:!border-amber-800/70 dark:!bg-amber-950/35' : 'border-indigo-200 bg-indigo-50 dark:!border-indigo-800/70 dark:!bg-indigo-950/35 group-hover:bg-indigo-100 dark:group-hover:!bg-indigo-950/55'}`}>
                                                     <Monitor className={`w-5 h-5 ${isRepairing ? 'text-amber-600 dark:text-amber-400' : 'text-indigo-600 dark:text-indigo-400'}`} />
                                                 </div>
                                                 <div>
@@ -1232,14 +1293,12 @@ const AssetInventory = ({ issues = [], view = 'inventory' }) => {
                                     <span className="text-xs font-bold text-slate-500 dark:text-slate-400">นัด PM ครั้งถัดไป</span>
                                     <input type="date" value={pmForm.nextDueDate} onChange={(event) => setPmForm((current) => ({ ...current, nextDueDate: event.target.value }))} className="input-modern w-full !py-2 text-sm" />
                                 </label>
-                                <label className="space-y-1">
+                                <div className="space-y-1">
                                     <span className="text-xs font-bold text-slate-500 dark:text-slate-400">ผลโดยรวม</span>
-                                    <select value={pmForm.overallStatus} onChange={(event) => setPmForm((current) => ({ ...current, overallStatus: event.target.value }))} className="input-modern w-full !py-2 text-sm">
-                                        <option value="Pass">ปกติ</option>
-                                        <option value="Watch">เฝ้าระวัง</option>
-                                        <option value="Fail">ต้องแก้ไข</option>
-                                    </select>
-                                </label>
+                                    <div className="flex min-h-[42px] items-center rounded-xl border border-slate-200 bg-slate-50 px-3 dark:border-slate-700 dark:bg-slate-900/50">
+                                        {getPmStatusBadge(derivePmOverallStatus(pmForm.checklist))}
+                                    </div>
+                                </div>
                             </div>
 
                             <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700">
@@ -1260,11 +1319,42 @@ const AssetInventory = ({ issues = [], view = 'inventory' }) => {
                                                     <td className="px-3 py-3 text-center text-xs font-bold text-slate-400">{index + 1}</td>
                                                     <td className="px-3 py-3 font-medium text-slate-700 dark:text-slate-200">{item.label}</td>
                                                     <td className="px-3 py-3">
-                                                        <select value={value.status} onChange={(event) => updatePmChecklist(item.id, 'status', event.target.value)} className="input-modern w-full !py-1.5 text-xs">
-                                                            <option value="Pass">ปกติ</option>
-                                                            <option value="Watch">เฝ้าระวัง</option>
-                                                            <option value="Fail">ต้องแก้ไข</option>
-                                                        </select>
+                                                        <div className="grid grid-cols-2 gap-1.5">
+                                                            {[
+                                                                ['Pass', 'ผ่าน'],
+                                                                ['Fail', 'ไม่ผ่าน'],
+                                                            ].map(([status, label]) => {
+                                                                const isChecked = normalizePmStatus(value.status) === status;
+                                                                return (
+                                                                    <button
+                                                                        key={status}
+                                                                        type="button"
+                                                                        onClick={(event) => {
+                                                                            event.stopPropagation();
+                                                                            updatePmChecklist(item.id, 'status', status);
+                                                                        }}
+                                                                        className={`inline-flex items-center justify-center gap-1.5 rounded-lg border px-2 py-1.5 text-xs font-bold transition-colors ${
+                                                                            isChecked
+                                                                                ? status === 'Pass'
+                                                                                    ? 'border-emerald-300 bg-emerald-100 text-emerald-800 dark:border-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-100'
+                                                                                    : 'border-rose-300 bg-rose-100 text-rose-800 dark:border-rose-700 dark:bg-rose-950/60 dark:text-rose-100'
+                                                                                : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300 dark:hover:bg-slate-800'
+                                                                        }`}
+                                                                    >
+                                                                        <span className={`flex h-4 w-4 items-center justify-center rounded border ${
+                                                                            isChecked
+                                                                                ? status === 'Pass'
+                                                                                    ? 'border-emerald-500 bg-emerald-500 text-white'
+                                                                                    : 'border-rose-500 bg-rose-500 text-white'
+                                                                                : 'border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-800'
+                                                                        }`}>
+                                                                            {isChecked && <Check className="h-3 w-3" />}
+                                                                        </span>
+                                                                        {label}
+                                                                    </button>
+                                                                );
+                                                            })}
+                                                        </div>
                                                     </td>
                                                     <td className="px-3 py-3">
                                                         <input type="text" value={value.note || ''} onChange={(event) => updatePmChecklist(item.id, 'note', event.target.value)} className="input-modern w-full !py-1.5 text-xs" placeholder="ระบุหมายเหตุถ้ามี" />
@@ -1280,14 +1370,40 @@ const AssetInventory = ({ issues = [], view = 'inventory' }) => {
                                 <span className="text-xs font-bold text-slate-500 dark:text-slate-400">สรุป/ข้อเสนอแนะเพิ่มเติม</span>
                                 <textarea value={pmForm.note} onChange={(event) => setPmForm((current) => ({ ...current, note: event.target.value }))} className="input-modern min-h-24 w-full text-sm" placeholder="สรุปผล PM หรือสิ่งที่ต้องติดตามต่อ" />
                             </label>
+
+                            <div className="mt-4 rounded-2xl border border-dashed border-sky-200 bg-sky-50/50 p-4 dark:border-sky-800/70 dark:bg-sky-950/20">
+                                <label className="block space-y-2">
+                                    <span className="text-xs font-bold text-slate-600 dark:text-slate-300">รูปหลังทำ PM</span>
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        multiple
+                                        onChange={(event) => setPmAttachmentFiles(Array.from(event.target.files || []))}
+                                        className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-sky-600 file:px-3 file:py-2 file:text-sm file:font-bold file:text-white hover:file:bg-sky-700 dark:text-slate-300"
+                                    />
+                                </label>
+                                <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                                    แนบได้สูงสุด {MAX_ATTACHMENT_FILES} รูป ระบบจะ resize รูปก่อนอัปโหลดอัตโนมัติ
+                                </div>
+                                {pmAttachmentFiles.length > 0 && (
+                                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                                        {pmAttachmentFiles.map((file, index) => (
+                                            <div key={`${file.name}-${file.size}-${index}`} className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs dark:border-slate-700 dark:bg-slate-900/50">
+                                                <span className="min-w-0 truncate font-semibold text-slate-700 dark:text-slate-200">{file.name}</span>
+                                                <span className="shrink-0 text-slate-400">{Math.ceil(file.size / 1024)} KB</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                         <div className="flex flex-col-reverse gap-2 border-t border-slate-100 bg-slate-50 px-5 py-4 dark:border-slate-700 dark:bg-slate-900/40 sm:flex-row sm:justify-end">
                             <button type="button" onClick={() => setPmComputer(null)} className="rounded-xl bg-white px-4 py-2 text-sm font-bold text-slate-600 shadow-sm transition hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">
                                 ยกเลิก
                             </button>
-                            <button type="button" onClick={savePmRecord} className="inline-flex items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-sky-700">
-                                <Save className="h-4 w-4" />
-                                บันทึกและสร้างรายงาน FMIT08
+                            <button type="button" onClick={savePmRecord} disabled={isSavingPm} className="inline-flex items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60">
+                                <Save className={`h-4 w-4 ${isSavingPm ? 'animate-pulse' : ''}`} />
+                                {isSavingPm ? 'กำลังบันทึก...' : 'บันทึกและสร้างรายงาน FMIT08'}
                             </button>
                         </div>
                     </div>
@@ -1297,6 +1413,7 @@ const AssetInventory = ({ issues = [], view = 'inventory' }) => {
             {/* PM Report Modal */}
             {pmReportRecord && (() => {
                 const checklist = getPmReportChecklist(pmReportRecord);
+                const attachments = getPmReportAttachments(pmReportRecord);
                 return (
                     <div className="fixed inset-0 z-[130] flex items-start justify-center overflow-y-auto bg-slate-900/60 p-3 backdrop-blur-sm sm:p-4">
                         <div className="w-full max-w-5xl overflow-hidden rounded-2xl border border-white/20 bg-slate-100 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
@@ -1320,64 +1437,90 @@ const AssetInventory = ({ issues = [], view = 'inventory' }) => {
                                 </div>
                             </div>
                             <div className="max-h-[calc(100dvh-8rem)] overflow-auto p-4">
-                                <div ref={pmReportRef} className="mx-auto w-[210mm] min-h-[297mm] bg-white p-[12mm] text-slate-900 shadow-xl">
-                                    <div className="border border-slate-900">
-                                        <div className="grid grid-cols-[1fr_160px] border-b border-slate-900">
-                                            <div className="p-3 text-center">
-                                                <div className="text-lg font-bold">แบบฟอร์มตรวจเช็ค PM เครื่องคอมพิวเตอร์</div>
-                                                <div className="text-sm font-semibold">Preventive Maintenance Checklist (FMIT08)</div>
+                                <div ref={pmReportRef} className="mx-auto w-[297mm] bg-white text-slate-950 shadow-xl">
+                                    <div className="min-h-[210mm] p-[8mm]">
+                                        <div className="border border-black text-[11px] leading-tight">
+                                            <div className="grid grid-cols-[27mm_28mm_21mm_22mm_1fr_46mm_18mm] border-b border-black text-center font-bold">
+                                                <div className="flex items-center justify-center border-r border-black p-2">ลำดับ</div>
+                                                <div className="flex items-center justify-center border-r border-black p-2">แผนก</div>
+                                                <div className="flex items-center justify-center border-r border-black p-2">ประเภท</div>
+                                                <div className="flex items-center justify-center border-r border-black p-2">วันที่</div>
+                                                <div className="flex min-h-[18mm] items-center justify-center border-r border-black p-2 text-[15px]">รายการตรวจเช็คคอมพิวเตอร์ (FMIT 08)</div>
+                                                <div className="flex items-center justify-center border-r border-black p-2">ผู้ตรวจเช็ค</div>
+                                                <div className="flex items-center justify-center p-2">หมายเหตุ</div>
                                             </div>
-                                            <div className="border-l border-slate-900 p-2 text-xs leading-relaxed">
-                                                <div><b>Document No.</b> FMIT08</div>
-                                                <div><b>วันที่พิมพ์</b> {new Date().toLocaleDateString('th-TH')}</div>
+                                            <div className="grid grid-cols-[104mm_1fr] border-b border-black">
+                                                <div className="grid grid-cols-2 border-r border-black">
+                                                    <div className="border-b border-r border-black p-1.5"><b>เครื่อง:</b> {pmReportRecord.asset_name || '-'}</div>
+                                                    <div className="border-b border-black p-1.5"><b>รหัสทรัพย์สิน:</b> {pmReportRecord.asset_code || '-'}</div>
+                                                    <div className="border-r border-black p-1.5"><b>Serial:</b> {pmReportRecord.serial || '-'}</div>
+                                                    <div className="p-1.5"><b>ผู้ใช้งาน:</b> {pmReportRecord.user_name || '-'}</div>
+                                                </div>
+                                                <div className="grid grid-cols-3">
+                                                    <div className="border-r border-black p-1.5"><b>สถานที่:</b> {pmReportRecord.location_name || '-'}</div>
+                                                    <div className="border-r border-black p-1.5"><b>วันที่ตรวจ:</b> {new Date(pmReportRecord.pm_date).toLocaleDateString('th-TH')}</div>
+                                                    <div className="p-1.5"><b>PM ครั้งถัดไป:</b> {pmReportRecord.next_due_date ? new Date(pmReportRecord.next_due_date).toLocaleDateString('th-TH') : '-'}</div>
+                                                </div>
+                                            </div>
+                                            <table className="w-full border-collapse">
+                                                <thead>
+                                                    <tr className="text-center font-bold">
+                                                        <th className="w-9 border-b border-r border-black p-1.5">No.</th>
+                                                        <th className="border-b border-r border-black p-1.5">รายการตรวจเช็ค</th>
+                                                        <th className="w-20 border-b border-r border-black p-1.5">ผ่าน</th>
+                                                        <th className="w-20 border-b border-r border-black p-1.5">ไม่ผ่าน</th>
+                                                        <th className="w-[62mm] border-b border-black p-1.5">หมายเหตุ</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {PM_CHECKLIST.map((item, index) => {
+                                                        const value = checklist[item.id] || {};
+                                                        const status = normalizePmStatus(value.status);
+                                                        return (
+                                                            <tr key={item.id}>
+                                                                <td className="border-r border-black p-1.5 text-center">{index + 1}</td>
+                                                                <td className="border-r border-black p-1.5">{item.label}</td>
+                                                                <td className="border-r border-black p-1.5 text-center text-base">{status === 'Pass' ? '✓' : ''}</td>
+                                                                <td className="border-r border-black p-1.5 text-center text-base">{status === 'Fail' ? '✓' : ''}</td>
+                                                                <td className="p-1.5">{value.note || ''}</td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                            </table>
+                                            <div className="grid grid-cols-[1fr_54mm_54mm] border-t border-black">
+                                                <div className="min-h-[22mm] p-2">
+                                                    <b>สรุป/ข้อเสนอแนะ:</b>
+                                                    <div className="mt-1 whitespace-pre-wrap">{pmReportRecord.note || '-'}</div>
+                                                </div>
+                                                <div className="border-l border-black p-2 text-center">
+                                                    <div><b>ผลโดยรวม</b></div>
+                                                    <div className="mt-3 text-base font-bold">{PM_STATUS_LABELS[normalizePmStatus(pmReportRecord.overall_status)]}</div>
+                                                </div>
+                                                <div className="border-l border-black p-2 text-center">
+                                                    <div className="mb-9"><b>ผู้ตรวจเช็ค</b></div>
+                                                    <div className="border-t border-black pt-1">{pmReportRecord.inspector_name || '-'}</div>
+                                                </div>
                                             </div>
                                         </div>
-                                        <div className="grid grid-cols-2 gap-x-4 gap-y-1 border-b border-slate-900 p-3 text-xs">
-                                            <div><b>ชื่อเครื่อง:</b> {pmReportRecord.asset_name || '-'}</div>
-                                            <div><b>รหัสทรัพย์สิน:</b> {pmReportRecord.asset_code || '-'}</div>
-                                            <div><b>Serial Number:</b> {pmReportRecord.serial || '-'}</div>
-                                            <div><b>ผู้ใช้งาน:</b> {pmReportRecord.user_name || '-'}</div>
-                                            <div><b>สถานที่:</b> {pmReportRecord.location_name || '-'}</div>
-                                            <div><b>ประเภท:</b> {pmReportRecord.source_type || '-'}</div>
-                                            <div><b>วันที่ตรวจ PM:</b> {new Date(pmReportRecord.pm_date).toLocaleDateString('th-TH')}</div>
-                                            <div><b>ตรวจครั้งถัดไป:</b> {pmReportRecord.next_due_date ? new Date(pmReportRecord.next_due_date).toLocaleDateString('th-TH') : '-'}</div>
-                                        </div>
-                                        <table className="w-full border-collapse text-xs">
-                                            <thead>
-                                                <tr className="bg-slate-100">
-                                                    <th className="w-10 border-b border-r border-slate-900 p-1.5">ลำดับ</th>
-                                                    <th className="border-b border-r border-slate-900 p-1.5">รายการตรวจเช็ค</th>
-                                                    <th className="w-24 border-b border-r border-slate-900 p-1.5">ผลตรวจ</th>
-                                                    <th className="w-56 border-b border-slate-900 p-1.5">หมายเหตุ</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {PM_CHECKLIST.map((item, index) => {
-                                                    const value = checklist[item.id] || {};
-                                                    return (
-                                                        <tr key={item.id}>
-                                                            <td className="border-r border-slate-900 p-1.5 text-center">{index + 1}</td>
-                                                            <td className="border-r border-slate-900 p-1.5">{item.label}</td>
-                                                            <td className="border-r border-slate-900 p-1.5 text-center">{PM_STATUS_LABELS[value.status] || '-'}</td>
-                                                            <td className="p-1.5">{value.note || '-'}</td>
-                                                        </tr>
-                                                    );
-                                                })}
-                                            </tbody>
-                                        </table>
-                                        <div className="grid grid-cols-[1fr_180px] border-t border-slate-900 text-xs">
-                                            <div className="min-h-20 p-3">
-                                                <b>สรุป/ข้อเสนอแนะ:</b>
-                                                <div className="mt-1 whitespace-pre-wrap">{pmReportRecord.note || '-'}</div>
-                                            </div>
-                                            <div className="border-l border-slate-900 p-3 text-center">
-                                                <div className="mb-8"><b>ผลโดยรวม:</b> {PM_STATUS_LABELS[pmReportRecord.overall_status] || '-'}</div>
-                                                <div className="border-t border-slate-700 pt-1">{pmReportRecord.inspector_name || '-'}</div>
-                                                <div>ผู้ตรวจเช็ค</div>
-                                            </div>
+                                        <div className="mt-2 flex justify-start gap-8 text-[10px] text-slate-700">
+                                            <span>Revision No : 03</span>
+                                            <span>Date of Issue : 03.04.26</span>
                                         </div>
                                     </div>
-                                    <div className="mt-2 text-left text-[10px] text-slate-500">หมายเหตุ: รายงานนี้สร้างจากระบบ IT Helpdesk สำหรับบันทึกการตรวจเช็ค PM เครื่องคอมพิวเตอร์ประเภท Buy</div>
+                                    {attachments.length > 0 && (
+                                        <div className="min-h-[210mm] break-before-page p-[8mm]">
+                                            <div className="mb-3 border border-black p-2 text-center text-sm font-bold">รูปภาพหลังทำ PM</div>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                {attachments.map((file, index) => (
+                                                    <div key={`${file.url || file.path || file.name}-${index}`} className="break-inside-avoid border border-black p-2">
+                                                        <img src={resolveAttachmentUrl(file.url || file.path)} alt={`PM attachment ${index + 1}`} className="h-[75mm] w-full object-contain" />
+                                                        <div className="mt-1 text-center text-[10px] text-slate-700">รูปที่ {index + 1}: {file.name || '-'}</div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>

@@ -1,11 +1,37 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import SignatureCanvas from 'react-signature-canvas';
-import { CheckCircle2, ClipboardCheck, Eraser, FileSignature, Loader2, XCircle } from 'lucide-react';
+import { CheckCircle2, ClipboardCheck, Eraser, FileSignature, ImagePlus, Loader2, X, XCircle } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { mysql } from '../mysqlClient';
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Label, Textarea } from '@/components/ui';
 import { toMysqlDateTime } from '../utils/dateTime';
 import { loadSignatureIntoCanvas } from '../utils/signatureCanvas';
+import { resolveAttachmentUrl } from '../utils/fileUpload';
+
+const imageExtensionPattern = /\.(png|jpe?g|gif|webp|bmp|avif)(?:\?.*)?$/i;
+
+const parseAttachments = (value) => {
+    if (Array.isArray(value)) return value;
+    if (!value) return [];
+    try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? parsed : [];
+    } catch {
+        return [];
+    }
+};
+
+const isImageAttachment = (file) => {
+    const mimeType = String(file?.type || file?.mimetype || file?.mimeType || '').toLowerCase();
+    const url = String(file?.url || file?.path || file?.name || '').toLowerCase();
+    return mimeType.startsWith('image/') || imageExtensionPattern.test(url);
+};
+
+const isItRepairEvidence = (file) => {
+    const uploadedByType = String(file?.uploadedByType || '').toLowerCase();
+    const source = String(file?.source || '').toLowerCase();
+    return uploadedByType === 'it' || source === 'repair_evidence';
+};
 
 const IssueCloseSignature = ({ issueId, onCloseIssue }) => {
     const signatureRef = useRef(null);
@@ -14,6 +40,11 @@ const IssueCloseSignature = ({ issueId, onCloseIssue }) => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [formData, setFormData] = useState({ name: '', position: '', note: '' });
     const [latestCloseSignature, setLatestCloseSignature] = useState(null);
+    const [previewImage, setPreviewImage] = useState(null);
+
+    const repairEvidenceImages = useMemo(() => (
+        parseAttachments(issue?.attachments_json).filter((file) => isImageAttachment(file) && isItRepairEvidence(file))
+    ), [issue?.attachments_json]);
 
     useEffect(() => {
         const fetchIssue = async () => {
@@ -169,6 +200,54 @@ const IssueCloseSignature = ({ issueId, onCloseIssue }) => {
                         {issue.repair_details && <div><span className="font-semibold text-slate-500">ผลการดำเนินการ:</span> {issue.repair_details}</div>}
                     </div>
 
+                    <div className="rounded-2xl border border-sky-100 bg-sky-50/60 p-4 dark:border-sky-900/50 dark:bg-sky-950/20">
+                        <div className="mb-3 flex items-center justify-between gap-3">
+                            <div>
+                                <div className="flex items-center gap-2 font-bold text-slate-800 dark:text-slate-100">
+                                    <ImagePlus className="h-4 w-4 text-sky-600 dark:text-sky-300" />
+                                    รูปหลักฐานการซ่อม
+                                </div>
+                                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                                    กรุณาตรวจสอบรูปประกอบก่อนเซ็นยืนยันปิดจบงาน
+                                </p>
+                            </div>
+                            <span className="rounded-full bg-white px-2.5 py-1 text-xs font-bold text-sky-700 shadow-sm dark:bg-slate-900/60 dark:text-sky-200">
+                                {repairEvidenceImages.length} รูป
+                            </span>
+                        </div>
+                        {repairEvidenceImages.length === 0 ? (
+                            <div className="rounded-xl border border-dashed border-sky-200 bg-white/70 p-4 text-center text-sm text-slate-500 dark:border-sky-900/60 dark:bg-slate-900/40 dark:text-slate-400">
+                                ยังไม่มีรูปหลักฐานการซ่อมแนบในระบบ
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                                {repairEvidenceImages.map((file, index) => {
+                                    const imageUrl = resolveAttachmentUrl(file.url || file.path);
+                                    return (
+                                        <button
+                                            key={`${imageUrl || file.name}-${index}`}
+                                            type="button"
+                                            onClick={() => setPreviewImage({ ...file, imageUrl, index })}
+                                            className="group overflow-hidden rounded-xl border border-white bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:border-sky-200 hover:shadow-md dark:border-slate-700 dark:bg-slate-900/70 dark:hover:border-sky-800"
+                                        >
+                                            <div className="aspect-[4/3] bg-slate-100 dark:bg-slate-800">
+                                                <img
+                                                    src={imageUrl}
+                                                    alt={`รูปหลักฐานการซ่อม ${index + 1}`}
+                                                    className="h-full w-full object-cover transition group-hover:scale-[1.03]"
+                                                />
+                                            </div>
+                                            <div className="p-2 text-xs">
+                                                <div className="font-bold text-slate-700 dark:text-slate-200">รูปที่ {index + 1}</div>
+                                                <div className="mt-0.5 truncate text-slate-400">{file.name || 'repair evidence'}</div>
+                                            </div>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+
                     {alreadyClosed ? (
                         <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-900/20 dark:text-emerald-300">
                             <div className="flex items-center gap-2 font-bold">
@@ -240,6 +319,28 @@ const IssueCloseSignature = ({ issueId, onCloseIssue }) => {
                     )}
                 </CardContent>
             </Card>
+            {previewImage && (
+                <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm" onClick={() => setPreviewImage(null)}>
+                    <div className="relative max-h-full w-full max-w-5xl overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-slate-900" onClick={(event) => event.stopPropagation()}>
+                        <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 dark:border-slate-800">
+                            <div>
+                                <div className="font-bold text-slate-900 dark:text-white">รูปหลักฐานการซ่อม {previewImage.index + 1}</div>
+                                <div className="text-xs text-slate-500 dark:text-slate-400">{previewImage.name || '-'}</div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setPreviewImage(null)}
+                                className="rounded-full p-2 text-slate-400 transition hover:bg-slate-100 hover:text-rose-500 dark:hover:bg-slate-800"
+                            >
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+                        <div className="flex max-h-[78vh] items-center justify-center bg-slate-100 p-3 dark:bg-slate-950">
+                            <img src={previewImage.imageUrl} alt={`รูปหลักฐานการซ่อม ${previewImage.index + 1}`} className="max-h-[74vh] max-w-full object-contain" />
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

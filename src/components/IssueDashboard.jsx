@@ -90,6 +90,19 @@ const FILTER_STATUS_CARDS = [
     { status: 'Cancelled', label: 'ยกเลิก', icon: XCircle, iconClass: getStatusIconClass('Cancelled') },
 ];
 
+const ACTION_BUTTON_TONES = {
+    emerald: 'text-emerald-600 border-emerald-200 bg-emerald-50 hover:bg-emerald-600 hover:text-white hover:border-emerald-600 dark:text-emerald-300 dark:border-emerald-800/70 dark:bg-emerald-950/35 dark:hover:bg-emerald-600 dark:hover:text-white',
+    pink: 'text-pink-600 border-pink-200 bg-pink-50 hover:bg-pink-600 hover:text-white hover:border-pink-600 dark:text-pink-300 dark:border-pink-800/70 dark:bg-pink-950/35 dark:hover:bg-pink-600 dark:hover:text-white',
+    amber: 'text-amber-600 border-amber-200 bg-amber-50 hover:bg-amber-600 hover:text-white hover:border-amber-600 dark:text-amber-300 dark:border-amber-800/70 dark:bg-amber-950/35 dark:hover:bg-amber-600 dark:hover:text-white',
+    violet: 'text-violet-600 border-violet-200 bg-violet-50 hover:bg-violet-600 hover:text-white hover:border-violet-600 dark:text-violet-300 dark:border-violet-800/70 dark:bg-violet-950/35 dark:hover:bg-violet-600 dark:hover:text-white',
+    indigo: 'text-indigo-600 border-indigo-200 bg-indigo-50 hover:bg-indigo-600 hover:text-white hover:border-indigo-600 dark:text-indigo-300 dark:border-indigo-800/70 dark:bg-indigo-950/35 dark:hover:bg-indigo-600 dark:hover:text-white',
+    sky: 'text-sky-600 border-sky-200 bg-sky-50 hover:bg-sky-600 hover:text-white hover:border-sky-600 dark:text-sky-300 dark:border-sky-800/70 dark:bg-sky-950/35 dark:hover:bg-sky-600 dark:hover:text-white',
+    cyan: 'text-cyan-600 border-cyan-200 bg-cyan-50 hover:bg-cyan-600 hover:text-white hover:border-cyan-600 dark:text-cyan-300 dark:border-cyan-800/70 dark:bg-cyan-950/35 dark:hover:bg-cyan-600 dark:hover:text-white',
+    rose: 'text-rose-600 border-rose-200 bg-rose-50 hover:bg-rose-600 hover:text-white hover:border-rose-600 dark:text-rose-300 dark:border-rose-800/70 dark:bg-rose-950/35 dark:hover:bg-rose-600 dark:hover:text-white',
+};
+
+const getActionButtonClass = (tone) => `inline-flex h-9 w-9 items-center justify-center rounded-xl border shadow-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-slate-950 ${ACTION_BUTTON_TONES[tone] || ACTION_BUTTON_TONES.indigo}`;
+
 const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRepairDetails, updateIssueFullDetails, deleteIssue, isLoading }) => {
     // Filter states
     const [searchTerm, setSearchTerm] = useState('');
@@ -1185,9 +1198,9 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                 key={status}
                                 type="button"
                                 onClick={() => setFilterStatus((current) => current === status ? 'All' : status)}
-                                className={`glass-card flex min-h-[92px] items-center gap-3 rounded-2xl p-3 text-left transition-all hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-lg dark:hover:border-indigo-700 ${
+                                className={`flex min-h-[92px] items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 text-left shadow-sm transition-colors hover:border-indigo-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-indigo-700 dark:hover:bg-slate-800/80 ${
                                     filterStatus === status
-                                        ? 'border-indigo-400 bg-indigo-50/80 ring-2 ring-indigo-500/20 dark:border-indigo-600 dark:bg-indigo-950/30'
+                                        ? 'border-indigo-400 bg-indigo-50 ring-2 ring-indigo-500/20 dark:border-indigo-600 dark:bg-indigo-950/35'
                                         : ''
                                 }`}
                                 aria-pressed={filterStatus === status}
@@ -1207,12 +1220,12 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
             )}
 
             {/* Main Table section */}
-            <div className="glass-card rounded-3xl overflow-hidden border-t-0 shadow-xl shadow-indigo-100/50 dark:shadow-indigo-900/30">
-                <div className="px-6 py-5 border-b border-indigo-100/60 dark:border-indigo-900/40 bg-white/40 dark:bg-slate-800/40 flex flex-col sm:flex-row justify-between items-center gap-4">
-                    <h3 className="text-lg font-bold text-indigo-950 dark:text-indigo-100 flex items-center gap-2">
+            <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
+                <div className="flex flex-col gap-4 border-b border-slate-200 bg-slate-50/80 px-5 py-4 dark:border-slate-700 dark:bg-slate-900/35 lg:flex-row lg:items-center lg:justify-between">
+                    <h3 className="flex flex-wrap items-center gap-2 text-lg font-bold text-indigo-950 dark:text-indigo-100">
                         <div className="w-2 h-6 bg-indigo-500 rounded-full"></div> รายการแจ้งซ่อมทั้งหมด <span className="text-sm font-medium text-slate-500 dark:text-slate-300 bg-white dark:bg-slate-700 px-2 py-0.5 rounded-full border border-slate-200 dark:border-slate-600">{filteredIssues.length} รายการ</span>
                     </h3>
-                    <div className="flex flex-wrap items-center justify-end gap-3">
+                    <div className="flex w-full flex-wrap items-center gap-2 lg:w-auto lg:justify-end">
                         <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
                             <span>แสดง</span>
                             <input
@@ -1233,46 +1246,46 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                         <button
                             onClick={() => setIsIssueListPdfPreviewOpen(true)}
                             disabled={filteredIssues.length === 0}
-                            className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-white dark:bg-slate-800 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-700/50 rounded-full hover:bg-rose-50 dark:hover:bg-rose-900/40 hover:shadow-md transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="flex items-center gap-2 rounded-xl border border-rose-200 bg-white px-4 py-2 text-sm font-semibold text-rose-700 transition-colors hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-rose-800/70 dark:bg-rose-950/30 dark:text-rose-300 dark:hover:bg-rose-950/50"
                             title="ดูตัวอย่างตาราง PDF"
                         >
                             <Printer className="w-4 h-4" /> PDF
                         </button>
                         <button
                             onClick={exportToExcel}
-                            className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-white dark:bg-slate-800 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-700/50 rounded-full hover:bg-emerald-50 dark:hover:bg-emerald-900/40 hover:shadow-md transition-all duration-200"
+                            className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 py-2 text-sm font-semibold text-emerald-700 transition-colors hover:bg-emerald-50 dark:border-emerald-800/70 dark:bg-emerald-950/30 dark:text-emerald-300 dark:hover:bg-emerald-950/50"
                             title="ส่งออกเป็นไฟล์ Excel"
                         >
                             <FileSpreadsheet className="w-4 h-4" /> Excel
                         </button>
                     </div>
                 </div>
-                <div className="overflow-x-auto overflow-y-hidden xl:overflow-visible">
-                    <table className="block xl:table w-full xl:table-fixed text-left border-collapse">
+                <div className="overflow-x-auto overflow-y-hidden">
+                    <table className="block w-full min-w-full border-collapse text-left lg:table lg:min-w-[1180px] lg:table-fixed">
                         <colgroup>
-                            <col className="hidden xl:table-column xl:w-[5%]" />
-                            <col className="hidden xl:table-column xl:w-[12%]" />
-                            <col className="hidden xl:table-column xl:w-[16%]" />
-                            <col className="hidden xl:table-column xl:w-[14%]" />
-                            <col className="hidden xl:table-column xl:w-[27%] 2xl:w-[29%]" />
-                            <col className="hidden xl:table-column xl:w-[9%] 2xl:w-[8%]" />
-                            <col className="hidden xl:table-column xl:w-[17%] 2xl:w-[16%]" />
+                            <col className="hidden lg:table-column lg:w-[5%]" />
+                            <col className="hidden lg:table-column lg:w-[12%]" />
+                            <col className="hidden lg:table-column lg:w-[16%]" />
+                            <col className="hidden lg:table-column lg:w-[14%]" />
+                            <col className="hidden lg:table-column lg:w-[27%] 2xl:w-[29%]" />
+                            <col className="hidden lg:table-column lg:w-[9%] 2xl:w-[8%]" />
+                            <col className="hidden lg:table-column lg:w-[17%] 2xl:w-[16%]" />
                         </colgroup>
-                        <thead className="hidden xl:table-header-group bg-slate-50/50 dark:bg-slate-700/50">
+                        <thead className="hidden bg-slate-50/70 dark:bg-slate-900/40 lg:table-header-group">
                             <tr>
-                                <th scope="col" className="px-4 xl:px-5 py-4 text-center text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200/60 dark:border-slate-600/60 w-20">ลำดับ</th>
-                                <th scope="col" className="px-4 xl:px-5 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200/60 dark:border-slate-600/60">เลขที่เอกสาร</th>
-                                <th scope="col" className="px-4 xl:px-5 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200/60 dark:border-slate-600/60">ผู้แจ้ง / แผนก</th>
-                                <th scope="col" className="px-4 xl:px-5 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200/60 dark:border-slate-600/60">หมวดหมู่ / ความรุนแรง</th>
-                                <th scope="col" className="px-4 xl:px-5 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200/60 dark:border-slate-600/60 w-[30%]">ปัญหา</th>
-                                <th scope="col" className="px-4 xl:px-5 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200/60 dark:border-slate-600/60">สถานะ</th>
-                                <th scope="col" className="px-4 xl:px-5 py-4 text-right text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200/60 dark:border-slate-600/60">จัดการ</th>
+                                <th scope="col" className="w-20 border-b border-slate-200/60 px-4 py-4 text-center text-xs font-bold uppercase tracking-wider text-slate-500 dark:border-slate-600/60 dark:text-slate-400 lg:px-5">ลำดับ</th>
+                                <th scope="col" className="border-b border-slate-200/60 px-4 py-4 text-xs font-bold uppercase tracking-wider text-slate-500 dark:border-slate-600/60 dark:text-slate-400 lg:px-5">เลขที่เอกสาร</th>
+                                <th scope="col" className="border-b border-slate-200/60 px-4 py-4 text-xs font-bold uppercase tracking-wider text-slate-500 dark:border-slate-600/60 dark:text-slate-400 lg:px-5">ผู้แจ้ง / แผนก</th>
+                                <th scope="col" className="border-b border-slate-200/60 px-4 py-4 text-xs font-bold uppercase tracking-wider text-slate-500 dark:border-slate-600/60 dark:text-slate-400 lg:px-5">หมวดหมู่ / ความรุนแรง</th>
+                                <th scope="col" className="w-[30%] border-b border-slate-200/60 px-4 py-4 text-xs font-bold uppercase tracking-wider text-slate-500 dark:border-slate-600/60 dark:text-slate-400 lg:px-5">ปัญหา</th>
+                                <th scope="col" className="border-b border-slate-200/60 px-4 py-4 text-xs font-bold uppercase tracking-wider text-slate-500 dark:border-slate-600/60 dark:text-slate-400 lg:px-5">สถานะ</th>
+                                <th scope="col" className="border-b border-slate-200/60 px-4 py-4 text-right text-xs font-bold uppercase tracking-wider text-slate-500 dark:border-slate-600/60 dark:text-slate-400 lg:px-5">จัดการ</th>
                             </tr>
                         </thead>
-                        <tbody className="block xl:table-row-group bg-transparent xl:bg-white/40 dark:bg-transparent xl:dark:bg-slate-800/40 xl:divide-y xl:divide-slate-100 dark:divide-slate-700/50 space-y-4 xl:space-y-0 p-4 xl:p-0">
+                        <tbody className="block space-y-4 bg-transparent p-4 dark:bg-transparent lg:table-row-group lg:space-y-0 lg:bg-white lg:p-0 lg:divide-y lg:divide-slate-100 lg:dark:bg-slate-800 lg:dark:divide-slate-700/50">
                             {isLoading ? (
-                                <tr className="block xl:table-row">
-                                    <td colSpan="7" className="block xl:table-cell px-6 py-16 text-center bg-white dark:bg-slate-800 rounded-2xl xl:rounded-none shadow-sm xl:shadow-none border border-slate-100 dark:border-slate-700 xl:border-none">
+                                <tr className="block lg:table-row">
+                                    <td colSpan="7" className="block rounded-2xl border border-slate-100 bg-white px-6 py-16 text-center shadow-sm dark:border-slate-700 dark:bg-slate-800 lg:table-cell lg:rounded-none lg:border-none lg:shadow-none">
                                         <div className="flex flex-col items-center justify-center space-y-4">
                                             <div className="w-10 h-10 border-4 border-indigo-200 dark:border-indigo-900/50 border-t-indigo-600 dark:border-t-indigo-400 rounded-full animate-spin"></div>
                                             <p className="text-sm font-medium text-slate-500 dark:text-slate-400 animate-pulse">กำลังโหลดข้อมูลการแจ้งซ่อม...</p>
@@ -1280,48 +1293,48 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                     </td>
                                 </tr>
                             ) : paginatedIssues.map((issue, index) => (
-                                <tr key={issue.id} className="block xl:table-row bg-white xl:bg-transparent dark:bg-slate-800 xl:dark:bg-transparent rounded-2xl xl:rounded-none shadow-sm xl:shadow-none border border-slate-100 dark:border-slate-700 xl:border-none hover:bg-indigo-50/40 dark:hover:bg-indigo-900/20 transition-colors relative">
-                                    <td className="block xl:table-cell px-4 xl:px-5 py-3 xl:py-4 text-center align-top border-b border-slate-100 dark:border-slate-700/50 xl:border-none">
-                                        <div className="flex items-center justify-between xl:justify-center">
-                                            <span className="xl:hidden text-xs font-semibold text-slate-500 dark:text-slate-400">ลำดับ</span>
+                                <tr key={issue.id} className="relative block rounded-2xl border border-slate-100 bg-white shadow-sm transition-colors hover:bg-indigo-50/40 dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-indigo-900/20 lg:table-row lg:rounded-none lg:border-none lg:bg-transparent lg:shadow-none lg:dark:bg-transparent">
+                                    <td className="block border-b border-slate-100 px-4 py-3 text-center align-top dark:border-slate-700/50 lg:table-cell lg:border-none lg:px-5 lg:py-4">
+                                        <div className="flex items-center justify-between lg:justify-center">
+                                            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 lg:hidden">ลำดับ</span>
                                             <span className="inline-flex h-8 min-w-8 items-center justify-center rounded-full bg-slate-100 px-2 text-sm font-bold text-slate-700 dark:bg-slate-700 dark:text-slate-100">
                                                 {(currentPage - 1) * pageSize + index + 1}
                                             </span>
                                         </div>
                                     </td>
-                                    <td className="block xl:table-cell px-4 xl:px-5 py-3 xl:py-4 xl:whitespace-nowrap align-top border-b border-slate-100 dark:border-slate-700/50 xl:border-none">
-                                        <div className="flex justify-between items-start xl:block">
+                                    <td className="block border-b border-slate-100 px-4 py-3 align-top dark:border-slate-700/50 lg:table-cell lg:border-none lg:px-5 lg:py-4 lg:whitespace-nowrap">
+                                        <div className="flex items-start justify-between lg:block">
                                             <div>
                                                 <div className="text-sm font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-900/40 inline-block px-2 py-1 rounded border border-indigo-100 dark:border-indigo-800">{issue.id || 'N/A'}</div>
                                                 <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                                                     {formatDate(issue.createdAt)}
                                                 </div>
                                             </div>
-                                            <div className="xl:hidden mt-0.5">
+                                            <div className="mt-0.5 lg:hidden">
                                                 {getStatusBadge(issue.status, isIssueClosed(issue))}
                                             </div>
                                         </div>
                                     </td>
-                                    <td className="block xl:table-cell px-4 xl:px-5 py-3 xl:py-4 align-top xl:min-w-[140px]">
-                                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center xl:items-start xl:block gap-2 sm:gap-4">
+                                    <td className="block px-4 py-3 align-top lg:table-cell lg:min-w-[140px] lg:px-5 lg:py-4">
+                                        <div className="flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center sm:gap-4 lg:block lg:items-start">
                                             <div>
-                                                <div className="text-sm font-bold text-slate-900 dark:text-white"><span className="xl:hidden text-slate-500 font-normal mr-1">ผู้แจ้ง:</span>{issue.name}</div>
-                                                <div className="text-sm text-slate-500 dark:text-slate-400 font-medium"><span className="xl:hidden font-normal mr-1">แผนก:</span>{issue.department}</div>
+                                                <div className="text-sm font-bold text-slate-900 dark:text-white"><span className="mr-1 font-normal text-slate-500 lg:hidden">ผู้แจ้ง:</span>{issue.name}</div>
+                                                <div className="text-sm font-medium text-slate-500 dark:text-slate-400"><span className="mr-1 font-normal lg:hidden">แผนก:</span>{issue.department}</div>
                                             </div>
-                                            <div className="text-left sm:text-right xl:text-left border-l-[3px] border-slate-100 dark:border-slate-700 pl-3 sm:border-none sm:pl-0 xl:border-none">
-                                                <div className="text-sm text-slate-900 dark:text-white font-medium line-clamp-1 break-all sm:break-normal"><span className="xl:hidden text-slate-500 font-normal mr-1">หมวดหมู่:</span>{issue.category}</div>
-                                                <div className="text-sm text-slate-500 dark:text-slate-400 mt-1 flex sm:justify-end xl:block">{getSeverityBadge(issue.severity)}</div>
+                                            <div className="border-l-[3px] border-slate-100 pl-3 text-left dark:border-slate-700 sm:border-none sm:pl-0 sm:text-right lg:border-none lg:text-left">
+                                                <div className="line-clamp-1 break-all text-sm font-medium text-slate-900 dark:text-white sm:break-normal"><span className="mr-1 font-normal text-slate-500 lg:hidden">หมวดหมู่:</span>{issue.category}</div>
+                                                <div className="mt-1 flex text-sm text-slate-500 dark:text-slate-400 sm:justify-end lg:block">{getSeverityBadge(issue.severity)}</div>
                                             </div>
                                         </div>
-                                        <div className={`text-xs mt-1.5 font-semibold flex items-center gap-1 xl:mt-1 ${issue.assignedAdmin ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}`}>
+                                        <div className={`mt-1.5 flex items-center gap-1 text-xs font-semibold lg:mt-1 ${issue.assignedAdmin ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}`}>
                                             <span>👤 ผู้รับงาน: {issue.assignedAdmin || 'ยังไม่มีผู้รับงาน'}</span>
                                         </div>
                                     </td>
-                                    <td className="hidden xl:table-cell px-4 xl:px-5 py-4 align-top xl:min-w-[140px]">
+                                    <td className="hidden px-4 py-4 align-top lg:table-cell lg:min-w-[140px] lg:px-5">
                                         <div className="text-sm text-slate-900 dark:text-white font-medium">{issue.category}</div>
                                         <div className="text-sm text-slate-500 dark:text-slate-400 mt-1">{getSeverityBadge(issue.severity)}</div>
                                     </td>
-                                    <td className="block xl:table-cell px-4 xl:px-5 py-3 xl:py-4 align-top border-b border-slate-100 dark:border-slate-700/50 xl:border-none pb-4 xl:pb-4">
+                                    <td className="block border-b border-slate-100 px-4 py-3 pb-4 align-top dark:border-slate-700/50 lg:table-cell lg:border-none lg:px-5 lg:py-4 lg:pb-4">
                                         <div className="text-sm text-slate-800 dark:text-slate-300 leading-relaxed break-words">
                                             <span className="font-semibold text-slate-500 dark:text-slate-400 mr-1">ปัญหา:</span> 
                                             {!issue.description || issue.description.length <= 150 ? (
@@ -1365,20 +1378,20 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                             </div>
                                         )}
                                     </td>
-                                    <td className="hidden xl:table-cell px-4 xl:px-5 py-4 whitespace-nowrap align-top">
+                                    <td className="hidden whitespace-nowrap px-4 py-4 align-top lg:table-cell lg:px-5">
                                         {getStatusBadge(issue.status, isIssueClosed(issue))}
                                     </td>
-                                    <td className="block xl:table-cell px-4 xl:px-5 py-3 xl:py-4 text-right text-sm font-medium align-top bg-slate-50/50 dark:bg-slate-700/20 xl:bg-transparent rounded-b-2xl xl:rounded-none">
-                                        <div className="flex items-center justify-between xl:justify-end gap-3">
-                                            <div className="xl:hidden text-left flex-1 items-center flex">
+                                    <td className="block rounded-b-2xl bg-slate-50/50 px-4 py-3 text-right text-sm font-medium align-top dark:bg-slate-700/20 lg:table-cell lg:rounded-none lg:bg-transparent lg:px-5 lg:py-4">
+                                        <div className="flex items-center justify-between gap-3 lg:justify-end">
+                                            <div className="flex flex-1 items-center text-left lg:hidden">
                                                 <span className="opacity-0 w-0"></span>
                                             </div>
-                                            <div className="flex flex-wrap items-center justify-end gap-2.5">
+                                            <div className="flex max-w-[260px] flex-wrap items-center justify-end gap-2 lg:max-w-none">
                                                 {issue.status === 'Resolved' && !isIssueClosed(issue) && (
                                                     <button
                                                         type="button"
                                                         onClick={() => showCloseIssueLinkDialog(issue)}
-                                                        className="w-9 h-9 flex items-center justify-center text-emerald-600 dark:text-emerald-400 hover:text-white bg-emerald-50 dark:bg-slate-800 hover:bg-emerald-600 dark:hover:bg-emerald-600 border border-emerald-200/80 dark:border-slate-700 hover:border-emerald-600 rounded-xl transition-all shadow-sm"
+                                                        className={getActionButtonClass('emerald')}
                                                         title="คัดลอกลิงก์เซ็นปิดจบงาน"
                                                     >
                                                         <Link2 className="w-4 h-4" />
@@ -1388,7 +1401,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                                     <button
                                                         type="button"
                                                         onClick={() => showWaitingPartsIssueLinkDialog(issue)}
-                                                        className="w-9 h-9 flex items-center justify-center text-pink-600 dark:text-pink-400 hover:text-white bg-pink-50 dark:bg-slate-800 hover:bg-pink-600 dark:hover:bg-pink-600 border border-pink-200/80 dark:border-slate-700 hover:border-pink-600 rounded-xl transition-all shadow-sm"
+                                                        className={getActionButtonClass('pink')}
                                                         title="คัดลอกลิงก์เซ็นรับทราบเปิด PR ขอซื้ออะไหล่"
                                                     >
                                                         <Link2 className="w-4 h-4" />
@@ -1398,7 +1411,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                                     <button
                                                         type="button"
                                                         onClick={() => showBorrowReturnIssueLinkDialog(issue)}
-                                                        className="w-9 h-9 flex items-center justify-center text-amber-600 dark:text-amber-400 hover:text-white bg-amber-50 dark:bg-slate-800 hover:bg-amber-600 dark:hover:bg-amber-600 border border-amber-200/80 dark:border-slate-700 hover:border-amber-600 rounded-xl transition-all shadow-sm"
+                                                        className={getActionButtonClass('amber')}
                                                         title="บันทึกส่งคืนส่วนผู้แจ้ง"
                                                     >
                                                         <Link2 className="w-4 h-4" />
@@ -1408,7 +1421,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                                     <button
                                                         type="button"
                                                         onClick={() => handleReceiveBorrowReturn(issue)}
-                                                        className="w-9 h-9 flex items-center justify-center text-emerald-600 dark:text-emerald-400 hover:text-white bg-emerald-50 dark:bg-slate-800 hover:bg-emerald-600 dark:hover:bg-emerald-600 border border-emerald-200/80 dark:border-slate-700 hover:border-emerald-600 rounded-xl transition-all shadow-sm"
+                                                        className={getActionButtonClass('emerald')}
                                                         title="รับคืน"
                                                     >
                                                         <CheckCircle2 className="w-4 h-4" />
@@ -1418,7 +1431,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                                     <button
                                                         type="button"
                                                         onClick={() => setReturnInfoIssue(issue)}
-                                                        className="w-9 h-9 flex items-center justify-center text-violet-600 dark:text-violet-400 hover:text-white bg-violet-50 dark:bg-slate-800 hover:bg-violet-600 dark:hover:bg-violet-600 border border-violet-200/80 dark:border-slate-700 hover:border-violet-600 rounded-xl transition-all shadow-sm"
+                                                        className={getActionButtonClass('violet')}
                                                         title="ดูข้อมูลส่งคืน/รับคืน"
                                                     >
                                                         <Ticket className="w-4 h-4" />
@@ -1426,35 +1439,35 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                                 )}
                                                 <button
                                                     onClick={() => openRepairModal(issue)}
-                                                    className={`w-9 h-9 flex items-center justify-center hover:text-white dark:bg-slate-800 border dark:border-slate-700 rounded-xl transition-all shadow-sm group ${(!isIssueClosed(issue) || canEditRepairRecords) ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 hover:bg-indigo-600 dark:hover:bg-indigo-600 border-indigo-200/80 hover:border-indigo-600' : 'text-sky-600 dark:text-sky-400 bg-sky-50 hover:bg-sky-600 dark:hover:bg-sky-600 border-sky-200/80 hover:border-sky-600'}`}
+                                                    className={getActionButtonClass((!isIssueClosed(issue) || canEditRepairRecords) ? 'indigo' : 'sky')}
                                                     title={(!isIssueClosed(issue) || canEditRepairRecords) ? 'แก้ไขข้อมูลแจ้งซ่อม' : 'ดูรายละเอียด'}
                                                 >
-                                                    {(!isIssueClosed(issue) || canEditRepairRecords) ? <Edit className="w-4 h-4 group-hover:scale-110 transition-transform" /> : <Eye className="w-4 h-4 group-hover:scale-110 transition-transform" />}
+                                                    {(!isIssueClosed(issue) || canEditRepairRecords) ? <Edit className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                                 </button>
                                             <button
                                                 onClick={() => handleOpenMaintenanceReport(issue)}
-                                                className="w-9 h-9 flex items-center justify-center text-amber-600 dark:text-amber-400 hover:text-white bg-amber-50 dark:bg-slate-800 hover:bg-amber-600 dark:hover:bg-amber-600 border border-amber-200/80 dark:border-slate-700 hover:border-amber-600 rounded-xl transition-all shadow-sm group"
+                                                className={getActionButtonClass('amber')}
                                                 title="ดูรายงานใบแจ้งซ่อม"
                                             >
-                                                <Printer className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                                                <Printer className="w-4 h-4" />
                                             </button>
                                             <button
                                                 type="button"
                                                 onClick={() => handleOpenEvidenceReport(issue)}
-                                                className="w-9 h-9 flex items-center justify-center text-cyan-600 dark:text-cyan-400 hover:text-white bg-cyan-50 dark:bg-slate-800 hover:bg-cyan-600 dark:hover:bg-cyan-600 border border-cyan-200/80 dark:border-slate-700 hover:border-cyan-600 rounded-xl transition-all shadow-sm group"
+                                                className={getActionButtonClass('cyan')}
                                                 title={`รายงานรูปหลักฐาน (${getIssueEvidenceAttachments(issue).length} รูป)`}
                                             >
-                                                <ImagePlus className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                                                <ImagePlus className="w-4 h-4" />
                                             </button>
                                             {canDeleteRecord && (
                                                 <>
                                                     <div className="hidden 2xl:block w-px h-5 bg-slate-200 dark:bg-slate-700 mx-1"></div>
                                                     <button
                                                         onClick={() => handleDelete(issue.id)}
-                                                        className="w-9 h-9 flex items-center justify-center text-rose-600 dark:text-rose-400 hover:text-white bg-rose-50 dark:bg-slate-800 hover:bg-rose-600 dark:hover:bg-rose-600 border border-rose-200/80 dark:border-slate-700 hover:border-rose-600 rounded-xl transition-all shadow-sm group"
+                                                        className={getActionButtonClass('rose')}
                                                         title="ลบเอกสาร"
                                                     >
-                                                        <Trash2 className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                                                        <Trash2 className="w-4 h-4" />
                                                     </button>
                                                 </>
                                             )}
@@ -1463,10 +1476,10 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                                     <div className="hidden 2xl:block w-px h-5 bg-slate-200 dark:bg-slate-700 mx-1"></div>
                                                     <button
                                                         onClick={() => handleCancelIssue(issue)}
-                                                        className="w-9 h-9 flex items-center justify-center text-rose-600 dark:text-rose-400 hover:text-white bg-rose-50 dark:bg-slate-800 hover:bg-rose-600 dark:hover:bg-rose-600 border border-rose-200/80 dark:border-slate-700 hover:border-rose-600 rounded-xl transition-all shadow-sm group"
+                                                        className={getActionButtonClass('rose')}
                                                         title="ตั้งสถานะยกเลิก"
                                                     >
-                                                        <XCircle className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                                                        <XCircle className="w-4 h-4" />
                                                     </button>
                                                 </>
                                             )}
@@ -1477,8 +1490,8 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                             ))}
 
                             {!isLoading && filteredIssues.length === 0 && (
-                                <tr className="block xl:table-row">
-                                    <td colSpan="7" className="block xl:table-cell px-6 py-12 text-center text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 rounded-2xl xl:rounded-none shadow-sm xl:shadow-none border border-slate-100 dark:border-slate-700 xl:border-none">
+                                <tr className="block lg:table-row">
+                                    <td colSpan="7" className="block rounded-2xl border border-slate-100 bg-white px-6 py-12 text-center text-slate-500 shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 lg:table-cell lg:rounded-none lg:border-none lg:shadow-none">
                                         ไม่พบรายการแจ้งซ่อมที่ค้นหา
                                     </td>
                                 </tr>
