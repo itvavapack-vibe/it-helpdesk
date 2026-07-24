@@ -217,12 +217,17 @@ function App() {
     const [isSidebarAccountOpen, setIsSidebarAccountOpen] = useState(false);
     const [isMainMoreOpen, setIsMainMoreOpen] = useState(false);
     const [isAdminMoreOpen, setIsAdminMoreOpen] = useState(false);
+    const [activeAdminMobileGroupId, setActiveAdminMobileGroupId] = useState(null);
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === 'true');
     const [openAdminSubmenus, setOpenAdminSubmenus] = useState(() => {
         try {
-            return JSON.parse(localStorage.getItem(ADMIN_SUBMENU_STORAGE_KEY) || '{"assets":true}');
+            const savedSubmenus = JSON.parse(localStorage.getItem(ADMIN_SUBMENU_STORAGE_KEY) || '{"computer_management":true}');
+            return {
+                ...savedSubmenus,
+                computer_management: savedSubmenus.computer_management ?? savedSubmenus.assets ?? true,
+            };
         } catch {
-            return { assets: true };
+            return { computer_management: true };
         }
     });
     const [isSavingProfile, setIsSavingProfile] = useState(false);
@@ -246,23 +251,36 @@ function App() {
             [item.parentId]: [...(groups[item.parentId] || []), item],
         };
     }, {});
+    const getAdminDefaultChildId = (item) =>
+        item?.defaultChildId && visibleAdminSubTabs.some((child) => child.id === item.defaultChildId)
+            ? item.defaultChildId
+            : null;
+    const getAdminNavTargetId = (item) => getAdminDefaultChildId(item) || item?.id;
+    const isAdminNavItemSelected = (item) => {
+        if (!item) return false;
+        if (selectedAdminSubTab === item.id) return true;
+        const childItems = adminSubTabsByParent[item.id] || [];
+        return childItems.some((child) => selectedAdminSubTab === child.id);
+    };
     const mainBottomItems = visibleMainNavItems.length > BOTTOM_NAV_VISIBLE_LIMIT
         ? visibleMainNavItems.slice(0, BOTTOM_NAV_VISIBLE_LIMIT)
         : visibleMainNavItems;
     const mainMoreItems = visibleMainNavItems.length > BOTTOM_NAV_VISIBLE_LIMIT
         ? visibleMainNavItems.slice(BOTTOM_NAV_VISIBLE_LIMIT)
         : [];
-    const adminBottomItems = visibleAdminSubTabs.length > BOTTOM_NAV_VISIBLE_LIMIT
-        ? visibleAdminSubTabs.slice(0, BOTTOM_NAV_VISIBLE_LIMIT)
-        : visibleAdminSubTabs;
-    const adminMoreItems = visibleAdminSubTabs.length > BOTTOM_NAV_VISIBLE_LIMIT
-        ? visibleAdminSubTabs.slice(BOTTOM_NAV_VISIBLE_LIMIT)
+    const adminBottomItems = visibleAdminRootTabs.length > BOTTOM_NAV_VISIBLE_LIMIT
+        ? visibleAdminRootTabs.slice(0, BOTTOM_NAV_VISIBLE_LIMIT)
+        : visibleAdminRootTabs;
+    const adminMoreItems = visibleAdminRootTabs.length > BOTTOM_NAV_VISIBLE_LIMIT
+        ? visibleAdminRootTabs.slice(BOTTOM_NAV_VISIBLE_LIMIT)
         : [];
-    const selectedAdminSubTab = visibleAdminSubTabs.some((item) => item.id === adminSubTab)
-        ? adminSubTab
-        : visibleAdminSubTabs[0]?.id;
+    const selectedAdminItem = visibleAdminSubTabs.find((item) => item.id === adminSubTab);
+    const selectedAdminSubTab = selectedAdminItem
+        ? (getAdminDefaultChildId(selectedAdminItem) || selectedAdminItem.id)
+        : (getAdminDefaultChildId(visibleAdminSubTabs[0]) || visibleAdminSubTabs[0]?.id);
     const isMainMoreSelected = mainMoreItems.some((item) => item.tab === activeTab);
-    const isAdminMoreSelected = adminMoreItems.some((item) => item.id === selectedAdminSubTab);
+    const isAdminMoreSelected = adminMoreItems.some(isAdminNavItemSelected);
+    const activeAdminMobileGroupItems = adminSubTabsByParent[activeAdminMobileGroupId] || [];
     const isStandaloneSignaturePage = activeTab === 'issue_close' || activeTab === 'issue_waiting_parts' || activeTab === 'change_request_acceptance' || activeTab === 'access_request_acknowledgement';
 
     // QR parameters are consumed once. Workflow parameters stay in the URL so shared links survive refresh.
@@ -324,8 +342,16 @@ function App() {
 
     useEffect(() => {
         if (!visibleAdminSubTabs.length) return;
-        const canSeeAdminSubTab = visibleAdminSubTabs.some((item) => item.id === adminSubTab);
-        if (!canSeeAdminSubTab) setAdminSubTab(visibleAdminSubTabs[0].id);
+        const selectedItem = visibleAdminSubTabs.find((item) => item.id === adminSubTab);
+        const defaultChildId = getAdminDefaultChildId(selectedItem);
+        if (defaultChildId) {
+            setAdminSubTab(defaultChildId);
+            return;
+        }
+        if (!selectedItem) {
+            const firstTargetId = getAdminNavTargetId(visibleAdminSubTabs[0]);
+            if (firstTargetId) setAdminSubTab(firstTargetId);
+        }
     }, [adminSubTab, visibleAdminSubTabs]);
 
     useEffect(() => {
@@ -335,6 +361,7 @@ function App() {
             setIsProfileModalOpen(false);
             setIsMainMoreOpen(false);
             setIsAdminMoreOpen(false);
+            setActiveAdminMobileGroupId(null);
             return;
         }
 
@@ -1208,9 +1235,9 @@ function App() {
                                 isLoading={isIssuesLoading}
                             />
                         ) : selectedAdminSubTab === 'assets' ? (
-                            <AssetInventory issues={issues} />
+                            <AssetInventory issues={issues} currentAdmin={isAdminAuth} />
                         ) : selectedAdminSubTab === 'asset_pm' ? (
-                            <AssetInventory issues={issues} view="pm" />
+                            <AssetInventory issues={issues} view="pm" currentAdmin={isAdminAuth} />
                         ) : selectedAdminSubTab === 'access_requests' ? (
                             <AdminAccessRequests currentAdmin={isAdminAuth} />
                         ) : selectedAdminSubTab === 'change_requests' ? (
@@ -1245,15 +1272,26 @@ function App() {
         navigateToTab(item.tab);
         setIsMainMoreOpen(false);
         setIsAdminMoreOpen(false);
+        setActiveAdminMobileGroupId(null);
     };
 
     const handleAdminBottomNavClick = (item) => {
-        if (item.id === 'issues') fetchIssues();
-        updateBrowserPath(getPathForTab('admin', item.id));
+        const childItems = adminSubTabsByParent[item.id] || [];
+        if (childItems.length > 0) {
+            setActiveAdminMobileGroupId((current) => current === item.id ? null : item.id);
+            setIsAdminMoreOpen(false);
+            setIsMainMoreOpen(false);
+            return;
+        }
+        const targetId = getAdminNavTargetId(item);
+        if (!targetId) return;
+        if (targetId === 'issues') fetchIssues();
+        updateBrowserPath(getPathForTab('admin', targetId));
         setActiveTab('admin');
-        setAdminSubTab(item.id);
+        setAdminSubTab(targetId);
         setIsAdminMoreOpen(false);
         setIsMainMoreOpen(false);
+        setActiveAdminMobileGroupId(null);
     };
 
     const getAdminNavPendingCount = (itemId) => {
@@ -1278,7 +1316,15 @@ function App() {
     };
 
     const handleAdminSidebarClick = (item) => {
-        handleAdminBottomNavClick(item);
+        const targetId = getAdminNavTargetId(item);
+        if (!targetId) return;
+        if (targetId === 'issues') fetchIssues();
+        updateBrowserPath(getPathForTab('admin', targetId));
+        setActiveTab('admin');
+        setAdminSubTab(targetId);
+        setIsAdminMoreOpen(false);
+        setIsMainMoreOpen(false);
+        setActiveAdminMobileGroupId(null);
     };
 
     const toggleAdminSubmenu = (itemId) => {
@@ -1800,6 +1846,43 @@ function App() {
 
             {!isStandaloneSignaturePage && isAdminAuth && visibleAdminSubTabs.length > 0 && (
                 <>
+                    {activeAdminMobileGroupItems.length > 0 && (
+                        <>
+                            <button
+                                type="button"
+                                className="fixed inset-0 z-[54] bg-transparent xl:hidden"
+                                onClick={() => setActiveAdminMobileGroupId(null)}
+                                aria-label="ปิดเมนูย่อย"
+                            />
+                            <div className="fixed inset-x-3 bottom-20 z-[55] max-h-[60dvh] overflow-y-auto rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-2xl shadow-slate-300/50 backdrop-blur-xl dark:border-slate-700 dark:bg-slate-900/95 dark:shadow-slate-950/50 xl:hidden">
+                                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                                    {activeAdminMobileGroupItems.map((item) => {
+                                        const Icon = item.icon;
+                                        const pendingCount = getAdminNavPendingCount(item.id);
+                                        const isSelected = selectedAdminSubTab === item.id;
+                                        return (
+                                            <button
+                                                key={item.id}
+                                                type="button"
+                                                onClick={() => handleAdminBottomNavClick(item)}
+                                                className={`flex min-w-0 items-center gap-2 rounded-xl px-3 py-3 text-left transition-colors ${isSelected ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200 dark:bg-indigo-500 dark:shadow-indigo-950/40' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'}`}
+                                            >
+                                                <span className="relative shrink-0">
+                                                    <Icon className={`h-5 w-5 ${item.iconColor || ''}`} />
+                                                    {pendingCount > 0 && (
+                                                        <span className="absolute -right-2.5 -top-2.5 min-w-4 h-4 px-1 rounded-full bg-red-500 text-white text-[10px] leading-4 text-center shadow">
+                                                            {pendingCount > 99 ? '99+' : pendingCount}
+                                                        </span>
+                                                    )}
+                                                </span>
+                                                <span className="truncate text-sm font-semibold">{item.label}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </>
+                    )}
                     {isAdminMoreOpen && adminMoreItems.length > 0 && (
                         <>
                             <button
@@ -1813,7 +1896,7 @@ function App() {
                                     {adminMoreItems.map((item) => {
                                         const Icon = item.icon;
                                         const pendingCount = getAdminNavPendingCount(item.id);
-                                        const isSelected = selectedAdminSubTab === item.id;
+                                        const isSelected = isAdminNavItemSelected(item) || activeAdminMobileGroupId === item.id;
                                         return (
                                             <button
                                                 key={item.id}
@@ -1845,7 +1928,7 @@ function App() {
                         {adminBottomItems.map((item) => {
                             const Icon = item.icon;
                             const pendingCount = getAdminNavPendingCount(item.id);
-                            const isSelected = selectedAdminSubTab === item.id;
+                            const isSelected = isAdminNavItemSelected(item) || activeAdminMobileGroupId === item.id;
 
                             return (
                                 <button
@@ -1871,6 +1954,7 @@ function App() {
                                 onClick={() => {
                                     setIsAdminMoreOpen((open) => !open);
                                     setIsMainMoreOpen(false);
+                                    setActiveAdminMobileGroupId(null);
                                 }}
                                 className={`relative min-w-0 w-full h-14 rounded-2xl flex flex-col items-center justify-center gap-1 px-1 transition-colors ${isAdminMoreSelected || isAdminMoreOpen ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200 dark:bg-indigo-500 dark:shadow-indigo-950/40' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
                                 aria-expanded={isAdminMoreOpen}

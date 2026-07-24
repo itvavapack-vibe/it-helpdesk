@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDown, ArrowUp, ArrowUpDown, CheckCircle, Clock, Edit, Eye, Filter, Key, Link, MoveRight, Printer, Search, Trash2, UserMinus, XCircle } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpDown, CheckCircle, Clock, Edit, Eye, FileSpreadsheet, Filter, Key, Link, MoveRight, Printer, Search, Trash2, UserMinus, XCircle } from 'lucide-react';
 import SignatureCanvas from 'react-signature-canvas';
 import Swal from 'sweetalert2';
 import { mysql } from '../mysqlClient';
@@ -10,6 +10,7 @@ import { toMysqlDateTime } from '../utils/dateTime';
 import { showAcknowledgeAccessRequestLinkDialog } from '../utils/closeIssueLink';
 import { loadSignatureIntoCanvas } from '../utils/signatureCanvas';
 import { getStatusBadgeClass, getStatusIconClass } from '../utils/statusStyles';
+import { exportRowsToExcel, exportRowsToPdf } from '../utils/listExport';
 
 const STATUS_LABELS = {
     Pending: 'ร้องขอ',
@@ -135,6 +136,7 @@ const AdminAccessRequests = ({ currentAdmin }) => {
     const [employeeEventFilter, setEmployeeEventFilter] = useState(EMPLOYEE_EVENT_FILTERS.ALL);
     const [dateRangeStart, setDateRangeStart] = useState('');
     const [dateRangeEnd, setDateRangeEnd] = useState('');
+    const [isExportingPdf, setIsExportingPdf] = useState(false);
     const [sortConfig, setSortConfig] = useState({ key: 'created_at', direction: 'desc' });
     const [selectedRequest, setSelectedRequest] = useState(null);
     const [detailRequest, setDetailRequest] = useState(null);
@@ -664,6 +666,62 @@ const AdminAccessRequests = ({ currentAdmin }) => {
             return compareValue * direction;
         });
     }, [filteredRequests, sortConfig]);
+    const accessExportColumns = [
+        { header: 'ลำดับ', width: 5, align: 'center', value: (_req, index) => index + 1 },
+        { header: 'เลขที่เอกสาร / วันที่', width: 12, align: 'center', value: (req) => `${req.ticket_number || '-'}\n${formatDisplayDate(req.created_at)}` },
+        { header: 'รหัสพนักงาน', width: 8, align: 'center', value: (req) => req.employee_id || '-' },
+        { header: 'ชื่อ / แผนก', width: 15, value: (req) => `${req.name_th || '-'}\n${req.department || '-'}` },
+        { header: 'ตำแหน่ง', width: 9, value: (req) => req.position || '-' },
+        { header: 'ระบบที่ขอสิทธิ์', width: 17, value: (req) => formatSystems(req.systems, req.other_system_details) },
+        { header: 'รายละเอียด', width: 17, value: (req) => req.request_details || '-' },
+        { header: 'ผู้ดำเนินการ', width: 8, align: 'center', value: (req) => req.it_staff_name || '-' },
+        { header: 'สถานะ', width: 9, align: 'center', value: (req) => STATUS_LABELS[getEffectiveStatus(req.status)] || getEffectiveStatus(req.status) || '-' },
+    ];
+    const accessFilterSummary = [
+        searchTerm.trim() ? `ค้นหา: ${searchTerm.trim()}` : '',
+        ticketFilter.trim() ? `เลขที่เอกสาร: ${ticketFilter.trim()}` : '',
+        statusFilter !== 'All' ? `สถานะ: ${STATUS_LABELS[statusFilter] || statusFilter}` : 'สถานะ: ทั้งหมด',
+        employeeEventFilter !== EMPLOYEE_EVENT_FILTERS.ALL ? `ประเภทแจ้งเตือน: ${employeeEventFilter === EMPLOYEE_EVENT_FILTERS.RESIGNED ? 'พนักงานลาออก' : 'พนักงานโอนย้าย'}` : '',
+        dateRangeStart ? `จากวันที่: ${formatDisplayDate(dateRangeStart)}` : '',
+        dateRangeEnd ? `ถึงวันที่: ${formatDisplayDate(dateRangeEnd)}` : '',
+    ].filter(Boolean).join(' | ');
+
+    const handleExportExcel = () => {
+        if (!sortedRequests.length) {
+            Swal.fire('ไม่มีข้อมูล', 'ไม่พบรายการสำหรับส่งออก Excel', 'info');
+            return;
+        }
+        exportRowsToExcel({
+            rows: sortedRequests,
+            columns: accessExportColumns,
+            sheetName: 'Access Requests',
+            filePrefix: 'IT_Helpdesk_Access_Requests',
+        });
+    };
+
+    const handleExportPdf = async () => {
+        if (!sortedRequests.length || isExportingPdf) {
+            if (!sortedRequests.length) Swal.fire('ไม่มีข้อมูล', 'ไม่พบรายการสำหรับสร้างไฟล์ PDF', 'info');
+            return;
+        }
+        setIsExportingPdf(true);
+        try {
+            await exportRowsToPdf({
+                rows: sortedRequests,
+                columns: accessExportColumns,
+                title: 'รายงานรายการคำร้องขอสิทธิ์ใช้งานระบบ',
+                subtitle: `จำนวนทั้งหมด ${sortedRequests.length} รายการ`,
+                filterSummary: accessFilterSummary,
+                filePrefix: 'IT_Helpdesk_Access_Requests',
+                rowsPerPage: 7,
+            });
+        } catch (error) {
+            console.error('Error exporting access requests PDF:', error);
+            Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถสร้างไฟล์ PDF ได้', 'error');
+        } finally {
+            setIsExportingPdf(false);
+        }
+    };
 
     const canEditDetailRequest = detailRequest ? canEditAccessRequest(detailRequest) : canEditAllWork;
     const isTransferDetailUpdate = detailRequest ? isTransferredAccessRequest(detailRequest) : false;
@@ -740,6 +798,26 @@ const AdminAccessRequests = ({ currentAdmin }) => {
                     </div>
                     <input type="date" value={dateRangeStart} onChange={(event) => setDateRangeStart(event.target.value)} className="input-modern !py-2 !text-sm w-full sm:w-40" title="วันที่เริ่มต้น" />
                     <input type="date" value={dateRangeEnd} onChange={(event) => setDateRangeEnd(event.target.value)} className="input-modern !py-2 !text-sm w-full sm:w-40" title="วันที่สิ้นสุด" />
+                    <div className="flex w-full gap-2 sm:w-auto">
+                        <button
+                            type="button"
+                            onClick={handleExportPdf}
+                            disabled={sortedRequests.length === 0 || isExportingPdf}
+                            className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-rose-200 bg-white px-4 py-2 text-sm font-semibold text-rose-700 transition-colors hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-rose-800/70 dark:bg-rose-950/30 dark:text-rose-300 dark:hover:bg-rose-950/50 sm:flex-none"
+                            title="ส่งออกเป็นไฟล์ PDF"
+                        >
+                            <Printer className="h-4 w-4" /> {isExportingPdf ? 'กำลังสร้าง...' : 'PDF'}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleExportExcel}
+                            disabled={sortedRequests.length === 0}
+                            className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 py-2 text-sm font-semibold text-emerald-700 transition-colors hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-emerald-800/70 dark:bg-emerald-950/30 dark:text-emerald-300 dark:hover:bg-emerald-950/50 sm:flex-none"
+                            title="ส่งออกเป็นไฟล์ Excel"
+                        >
+                            <FileSpreadsheet className="h-4 w-4" /> Excel
+                        </button>
+                    </div>
                 </div>
             </div>
 

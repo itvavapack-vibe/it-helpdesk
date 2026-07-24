@@ -142,9 +142,13 @@ html[data-app-theme="amber"] {
   /* Smooth click animation for all buttons globally */
   button,
   [role="button"],
+  a,
+  input,
   select,
+  textarea,
   .btn-anim {
     @apply active:scale-[0.98];
+    touch-action: manipulation;
     transition-property: color, background-color, border-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter;
     transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
     /* dramatically smooth and lingering ease-out */
@@ -396,6 +400,44 @@ html[data-app-theme="amber"] {
   [role="button"],
   select,
   .btn-anim {
+    transform: none !important;
+  }
+}
+
+@media (hover: none) and (pointer: coarse) {
+  button,
+  [role="button"],
+  a,
+  input,
+  select,
+  textarea,
+  .btn-anim {
+    touch-action: manipulation;
+  }
+
+  button,
+  [role="button"],
+  .btn-anim {
+    min-height: 40px;
+  }
+
+  button.p-1,
+  button.p-1\.5,
+  button.p-2,
+  a.p-1,
+  a.p-1\.5,
+  a.p-2,
+  [role="button"].p-1,
+  [role="button"].p-1\.5,
+  [role="button"].p-2 {
+    min-width: 40px;
+    min-height: 40px;
+  }
+
+  .hover\:-translate-y-0\.5:hover,
+  .hover\:scale-105:hover,
+  .hover\:scale-\[1\.03\]:hover,
+  .hover\:rotate-3:hover {
     transform: none !important;
   }
 }

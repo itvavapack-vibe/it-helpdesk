@@ -1,5 +1,5 @@
 import React, { Suspense, lazy, useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Monitor, RefreshCw, AlertCircle, Search, X, Tag, FileSpreadsheet, QrCode, Clock, Upload, Copy, Check, ClipboardCheck, BarChart3, FileText, Save, Printer, Download } from 'lucide-react';
+import { Monitor, RefreshCw, AlertCircle, Search, X, Tag, FileSpreadsheet, QrCode, Clock, Upload, Copy, Check, ClipboardCheck, BarChart3, Save, Printer, Download } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import html2canvas from 'html2canvas-pro';
 import jsPDF from 'jspdf';
@@ -19,40 +19,72 @@ const isActiveComputer = (c) => String(c.states_id || '').toLowerCase() === 'act
 const FINAL_REPAIR_STATUSES = new Set(['Resolved', 'Closed', 'Cancelled']);
 
 const PM_CHECKLIST = [
-    { id: 'external_cleaning', label: 'ตรวจสภาพภายนอกและทำความสะอาดตัวเครื่อง' },
-    { id: 'power_cable', label: 'ตรวจสายไฟ ปลั๊ก และอุปกรณ์จ่ายไฟ' },
-    { id: 'monitor_keyboard_mouse', label: 'ตรวจจอภาพ แป้นพิมพ์ และเมาส์' },
-    { id: 'cpu_ram_storage', label: 'ตรวจ CPU, RAM และพื้นที่จัดเก็บข้อมูล' },
-    { id: 'os_update', label: 'ตรวจระบบปฏิบัติการและ Windows Update' },
-    { id: 'antivirus', label: 'ตรวจ Antivirus และความปลอดภัยพื้นฐาน' },
-    { id: 'network', label: 'ตรวจ Network / Internet / IP Address' },
-    { id: 'software', label: 'ตรวจโปรแกรมใช้งานหลักและ License ที่เกี่ยวข้อง' },
-    { id: 'backup_disk', label: 'ตรวจพื้นที่ Disk และคำแนะนำการสำรองข้อมูล' },
-    { id: 'performance', label: 'ทดสอบการทำงานโดยรวมหลัง PM' },
+    { id: 'monitor', label: 'Monitor' },
+    { id: 'computer_cleanliness', label: 'ความสะอาดเครื่อง' },
+    { id: 'signal_cable', label: 'สายสัญญาณ' },
+    { id: 'mouse', label: 'Mouse' },
+    { id: 'keyboard', label: 'Keyboard' },
+    { id: 'power_supply', label: 'Power Supply' },
+    { id: 'ups', label: 'UPS' },
 ];
 
 const PM_STATUS_LABELS = {
     Pass: 'ผ่าน',
     Fail: 'ไม่ผ่าน',
+    '-': '-',
 };
 
 const PM_STATUS_STYLES = {
     Pass: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200',
     Fail: 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-800 dark:bg-rose-950/50 dark:text-rose-200',
+    '-': 'border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-300',
 };
 
 const ASSET_PANEL_CLASS = 'rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800';
 const ASSET_TOOL_BUTTON_CLASS = 'inline-flex items-center gap-2 rounded-xl border bg-white px-4 py-2 text-sm font-semibold shadow-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-900/35';
 
 const createDefaultPmChecklist = () => Object.fromEntries(
-    PM_CHECKLIST.map((item) => [item.id, { status: 'Pass', note: '' }])
+    PM_CHECKLIST.map((item) => [item.id, { status: '-', note: '' }])
 );
 
-const normalizePmStatus = (status) => (status === 'Pass' ? 'Pass' : 'Fail');
+const normalizePmStatus = (status) => (status === 'Pass' || status === 'Fail' ? status : '-');
 
-const derivePmOverallStatus = (checklist = {}) => (
-    PM_CHECKLIST.some((item) => normalizePmStatus(checklist[item.id]?.status) === 'Fail') ? 'Fail' : 'Pass'
-);
+const LEGACY_PM_CHECKLIST_MAP = {
+    monitor: ['monitor', 'monitor_keyboard_mouse'],
+    computer_cleanliness: ['computer_cleanliness', 'external_cleaning'],
+    signal_cable: ['signal_cable', 'network'],
+    mouse: ['mouse', 'monitor_keyboard_mouse'],
+    keyboard: ['keyboard', 'monitor_keyboard_mouse'],
+    power_supply: ['power_supply', 'power_cable'],
+    ups: ['ups', 'power_cable'],
+};
+
+const derivePmOverallStatus = (checklist = {}) => {
+    const statuses = PM_CHECKLIST.map((item) => normalizePmStatus(checklist[item.id]?.status));
+    if (statuses.some((status) => status === 'Fail')) return 'Fail';
+    if (statuses.every((status) => status === 'Pass')) return 'Pass';
+    return '-';
+};
+
+const buildChecklistFromRecord = (record) => {
+    if (!record?.checklist_json) return createDefaultPmChecklist();
+    try {
+        const savedChecklist = JSON.parse(record.checklist_json || '{}');
+        return Object.fromEntries(
+            PM_CHECKLIST.map((item) => {
+                const sourceKey = (LEGACY_PM_CHECKLIST_MAP[item.id] || [item.id])
+                    .find((key) => savedChecklist?.[key]);
+                const value = sourceKey ? savedChecklist[sourceKey] : {};
+                return [item.id, {
+                    status: normalizePmStatus(value.status),
+                    note: '',
+                }];
+            })
+        );
+    } catch {
+        return createDefaultPmChecklist();
+    }
+};
 
 const parseJsonArray = (value) => {
     if (Array.isArray(value)) return value;
@@ -66,31 +98,6 @@ const parseJsonArray = (value) => {
 };
 
 const isImageAttachment = (file) => String(file?.type || file?.mimetype || '').startsWith('image/');
-
-const toMonthKey = (value) => {
-    if (!value) return '';
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return '';
-    return date.toISOString().slice(0, 7);
-};
-
-const getMonthLabel = (monthKey) => {
-    if (!monthKey) return '-';
-    const [year, month] = monthKey.split('-').map(Number);
-    return new Date(year, month - 1, 1).toLocaleDateString('th-TH', { month: 'short', year: 'numeric' });
-};
-
-const getRecentMonthOptions = (count = 12) => {
-    const options = [];
-    const cursor = new Date();
-    cursor.setDate(1);
-    for (let index = 0; index < count; index += 1) {
-        const value = cursor.toISOString().slice(0, 7);
-        options.push({ value, label: getMonthLabel(value) });
-        cursor.setMonth(cursor.getMonth() - 1);
-    }
-    return options;
-};
 
 const isOpenRepairIssue = (issue) => (
     !FINAL_REPAIR_STATUSES.has(issue?.status) &&
@@ -107,7 +114,7 @@ async function batchDeleteIn(table, column, ids) {
     }
 }
 
-const AssetInventory = ({ issues = [], view = 'inventory' }) => {
+const AssetInventory = ({ issues = [], view = 'inventory', currentAdmin = null }) => {
     const [computers, setComputers] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -123,7 +130,8 @@ const AssetInventory = ({ issues = [], view = 'inventory' }) => {
     const [pmWarning, setPmWarning] = useState('');
     const [pmComputer, setPmComputer] = useState(null);
     const [pmReportRecord, setPmReportRecord] = useState(null);
-    const [pmMonth, setPmMonth] = useState(() => new Date().toISOString().slice(0, 7));
+    const [pmYear, setPmYear] = useState(() => String(new Date().getFullYear()));
+    const [isPmYearReportOpen, setIsPmYearReportOpen] = useState(false);
     const [pmAttachmentFiles, setPmAttachmentFiles] = useState([]);
     const [isSavingPm, setIsSavingPm] = useState(false);
     const [pmForm, setPmForm] = useState(() => ({
@@ -134,10 +142,14 @@ const AssetInventory = ({ issues = [], view = 'inventory' }) => {
         note: '',
     }));
     const pmReportRef = useRef(null);
+    const pmYearReportRef = useRef(null);
     const isPmView = view === 'pm';
 
     const [isSyncing, setIsSyncing] = useState(false);
     const [syncResult, setSyncResult] = useState(null);
+    const currentInspectorName = useMemo(() => (
+        currentAdmin?.name || currentAdmin?.username || ''
+    ).trim(), [currentAdmin?.name, currentAdmin?.username]);
 
     const loadAssetsFromMysql = useCallback(async () => {
         const { data, error } = await mysql.from('assets').select('*').order('name');
@@ -435,15 +447,16 @@ const AssetInventory = ({ issues = [], view = 'inventory' }) => {
     const openPmForm = (computer) => {
         const latestRecord = getLatestPmRecord(computer);
         const lastInspector = latestRecord?.inspector_name || '';
-        const nextDue = new Date();
-        nextDue.setMonth(nextDue.getMonth() + 6);
+        const initialChecklist = latestRecord
+            ? buildChecklistFromRecord(latestRecord)
+            : createDefaultPmChecklist();
         setPmComputer(computer);
         setPmAttachmentFiles([]);
         setPmForm({
             pmDate: new Date().toISOString().slice(0, 10),
-            inspectorName: lastInspector,
-            nextDueDate: nextDue.toISOString().slice(0, 10),
-            checklist: createDefaultPmChecklist(),
+            inspectorName: currentInspectorName || lastInspector,
+            nextDueDate: '',
+            checklist: initialChecklist,
             note: '',
         });
     };
@@ -454,7 +467,7 @@ const AssetInventory = ({ issues = [], view = 'inventory' }) => {
             checklist: {
                 ...current.checklist,
                 [itemId]: {
-                    ...(current.checklist[itemId] || { status: 'Pass', note: '' }),
+                    ...(current.checklist[itemId] || { status: '-', note: '' }),
                     [field]: value,
                 },
             },
@@ -486,59 +499,33 @@ const AssetInventory = ({ issues = [], view = 'inventory' }) => {
             neverChecked: buyComputers.length - latestBuyRecords.length,
             due: dueRecords.length,
             issue: issueRecords.length,
-            latest: pmRecords[0] || null,
         };
     }, [computers, isBuyComputer, pmRecords]);
 
-    const pmMonthOptions = useMemo(() => getRecentMonthOptions(12), []);
-
-    const selectedMonthRecords = useMemo(() => (
-        pmRecords.filter((record) => toMonthKey(record.pm_date) === pmMonth)
-    ), [pmMonth, pmRecords]);
-
-    const pmMonthlyTrend = useMemo(() => {
-        const months = getRecentMonthOptions(6).reverse();
-        return months.map(({ value, label }) => {
-            const records = pmRecords.filter((record) => toMonthKey(record.pm_date) === value);
-            return {
-                month: label,
-                total: records.length,
-                Pass: records.filter((record) => normalizePmStatus(record.overall_status) === 'Pass').length,
-                Fail: records.filter((record) => normalizePmStatus(record.overall_status) === 'Fail').length,
-            };
-        });
+    const pmYearOptions = useMemo(() => {
+        const years = Array.from(new Set(
+            pmRecords
+                .map((record) => new Date(record.pm_date).getFullYear())
+                .filter((year) => Number.isFinite(year))
+        )).sort((a, b) => b - a);
+        return years.length ? years.map(String) : [String(new Date().getFullYear())];
     }, [pmRecords]);
 
-    const pmStatusChartData = useMemo(() => (
-        ['Pass', 'Fail'].map((status) => ({
-            name: PM_STATUS_LABELS[status],
-            value: selectedMonthRecords.filter((record) => normalizePmStatus(record.overall_status) === status).length,
-            status,
-        }))
-    ), [selectedMonthRecords]);
+    useEffect(() => {
+        if (pmYearOptions.includes(pmYear)) return;
+        setPmYear(pmYearOptions[0]);
+    }, [pmYear, pmYearOptions]);
 
-    const pmInspectorChartData = useMemo(() => {
-        const counts = new Map();
-        selectedMonthRecords.forEach((record) => {
-            const name = record.inspector_name || 'ไม่ระบุ';
-            counts.set(name, (counts.get(name) || 0) + 1);
-        });
-        return Array.from(counts.entries())
-            .map(([name, total]) => ({ name, total }))
-            .sort((a, b) => b.total - a.total)
-            .slice(0, 6);
-    }, [selectedMonthRecords]);
+    const selectedYearRecords = useMemo(() => (
+        pmRecords.filter((record) => String(new Date(record.pm_date).getFullYear()) === pmYear)
+    ), [pmRecords, pmYear]);
 
-    const pmMonthSummary = useMemo(() => {
-        const pass = selectedMonthRecords.filter((record) => normalizePmStatus(record.overall_status) === 'Pass').length;
-        const fail = selectedMonthRecords.filter((record) => normalizePmStatus(record.overall_status) === 'Fail').length;
+    const pmPeriodSummary = useMemo(() => {
         return {
-            total: selectedMonthRecords.length,
-            pass,
-            fail,
-            monthLabel: getMonthLabel(pmMonth),
+            total: selectedYearRecords.length,
+            yearLabel: pmYear,
         };
-    }, [pmMonth, selectedMonthRecords]);
+    }, [pmYear, selectedYearRecords]);
 
     const filtered = computers.filter(c => {
         const matchesSearch = (c.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -593,10 +580,6 @@ const AssetInventory = ({ issues = [], view = 'inventory' }) => {
             Swal.fire('ข้อมูลไม่ครบ', 'กรุณาระบุวันที่ตรวจเช็ค PM', 'warning');
             return;
         }
-        if (pmAttachmentFiles.length === 0) {
-            Swal.fire('ยังไม่ได้แนบรูป', 'กรุณาแนบรูปหลังทำ PM อย่างน้อย 1 รูป', 'warning');
-            return;
-        }
         if (pmAttachmentFiles.length > MAX_ATTACHMENT_FILES) {
             Swal.fire('ไฟล์แนบเกินกำหนด', `แนบรูปได้สูงสุด ${MAX_ATTACHMENT_FILES} ไฟล์`, 'warning');
             return;
@@ -607,7 +590,7 @@ const AssetInventory = ({ issues = [], view = 'inventory' }) => {
                 const value = pmForm.checklist[item.id] || {};
                 return [item.id, {
                     status: normalizePmStatus(value.status),
-                    note: value.note || '',
+                    note: '',
                 }];
             })
         );
@@ -628,15 +611,17 @@ const AssetInventory = ({ issues = [], view = 'inventory' }) => {
             overall_status: overallStatus,
             checklist_json: JSON.stringify(normalizedChecklist),
             note: pmForm.note || '',
-            next_due_date: pmForm.nextDueDate || null,
+            next_due_date: null,
         };
 
         try {
-            const attachments = await uploadAttachmentFiles(pmAttachmentFiles, {
-                category: 'asset_pm_after',
-                assetId: pmComputer.id,
-                source: 'asset_pm_records',
-            });
+            const attachments = pmAttachmentFiles.length > 0
+                ? await uploadAttachmentFiles(pmAttachmentFiles, {
+                    category: 'asset_pm_after',
+                    assetId: pmComputer.id,
+                    source: 'asset_pm_records',
+                })
+                : [];
             payload.attachments_json = JSON.stringify(attachments);
             const { data, error } = await mysql.from('asset_pm_records').insert([payload]).select('*');
             if (error) throw new Error(error);
@@ -721,12 +706,91 @@ const AssetInventory = ({ issues = [], view = 'inventory' }) => {
         setTimeout(cleanup, 1500);
     };
 
-    const getPmReportChecklist = (record) => {
+    const handleDownloadPmYearReport = async () => {
+        if (!pmYearReportRef.current) return;
         try {
-            return JSON.parse(record?.checklist_json || '{}');
-        } catch {
-            return {};
+            const canvas = await html2canvas(pmYearReportRef.current, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+            const imageData = canvas.toDataURL('image/png');
+            const pdf = new jsPDF('l', 'mm', 'a4');
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfPageHeight = pdf.internal.pageSize.getHeight();
+            const imageHeight = (canvas.height * pdfWidth) / canvas.width;
+            let position = 0;
+            pdf.addImage(imageData, 'PNG', 0, position, pdfWidth, imageHeight);
+            while (position + imageHeight > pdfPageHeight) {
+                position -= pdfPageHeight;
+                pdf.addPage('a4', 'l');
+                pdf.addImage(imageData, 'PNG', 0, position, pdfWidth, imageHeight);
+            }
+            pdf.save(`FMIT08_PM_Year_${pmYear || new Date().getFullYear()}.pdf`);
+        } catch (error) {
+            console.error('Download PM year report failed:', error);
+            Swal.fire('Error', 'ไม่สามารถสร้าง PDF รายงานการตรวจเช็คได้', 'error');
         }
+    };
+
+    const handlePrintPmYearReport = () => {
+        if (!pmYearReportRef.current) return;
+        const printFrame = document.createElement('iframe');
+        printFrame.setAttribute('title', 'พิมพ์รายงานการตรวจเช็ค PM');
+        printFrame.style.position = 'fixed';
+        printFrame.style.right = '0';
+        printFrame.style.bottom = '0';
+        printFrame.style.width = '0';
+        printFrame.style.height = '0';
+        printFrame.style.border = '0';
+        document.body.appendChild(printFrame);
+        const cleanup = () => printFrame.remove();
+        const printDocument = printFrame.contentDocument;
+        if (!printDocument) {
+            cleanup();
+            return;
+        }
+        printDocument.open();
+        printDocument.write(`
+            <!doctype html>
+            <html>
+                <head>
+                    <title>FMIT08 PM Year Report</title>
+                    <style>
+                        @page { size: A4 landscape; margin: 8mm; }
+                        * { box-sizing: border-box; }
+                        body { margin: 0; font-family: Arial, sans-serif; color: #0f172a; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                    </style>
+                </head>
+                <body>${pmYearReportRef.current.outerHTML}</body>
+            </html>
+        `);
+        printDocument.close();
+        const printWindow = printFrame.contentWindow;
+        if (!printWindow) {
+            cleanup();
+            return;
+        }
+        printWindow.onafterprint = cleanup;
+        printWindow.focus();
+        printWindow.print();
+        setTimeout(cleanup, 1500);
+    };
+
+    const getPmReportChecklist = (record) => {
+        return buildChecklistFromRecord(record);
+    };
+
+    const getPmFailedItems = (record) => {
+        const checklist = getPmReportChecklist(record);
+        return PM_CHECKLIST.filter((item) => normalizePmStatus(checklist[item.id]?.status) === 'Fail')
+            .map((item) => ({
+                label: item.label,
+                note: checklist[item.id]?.note || '',
+            }));
+    };
+
+    const getPmCorrectiveAction = (record) => {
+        const failedNotes = getPmFailedItems(record)
+            .map((item) => item.note)
+            .filter(Boolean);
+        return [record?.note, ...failedNotes].filter(Boolean).join('\n') || '-';
     };
 
     const getPmReportAttachments = (record) => parseJsonArray(record?.attachments_json).filter(isImageAttachment);
@@ -769,19 +833,28 @@ const AssetInventory = ({ issues = [], view = 'inventory' }) => {
                         </div>
                         <div>
                             <h3 className="text-base font-bold text-slate-900 dark:text-white">Dashboard การตรวจเช็คคอมพิวเตอร์ PM</h3>
-                            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">แสดงสถานะ PM ของเครื่องประเภท Buy และประวัติรายงาน FMIT08 ล่าสุด</p>
+                            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">แสดงสถานะ PM ของเครื่องประเภท Buy และรายงานการตรวจเช็คตามปี</p>
                         </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                         <select
-                            value={pmMonth}
-                            onChange={(event) => setPmMonth(event.target.value)}
+                            value={pmYear}
+                            onChange={(event) => setPmYear(event.target.value)}
                             className="input-modern !w-auto !py-2 text-sm font-bold"
                         >
-                            {pmMonthOptions.map((option) => (
-                                <option key={option.value} value={option.value}>{option.label}</option>
+                            {pmYearOptions.map((year) => (
+                                <option key={year} value={year}>ปี {Number(year).toLocaleString('th-TH', { useGrouping: false })}</option>
                             ))}
                         </select>
+                        <button
+                            type="button"
+                            onClick={() => setIsPmYearReportOpen(true)}
+                            disabled={selectedYearRecords.length === 0}
+                            className="inline-flex items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-white px-3 py-2 text-sm font-bold text-indigo-700 transition-colors hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-indigo-800/70 dark:bg-indigo-950/35 dark:text-indigo-200 dark:hover:bg-indigo-950/55"
+                        >
+                            <Printer className="h-4 w-4" />
+                            รายงานการตรวจเช็ค
+                        </button>
                         <button
                             type="button"
                             onClick={() => loadPmRecords()}
@@ -806,22 +879,6 @@ const AssetInventory = ({ issues = [], view = 'inventory' }) => {
                         </div>
                     ))}
                 </div>
-                {pmDashboard.latest && (
-                    <div className="mt-4 flex flex-col gap-2 rounded-2xl border border-slate-100 bg-slate-50 p-3 text-sm dark:border-slate-700 dark:bg-slate-900/40 sm:flex-row sm:items-center sm:justify-between">
-                        <div>
-                            <span className="font-bold text-slate-700 dark:text-slate-200">PM ล่าสุด:</span>
-                            <span className="ml-2 text-slate-600 dark:text-slate-300">{pmDashboard.latest.asset_name || '-'} วันที่ {new Date(pmDashboard.latest.pm_date).toLocaleDateString('th-TH')}</span>
-                        </div>
-                        <button
-                            type="button"
-                            onClick={() => setPmReportRecord(pmDashboard.latest)}
-                            className="inline-flex items-center gap-2 rounded-lg border border-sky-200 bg-white px-3 py-1.5 text-xs font-bold text-sky-700 shadow-sm transition-colors hover:bg-sky-50 dark:border-sky-800/70 dark:bg-sky-950/35 dark:text-sky-200 dark:hover:bg-sky-950/55"
-                        >
-                            <FileText className="h-4 w-4" />
-                            เปิดรายงานล่าสุด
-                        </button>
-                    </div>
-                )}
                 {pmWarning && (
                     <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
                         {pmWarning}
@@ -829,13 +886,10 @@ const AssetInventory = ({ issues = [], view = 'inventory' }) => {
                 )}
                 </div>
 
-                <Suspense fallback={<div className="rounded-3xl border border-slate-200 bg-white p-8 text-center text-sm font-semibold text-slate-400 shadow-sm dark:border-slate-700 dark:bg-slate-800">กำลังโหลดกราฟ PM...</div>}>
+                <Suspense fallback={<div className="rounded-3xl border border-slate-200 bg-white p-8 text-center text-sm font-semibold text-slate-400 shadow-sm dark:border-slate-700 dark:bg-slate-800">กำลังโหลดรายการ PM...</div>}>
                     <AssetPmDashboardCharts
-                        pmMonthlyTrend={pmMonthlyTrend}
-                        pmStatusChartData={pmStatusChartData}
-                        pmInspectorChartData={pmInspectorChartData}
-                        pmMonthSummary={pmMonthSummary}
-                        selectedMonthRecords={selectedMonthRecords}
+                        pmPeriodSummary={pmPeriodSummary}
+                        selectedYearRecords={selectedYearRecords}
                         getPmStatusBadge={getPmStatusBadge}
                         onOpenReport={setPmReportRecord}
                     />
@@ -1285,41 +1339,49 @@ const AssetInventory = ({ issues = [], view = 'inventory' }) => {
                                     <span className="text-xs font-bold text-slate-500 dark:text-slate-400">วันที่ตรวจ PM</span>
                                     <input type="date" value={pmForm.pmDate} onChange={(event) => setPmForm((current) => ({ ...current, pmDate: event.target.value }))} className="input-modern w-full !py-2 text-sm" />
                                 </label>
-                                <label className="space-y-1">
-                                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400">ผู้ตรวจเช็ค</span>
-                                    <input type="text" value={pmForm.inspectorName} onChange={(event) => setPmForm((current) => ({ ...current, inspectorName: event.target.value }))} className="input-modern w-full !py-2 text-sm" placeholder="ชื่อผู้ตรวจ" />
-                                </label>
-                                <label className="space-y-1">
-                                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400">นัด PM ครั้งถัดไป</span>
-                                    <input type="date" value={pmForm.nextDueDate} onChange={(event) => setPmForm((current) => ({ ...current, nextDueDate: event.target.value }))} className="input-modern w-full !py-2 text-sm" />
-                                </label>
                                 <div className="space-y-1">
-                                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400">ผลโดยรวม</span>
-                                    <div className="flex min-h-[42px] items-center rounded-xl border border-slate-200 bg-slate-50 px-3 dark:border-slate-700 dark:bg-slate-900/50">
-                                        {getPmStatusBadge(derivePmOverallStatus(pmForm.checklist))}
+                                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400">ผู้ตรวจเช็ค</span>
+                                    <div className="flex min-h-[42px] items-center rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-200">
+                                        {pmForm.inspectorName || '-'}
+                                    </div>
+                                </div>
+                                <div className="space-y-1">
+                                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400">ชื่อเครื่อง</span>
+                                    <div className="flex min-h-[42px] items-center rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-200">
+                                        {pmComputer.name || '-'}
+                                    </div>
+                                </div>
+                                <div className="space-y-1">
+                                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400">ผู้ใช้งาน</span>
+                                    <div className="flex min-h-[42px] items-center rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-200">
+                                        {pmComputer.users_id || '-'}
                                     </div>
                                 </div>
                             </div>
 
                             <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700">
-                                <table className="w-full text-left text-sm">
+                                <table className="w-full table-fixed text-left text-sm">
+                                    <colgroup>
+                                        <col className="w-20" />
+                                        <col />
+                                        <col className="w-48" />
+                                    </colgroup>
                                     <thead className="bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500 dark:bg-slate-900/60 dark:text-slate-400">
                                         <tr>
-                                            <th className="w-12 px-3 py-3 text-center">#</th>
-                                            <th className="px-3 py-3">รายการตรวจเช็ค</th>
-                                            <th className="w-36 px-3 py-3">ผลตรวจ</th>
-                                            <th className="w-[34%] px-3 py-3">หมายเหตุ</th>
+                                            <th className="px-3 py-3 text-center">ลำดับ</th>
+                                            <th className="px-3 py-3 text-center">รายการตรวจเช็ค</th>
+                                            <th className="px-3 py-3 text-center">ผลตรวจ</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60">
                                         {PM_CHECKLIST.map((item, index) => {
-                                            const value = pmForm.checklist[item.id] || { status: 'Pass', note: '' };
+                                            const value = pmForm.checklist[item.id] || { status: '-', note: '' };
                                             return (
-                                                <tr key={item.id} className="align-top">
+                                                <tr key={item.id} className="align-middle">
                                                     <td className="px-3 py-3 text-center text-xs font-bold text-slate-400">{index + 1}</td>
-                                                    <td className="px-3 py-3 font-medium text-slate-700 dark:text-slate-200">{item.label}</td>
-                                                    <td className="px-3 py-3">
-                                                        <div className="grid grid-cols-2 gap-1.5">
+                                                    <td className="px-3 py-3 text-left font-medium leading-6 text-slate-700 dark:text-slate-200">{item.label}</td>
+                                                    <td className="px-3 py-3 text-center">
+                                                        <div className="mx-auto inline-flex w-40 rounded-xl border border-slate-200 bg-slate-100 p-1 dark:border-slate-700 dark:bg-slate-900/60">
                                                             {[
                                                                 ['Pass', 'ผ่าน'],
                                                                 ['Fail', 'ไม่ผ่าน'],
@@ -1333,31 +1395,28 @@ const AssetInventory = ({ issues = [], view = 'inventory' }) => {
                                                                             event.stopPropagation();
                                                                             updatePmChecklist(item.id, 'status', status);
                                                                         }}
-                                                                        className={`inline-flex items-center justify-center gap-1.5 rounded-lg border px-2 py-1.5 text-xs font-bold transition-colors ${
+                                                                        className={`inline-flex min-w-0 flex-1 items-center justify-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-bold leading-none transition-colors whitespace-nowrap ${
                                                                             isChecked
                                                                                 ? status === 'Pass'
-                                                                                    ? 'border-emerald-300 bg-emerald-100 text-emerald-800 dark:border-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-100'
-                                                                                    : 'border-rose-300 bg-rose-100 text-rose-800 dark:border-rose-700 dark:bg-rose-950/60 dark:text-rose-100'
-                                                                                : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300 dark:hover:bg-slate-800'
+                                                                                    ? 'bg-emerald-600 text-white shadow-sm dark:bg-emerald-500'
+                                                                                    : 'bg-rose-600 text-white shadow-sm dark:bg-rose-500'
+                                                                                : 'text-slate-500 hover:bg-white dark:text-slate-300 dark:hover:bg-slate-800'
                                                                         }`}
                                                                     >
-                                                                        <span className={`flex h-4 w-4 items-center justify-center rounded border ${
+                                                                        <span className={`flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center rounded-full border ${
                                                                             isChecked
                                                                                 ? status === 'Pass'
-                                                                                    ? 'border-emerald-500 bg-emerald-500 text-white'
-                                                                                    : 'border-rose-500 bg-rose-500 text-white'
+                                                                                    ? 'border-white/80 bg-white/20 text-white'
+                                                                                    : 'border-white/80 bg-white/20 text-white'
                                                                                 : 'border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-800'
                                                                         }`}>
-                                                                            {isChecked && <Check className="h-3 w-3" />}
+                                                                            {isChecked && <Check className="h-2.5 w-2.5" />}
                                                                         </span>
                                                                         {label}
                                                                     </button>
                                                                 );
                                                             })}
                                                         </div>
-                                                    </td>
-                                                    <td className="px-3 py-3">
-                                                        <input type="text" value={value.note || ''} onChange={(event) => updatePmChecklist(item.id, 'note', event.target.value)} className="input-modern w-full !py-1.5 text-xs" placeholder="ระบุหมายเหตุถ้ามี" />
                                                     </td>
                                                 </tr>
                                             );
@@ -1367,8 +1426,8 @@ const AssetInventory = ({ issues = [], view = 'inventory' }) => {
                             </div>
 
                             <label className="mt-4 block space-y-1">
-                                <span className="text-xs font-bold text-slate-500 dark:text-slate-400">สรุป/ข้อเสนอแนะเพิ่มเติม</span>
-                                <textarea value={pmForm.note} onChange={(event) => setPmForm((current) => ({ ...current, note: event.target.value }))} className="input-modern min-h-24 w-full text-sm" placeholder="สรุปผล PM หรือสิ่งที่ต้องติดตามต่อ" />
+                                <span className="text-xs font-bold text-slate-500 dark:text-slate-400">การดำเนินการ</span>
+                                <textarea value={pmForm.note} onChange={(event) => setPmForm((current) => ({ ...current, note: event.target.value }))} className="input-modern min-h-24 w-full text-sm" placeholder="ระบุการดำเนินการหลังตรวจเช็ค PM" />
                             </label>
 
                             <div className="mt-4 rounded-2xl border border-dashed border-sky-200 bg-sky-50/50 p-4 dark:border-sky-800/70 dark:bg-sky-950/20">
@@ -1405,6 +1464,120 @@ const AssetInventory = ({ issues = [], view = 'inventory' }) => {
                                 <Save className={`h-4 w-4 ${isSavingPm ? 'animate-pulse' : ''}`} />
                                 {isSavingPm ? 'กำลังบันทึก...' : 'บันทึกและสร้างรายงาน FMIT08'}
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* PM Year Report Modal */}
+            {isPmYearReportOpen && (
+                <div className="fixed inset-0 z-[130] flex items-start justify-center overflow-y-auto bg-slate-900/60 p-3 backdrop-blur-sm sm:p-4">
+                    <div className="w-full max-w-7xl overflow-hidden rounded-2xl border border-white/20 bg-slate-100 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+                        <div className="flex flex-col gap-3 border-b border-slate-200 bg-white px-5 py-4 dark:border-slate-700 dark:bg-slate-800 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-900 dark:text-white">รายงานการตรวจเช็คคอมพิวเตอร์ PM ประจำปี {Number(pmYear).toLocaleString('th-TH', { useGrouping: false })}</h3>
+                                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">รวม {selectedYearRecords.length} รายการ · แสดงรายการตรวจเช็คตามผล PM แต่ละเครื่อง</p>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                                <button type="button" onClick={handleDownloadPmYearReport} className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-3 py-2 text-sm font-bold text-white transition hover:bg-indigo-700">
+                                    <Download className="h-4 w-4" />
+                                    ดาวน์โหลด PDF
+                                </button>
+                                <button type="button" onClick={handlePrintPmYearReport} className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-sm font-bold text-white transition hover:bg-emerald-700">
+                                    <Printer className="h-4 w-4" />
+                                    พิมพ์
+                                </button>
+                                <button type="button" onClick={() => setIsPmYearReportOpen(false)} className="rounded-xl bg-slate-100 px-3 py-2 text-sm font-bold text-slate-600 transition hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600">
+                                    ปิด
+                                </button>
+                            </div>
+                        </div>
+                        <div className="max-h-[calc(100dvh-8rem)] overflow-auto p-4">
+                            <div ref={pmYearReportRef} className="mx-auto w-[297mm] bg-white text-black shadow-xl">
+                                <div className="min-h-[210mm] p-[5mm]">
+                                    <div className="mb-3 text-center">
+                                        <div className="flex items-center justify-center gap-3">
+                                            <img src="/vava-pack-logo.png" alt="VAVA PACK" className="h-9 object-contain" />
+                                            <div className="text-[18px] font-bold">บริษัท วาวา แพค จำกัด</div>
+                                        </div>
+                                        <div className="mt-1 text-[18px] font-bold">ใบบันทึกผลการตรวจเช็คคอมพิวเตอร์ (FMIT 08)</div>
+                                        <div className="mt-2 text-[13px]">ประจำปี {Number(pmYear).toLocaleString('th-TH', { useGrouping: false })}</div>
+                                    </div>
+
+                                    <table className="w-full border-collapse text-[9px] leading-tight">
+                                        <thead>
+                                            <tr className="text-center font-bold">
+                                                <th rowSpan={2} className="w-[9mm] border border-black p-1">ลำดับ</th>
+                                                <th rowSpan={2} className="w-[24mm] border border-black p-1">รหัสเครื่อง</th>
+                                                <th rowSpan={2} className="w-[18mm] border border-black p-1">แผนงาน</th>
+                                                <th rowSpan={2} className="w-[18mm] border border-black p-1">ทำจริง</th>
+                                                <th colSpan={PM_CHECKLIST.length} className="border border-black p-1">รายการตรวจเช็ค</th>
+                                                <th colSpan={2} className="border border-black p-1">กรณีตรวจเช็คไม่ผ่าน</th>
+                                                <th rowSpan={2} className="w-[21mm] border border-black p-1">หมายเหตุ</th>
+                                            </tr>
+                                            <tr className="text-center font-bold">
+                                                {PM_CHECKLIST.map((item) => (
+                                                    <th key={item.id} className="w-[13mm] border border-black p-1 align-middle">{item.label}</th>
+                                                ))}
+                                                <th className="w-[24mm] border border-black p-1">รายการที่ไม่ผ่าน</th>
+                                                <th className="w-[38mm] border border-black p-1">การดำเนินการแก้ไข</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {selectedYearRecords.map((record, index) => {
+                                                const checklist = getPmReportChecklist(record);
+                                                const failedItems = getPmFailedItems(record);
+                                                return (
+                                                    <tr key={record.id || `${record.asset_glpi_id}-${record.pm_date}-${index}`} className="align-top">
+                                                        <td className="border border-black p-1 text-center">{index + 1}</td>
+                                                        <td className="border border-black p-1 font-semibold">{record.asset_name || '-'}</td>
+                                                        <td className="border border-black p-1 text-center">{record.next_due_date ? new Date(record.next_due_date).toLocaleDateString('th-TH') : '-'}</td>
+                                                        <td className="border border-black p-1 text-center">{record.pm_date ? new Date(record.pm_date).toLocaleDateString('th-TH') : '-'}</td>
+                                                        {PM_CHECKLIST.map((item) => {
+                                                            const value = checklist[item.id] || {};
+                                                            const status = normalizePmStatus(value.status);
+                                                            return (
+                                                                <td key={item.id} className="border border-black p-1 text-center text-[13px]">
+                                                                    {status === 'Pass' ? '✓' : status === 'Fail' ? '×' : '-'}
+                                                                </td>
+                                                            );
+                                                        })}
+                                                        <td className="border border-black p-1">{failedItems.map((item) => item.label).join(', ') || '-'}</td>
+                                                        <td className="whitespace-pre-wrap border border-black p-1">{getPmCorrectiveAction(record)}</td>
+                                                        <td className="border border-black p-1">{record.inspector_name || '-'}</td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+
+                                    <div className="mt-2 flex items-center gap-6 text-[11px]">
+                                        <span>หมายเหตุ :</span>
+                                        <span className="text-[15px]">✓</span>
+                                        <span>หมายถึง ผ่าน</span>
+                                        <span className="text-[15px]">×</span>
+                                        <span>หมายถึง ไม่ผ่าน</span>
+                                    </div>
+
+                                    <div className="mt-12 grid grid-cols-2 gap-20 text-center text-[12px]">
+                                        <div>
+                                            <div>ลงชื่อ ........................................................ ผู้ตรวจสอบ</div>
+                                            <div className="mt-3">เจ้าหน้าที่ Hardware</div>
+                                            <div className="mt-5">วันที่ ............/............/............</div>
+                                        </div>
+                                        <div>
+                                            <div>ลงชื่อ ........................................................ ผู้อนุมัติ</div>
+                                            <div className="mt-3">หัวหน้าส่วนแผนกเทคโนโลยีสารสนเทศและ ERP</div>
+                                            <div className="mt-5">วันที่ ............/............/............</div>
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-10 flex justify-start gap-8 text-[10px] text-slate-700">
+                                        <span>Revision No : 03</span>
+                                        <span>Date of Issue : 03.04.26</span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1449,17 +1622,16 @@ const AssetInventory = ({ issues = [], view = 'inventory' }) => {
                                                 <div className="flex items-center justify-center border-r border-black p-2">ผู้ตรวจเช็ค</div>
                                                 <div className="flex items-center justify-center p-2">หมายเหตุ</div>
                                             </div>
-                                            <div className="grid grid-cols-[104mm_1fr] border-b border-black">
+                                            <div className="grid grid-cols-[128mm_1fr] border-b border-black">
                                                 <div className="grid grid-cols-2 border-r border-black">
-                                                    <div className="border-b border-r border-black p-1.5"><b>เครื่อง:</b> {pmReportRecord.asset_name || '-'}</div>
-                                                    <div className="border-b border-black p-1.5"><b>รหัสทรัพย์สิน:</b> {pmReportRecord.asset_code || '-'}</div>
-                                                    <div className="border-r border-black p-1.5"><b>Serial:</b> {pmReportRecord.serial || '-'}</div>
-                                                    <div className="p-1.5"><b>ผู้ใช้งาน:</b> {pmReportRecord.user_name || '-'}</div>
+                                                    <div className="border-b border-r border-black p-1.5"><b>ชื่อเครื่อง:</b> {pmReportRecord.asset_name || '-'}</div>
+                                                    <div className="border-b border-black p-1.5"><b>ผู้ใช้งาน:</b> {pmReportRecord.user_name || '-'}</div>
+                                                    <div className="border-r border-black p-1.5"><b>รหัสทรัพย์สิน:</b> {pmReportRecord.asset_code || '-'}</div>
+                                                    <div className="p-1.5"><b>Serial:</b> {pmReportRecord.serial || '-'}</div>
                                                 </div>
-                                                <div className="grid grid-cols-3">
+                                                <div className="grid grid-cols-2">
                                                     <div className="border-r border-black p-1.5"><b>สถานที่:</b> {pmReportRecord.location_name || '-'}</div>
-                                                    <div className="border-r border-black p-1.5"><b>วันที่ตรวจ:</b> {new Date(pmReportRecord.pm_date).toLocaleDateString('th-TH')}</div>
-                                                    <div className="p-1.5"><b>PM ครั้งถัดไป:</b> {pmReportRecord.next_due_date ? new Date(pmReportRecord.next_due_date).toLocaleDateString('th-TH') : '-'}</div>
+                                                    <div className="p-1.5"><b>วันที่ตรวจ:</b> {new Date(pmReportRecord.pm_date).toLocaleDateString('th-TH')}</div>
                                                 </div>
                                             </div>
                                             <table className="w-full border-collapse">
@@ -1468,8 +1640,7 @@ const AssetInventory = ({ issues = [], view = 'inventory' }) => {
                                                         <th className="w-9 border-b border-r border-black p-1.5">No.</th>
                                                         <th className="border-b border-r border-black p-1.5">รายการตรวจเช็ค</th>
                                                         <th className="w-20 border-b border-r border-black p-1.5">ผ่าน</th>
-                                                        <th className="w-20 border-b border-r border-black p-1.5">ไม่ผ่าน</th>
-                                                        <th className="w-[62mm] border-b border-black p-1.5">หมายเหตุ</th>
+                                                        <th className="w-20 border-b border-black p-1.5">ไม่ผ่าน</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
@@ -1481,21 +1652,16 @@ const AssetInventory = ({ issues = [], view = 'inventory' }) => {
                                                                 <td className="border-r border-black p-1.5 text-center">{index + 1}</td>
                                                                 <td className="border-r border-black p-1.5">{item.label}</td>
                                                                 <td className="border-r border-black p-1.5 text-center text-base">{status === 'Pass' ? '✓' : ''}</td>
-                                                                <td className="border-r border-black p-1.5 text-center text-base">{status === 'Fail' ? '✓' : ''}</td>
-                                                                <td className="p-1.5">{value.note || ''}</td>
+                                                                <td className="p-1.5 text-center text-base">{status === 'Fail' ? '✓' : ''}</td>
                                                             </tr>
                                                         );
                                                     })}
                                                 </tbody>
                                             </table>
-                                            <div className="grid grid-cols-[1fr_54mm_54mm] border-t border-black">
+                                            <div className="grid grid-cols-[1fr_54mm] border-t border-black">
                                                 <div className="min-h-[22mm] p-2">
-                                                    <b>สรุป/ข้อเสนอแนะ:</b>
+                                                    <b>การดำเนินการ:</b>
                                                     <div className="mt-1 whitespace-pre-wrap">{pmReportRecord.note || '-'}</div>
-                                                </div>
-                                                <div className="border-l border-black p-2 text-center">
-                                                    <div><b>ผลโดยรวม</b></div>
-                                                    <div className="mt-3 text-base font-bold">{PM_STATUS_LABELS[normalizePmStatus(pmReportRecord.overall_status)]}</div>
                                                 </div>
                                                 <div className="border-l border-black p-2 text-center">
                                                     <div className="mb-9"><b>ผู้ตรวจเช็ค</b></div>

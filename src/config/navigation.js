@@ -6,6 +6,7 @@ import {
     Key,
     Bot,
     Monitor,
+    MonitorCog,
     Server,
     Settings,
     Ticket,
@@ -38,7 +39,7 @@ const ALL_IT_ROLES = [
 
 const ASSET_PM_SUB_TAB = {
     id: 'asset_pm',
-    parentId: 'assets',
+    parentId: 'computer_management',
     label: 'PM คอมพิวเตอร์',
     icon: ClipboardCheck,
     iconColor: 'text-teal-600 dark:text-teal-300',
@@ -78,7 +79,8 @@ export const HOME_QUICK_ACTIONS = [
 const BASE_ADMIN_SUB_TABS = [
     { id: 'stats', label: 'Dashboard', icon: TrendingUp, iconColor: 'text-orange-600 dark:text-orange-300', iconAura: '249, 115, 22', roles: ALL_IT_ROLES },
     { id: 'issues', label: 'แจ้งซ่อม/ปัญหา/ขอติดตั้ง', icon: Ticket, iconColor: 'text-rose-600 dark:text-rose-300', iconAura: '244, 63, 94', roles: ALL_IT_ROLES },
-    { id: 'assets', label: 'ทรัพย์สิน', icon: Monitor, iconColor: 'text-sky-600 dark:text-sky-300', iconAura: '14, 165, 233', roles: ALL_IT_ROLES },
+    { id: 'computer_management', label: 'Computer Management', icon: MonitorCog, iconColor: 'text-sky-600 dark:text-sky-300', iconAura: '14, 165, 233', roles: ALL_IT_ROLES, defaultChildId: 'assets' },
+    { id: 'assets', parentId: 'computer_management', label: 'ทรัพย์สิน', icon: Monitor, iconColor: 'text-sky-600 dark:text-sky-300', iconAura: '14, 165, 233', roles: ALL_IT_ROLES },
     { id: 'access_requests', label: 'ขอผู้ใช้งานระบบ', icon: Key, iconColor: 'text-amber-600 dark:text-amber-300', iconAura: '245, 158, 11', roles: ALL_IT_ROLES },
     { id: 'change_requests', label: 'ขอพัฒนาระบบ', icon: ClipboardPenLine, iconColor: 'text-emerald-600 dark:text-emerald-300', iconAura: '16, 185, 129', roles: ALL_IT_ROLES },
     { id: 'approved_documents', label: 'เอกสารอนุมัติ', icon: FileCheck2, iconColor: 'text-violet-600 dark:text-violet-300', iconAura: '139, 92, 246', roles: [NAV_ROLES.IT_SUPERVISOR, NAV_ROLES.IT_MANAGER, NAV_ROLES.SUPERADMIN] },

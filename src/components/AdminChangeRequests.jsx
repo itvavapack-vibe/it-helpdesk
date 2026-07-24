@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { mysql } from '../mysqlClient';
-import { Search, Filter, ClipboardPenLine, CheckCircle, XCircle, Clock, Trash2, Edit, Link, Printer, Paperclip, X, Eye, LayoutGrid, User, Briefcase, FileText, AlertCircle } from 'lucide-react';
+import { Search, Filter, ClipboardPenLine, CheckCircle, XCircle, Clock, Trash2, Edit, Link, Printer, Paperclip, X, Eye, LayoutGrid, User, Briefcase, FileText, AlertCircle, FileSpreadsheet } from 'lucide-react';
 import Swal from 'sweetalert2';
 import SignatureCanvas from 'react-signature-canvas';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
@@ -12,6 +12,7 @@ import Fmit15PdfPreview from './Fmit15PdfPreview';
 import { MAX_ATTACHMENT_SIZE, resolveAttachmentUrl, uploadAttachmentFiles } from '../utils/fileUpload';
 import { loadSignatureIntoCanvas } from '../utils/signatureCanvas';
 import { getStatusBadgeClass } from '../utils/statusStyles';
+import { exportRowsToExcel, exportRowsToPdf } from '../utils/listExport';
 
 const parseAttachments = (value) => {
     if (!value) return [];
@@ -35,6 +36,16 @@ const REQUEST_CATEGORY_OPTIONS = [
     'พัฒนาโปรแกรม',
     'พัฒนาสื่อ'
 ];
+const CHANGE_STATUS_LABELS = {
+    Pending_IT: 'รับแจ้ง',
+    Pending_IT_Manager: 'ผู้จัดการ',
+    In_Progress: 'รอดำเนินการ',
+    In_Development: 'กำลังดำเนินการ',
+    Pending_User_Acceptance: 'เสร็จสิ้น',
+    Completed: 'ปิดจบ',
+    Rejected: 'ไม่อนุมัติ',
+    Cancelled: 'ยกเลิก',
+};
 
 const escapeHtml = (value) => String(value ?? '')
     .replaceAll('&', '&amp;')
@@ -50,6 +61,7 @@ const AdminChangeRequests = ({ currentAdmin, initialStatusFilter = 'All', filter
     const [statusFilter, setStatusFilter] = useState('All');
     const [dateRangeStart, setDateRangeStart] = useState('');
     const [dateRangeEnd, setDateRangeEnd] = useState('');
+    const [isExportingPdf, setIsExportingPdf] = useState(false);
     
     // For Preview / Form Actions
     const [selectedRequest, setSelectedRequest] = useState(null);
@@ -674,6 +686,60 @@ const AdminChangeRequests = ({ currentAdmin, initialStatusFilter = 'All', filter
         
         return matchesRoleCategory && matchesSearch && matchesStatus && matchesDate;
     });
+    const changeExportColumns = [
+        { header: 'ลำดับ', width: 5, align: 'center', value: (_req, index) => index + 1 },
+        { header: 'เลขที่เอกสาร / วันที่', width: 11, align: 'center', value: (req) => `${req.ticket_number || '-'}\n${req.created_at ? new Date(req.created_at).toLocaleDateString('th-TH') : '-'}` },
+        { header: 'ประเภทคำร้อง', width: 10, align: 'center', value: (req) => getChangeRequestTypeLabel(req.req_type) },
+        { header: 'หมวดคำร้อง', width: 10, align: 'center', value: (req) => req.request_category || '-' },
+        { header: 'ผู้ร้องขอ / แผนก', width: 14, value: (req) => `${req.requester_name || '-'}\n${req.department || '-'}` },
+        { header: 'รายละเอียด', width: 24, value: (req) => req.details || req.description || req.request_details || '-' },
+        { header: 'เหตุผล', width: 14, value: (req) => req.reason || '-' },
+        { header: 'ผู้ดำเนินการ', width: 6, align: 'center', value: (req) => req.it_staff_name || '-' },
+        { header: 'สถานะ', width: 6, align: 'center', value: (req) => CHANGE_STATUS_LABELS[req.status] || req.status || '-' },
+    ];
+    const changeFilterSummary = [
+        searchTerm.trim() ? `ค้นหา: ${searchTerm.trim()}` : '',
+        statusFilter !== 'All' ? `สถานะ: ${CHANGE_STATUS_LABELS[statusFilter] || statusFilter}` : 'สถานะ: ทั้งหมด',
+        dateRangeStart ? `จากวันที่: ${new Date(dateRangeStart).toLocaleDateString('th-TH')}` : '',
+        dateRangeEnd ? `ถึงวันที่: ${new Date(dateRangeEnd).toLocaleDateString('th-TH')}` : '',
+    ].filter(Boolean).join(' | ');
+
+    const handleExportExcel = () => {
+        if (!filteredRequests.length) {
+            Swal.fire('ไม่มีข้อมูล', 'ไม่พบรายการสำหรับส่งออก Excel', 'info');
+            return;
+        }
+        exportRowsToExcel({
+            rows: filteredRequests,
+            columns: changeExportColumns,
+            sheetName: 'Change Requests',
+            filePrefix: 'IT_Helpdesk_Change_Requests',
+        });
+    };
+
+    const handleExportPdf = async () => {
+        if (!filteredRequests.length || isExportingPdf) {
+            if (!filteredRequests.length) Swal.fire('ไม่มีข้อมูล', 'ไม่พบรายการสำหรับสร้างไฟล์ PDF', 'info');
+            return;
+        }
+        setIsExportingPdf(true);
+        try {
+            await exportRowsToPdf({
+                rows: filteredRequests,
+                columns: changeExportColumns,
+                title: 'รายงานรายการคำร้องขอพัฒนาระบบ',
+                subtitle: `จำนวนทั้งหมด ${filteredRequests.length} รายการ`,
+                filterSummary: changeFilterSummary,
+                filePrefix: 'IT_Helpdesk_Change_Requests',
+                rowsPerPage: 7,
+            });
+        } catch (error) {
+            console.error('Error exporting change requests PDF:', error);
+            Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถสร้างไฟล์ PDF ได้', 'error');
+        } finally {
+            setIsExportingPdf(false);
+        }
+    };
 
     return (
         <div className="space-y-6 animate-fade-in pb-10">
@@ -736,6 +802,26 @@ const AdminChangeRequests = ({ currentAdmin, initialStatusFilter = 'All', filter
                             className="input-modern !py-2 !text-sm flex-1 sm:flex-auto"
                             title="วันที่สิ้นสุด"
                         />
+                    </div>
+                    <div className="flex w-full gap-2 sm:w-auto">
+                        <button
+                            type="button"
+                            onClick={handleExportPdf}
+                            disabled={filteredRequests.length === 0 || isExportingPdf}
+                            className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-rose-200 bg-white px-4 py-2 text-sm font-semibold text-rose-700 transition-colors hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-rose-800/70 dark:bg-rose-950/30 dark:text-rose-300 dark:hover:bg-rose-950/50 sm:flex-none"
+                            title="ส่งออกเป็นไฟล์ PDF"
+                        >
+                            <Printer className="h-4 w-4" /> {isExportingPdf ? 'กำลังสร้าง...' : 'PDF'}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleExportExcel}
+                            disabled={filteredRequests.length === 0}
+                            className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 py-2 text-sm font-semibold text-emerald-700 transition-colors hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-emerald-800/70 dark:bg-emerald-950/30 dark:text-emerald-300 dark:hover:bg-emerald-950/50 sm:flex-none"
+                            title="ส่งออกเป็นไฟล์ Excel"
+                        >
+                            <FileSpreadsheet className="h-4 w-4" /> Excel
+                        </button>
                     </div>
                 </div>
             </div>

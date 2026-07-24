@@ -488,6 +488,7 @@ const IssueTracking = ({ issues = [], isLoading = false }) => {
                         <div
                             ref={previewScrollRef}
                             className="min-h-[55vh] flex-1 overflow-auto bg-slate-100 p-4 dark:bg-slate-950"
+                            style={{ touchAction: previewAttachment.isImage && previewZoom > 1 ? 'none' : 'pan-x pan-y' }}
                         >
                             {previewAttachment.isImage ? (
                                 <div
@@ -496,9 +497,11 @@ const IssueTracking = ({ issues = [], isLoading = false }) => {
                                     onPointerMove={movePreviewDrag}
                                     onPointerUp={endPreviewDrag}
                                     onPointerCancel={endPreviewDrag}
+                                    onPointerLeave={endPreviewDrag}
                                     style={{
                                         width: `${previewZoom * 100}%`,
                                         minWidth: `${previewZoom * 100}%`,
+                                        touchAction: previewZoom > 1 ? 'none' : 'auto',
                                     }}
                                 >
                                     <img
