@@ -19,6 +19,13 @@ const BORROW_IT_CATEGORY = 'ยืมคอมพิวเตอร์/อุป
 const normalizeBorrowCategory = (value) => String(value || '').replace(/\s+/g, '');
 const isBorrowIssue = (issue) => normalizeBorrowCategory(issue?.category) === normalizeBorrowCategory(BORROW_IT_CATEGORY);
 const isIssueClosed = (issue) => issue?.status === 'Closed' || Boolean(issue?.userCloseSign || issue?.userClosedAt);
+const hasBorrowReturnerSubmission = (issue) => Boolean(issue?.borrowReturnerSign && issue?.borrowReturnedAt);
+const hasBorrowReceiverSubmission = (issue) => Boolean(issue?.borrowReceiverSign && issue?.borrowReceivedAt);
+const isBorrowInProgress = (issue) =>
+    isBorrowIssue(issue)
+    && isIssueClosed(issue)
+    && !hasBorrowReturnerSubmission(issue)
+    && !hasBorrowReceiverSubmission(issue);
 const displayValue = (value) => value || '-';
 
 const resolveAttachmentUrl = (url) => {
@@ -253,7 +260,7 @@ const IssueTracking = ({ issues = [], isLoading = false }) => {
                                         );
                                     })()
                                 )}
-                                {isBorrowIssue(issue) && (issue.borrowReturnerSign || issue.borrowReturnedAt) && (
+                                {hasBorrowReturnerSubmission(issue) && (
                                     <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/80 p-3 dark:border-amber-900/60 dark:bg-amber-950/20">
                                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                             <div className="min-w-0 text-xs text-amber-900 dark:text-amber-100">
@@ -276,6 +283,11 @@ const IssueTracking = ({ issues = [], isLoading = false }) => {
                                         </div>
                                     </div>
                                 )}
+                                {isBorrowInProgress(issue) && (
+                                    <div className="mt-3 rounded-xl border border-red-200 bg-red-50/80 p-3 text-xs font-bold text-red-600 dark:border-red-900/60 dark:bg-red-950/20 dark:text-red-400">
+                                        อยู่ระหว่างการยืม
+                                    </div>
+                                )}
                             </div>
                             <div className="shrink-0 flex flex-col items-end gap-2">
                                 {getStatusBadge(issue.status)}
@@ -291,7 +303,7 @@ const IssueTracking = ({ issues = [], isLoading = false }) => {
                                 {issue.status === 'Resolved' && issue.userCloseSign && (
                                     <span className="text-xs text-emerald-600 font-medium">เซ็นปิดงานแล้ว</span>
                                 )}
-                                {isBorrowIssue(issue) && isIssueClosed(issue) && !issue.borrowReturnerSign && !issue.borrowReturnedAt && (
+                                {isBorrowInProgress(issue) && (
                                     <a
                                         href={buildBorrowReturnIssueLink(issue.id)}
                                         className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-700 transition-colors hover:bg-amber-100 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200 dark:hover:bg-amber-950/50"

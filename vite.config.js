@@ -66,6 +66,9 @@ export default ({ mode }) => {
       port: webPort,
       strictPort: true,
       allowedHosts: true,
+      hmr: {
+        overlay: false,
+      },
       proxy: {
         '/api': {
           target: apiTarget,

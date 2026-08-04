@@ -31,6 +31,13 @@ const BORROW_IT_CATEGORY = 'ยืมคอมพิวเตอร์/อุป
 const isIssueClosed = (issue) => issue?.status === 'Closed' || Boolean(issue?.userCloseSign || issue?.userClosedAt);
 const normalizeBorrowCategory = (value) => String(value || '').replace(/\s+/g, '');
 const isBorrowIssue = (issue) => normalizeBorrowCategory(issue?.category) === normalizeBorrowCategory(BORROW_IT_CATEGORY);
+const isBorrowInProgress = (issue) =>
+    isBorrowIssue(issue)
+    && isIssueClosed(issue)
+    && !issue?.borrowReturnedAt
+    && !issue?.borrowReturnerSign
+    && !issue?.borrowReceivedAt
+    && !issue?.borrowReceiverSign;
 const isImageAttachment = (file) => {
     const mimeType = String(file?.type || file?.mimetype || file?.mimeType || '').toLowerCase();
     const fileRef = String(file?.url || file?.path || file?.name || '').toLowerCase();
@@ -1030,10 +1037,10 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
         return `${amount.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท`;
     };
 
-    const DetailItem = ({ label, value, full = false }) => (
+    const DetailItem = ({ label, value, full = false, valueClassName = '' }) => (
         <div className={`min-w-0 border-b border-slate-100 py-3 last:border-b-0 dark:border-slate-700/60 ${full ? 'sm:col-span-2' : ''}`}>
             <div className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">{label}</div>
-            <div className="mt-1 whitespace-pre-wrap break-words text-sm font-medium text-slate-800 dark:text-slate-100">{displayValue(value)}</div>
+            <div className={`mt-1 whitespace-pre-wrap break-words text-sm font-medium text-slate-800 dark:text-slate-100 ${valueClassName}`}>{displayValue(value)}</div>
         </div>
     );
 
@@ -1356,10 +1363,15 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                                 <span>💻</span> <span className="font-medium">{issue.assetName}</span>
                                             </div>
                                         )}
-                                        {issue.repairDetails && (
+                                        {(issue.repairDetails || isBorrowInProgress(issue)) && (
                                             <div className="text-xs text-indigo-700 dark:text-indigo-300 mt-1.5 flex flex-col gap-1 bg-indigo-50/50 dark:bg-indigo-900/30 p-2 rounded-lg border border-indigo-100/50 dark:border-indigo-700/50">
                                                 <div className="flex items-center gap-1 font-semibold"><MessageSquare className="w-3 h-3" /> แอดมิน:</div>
-                                                <span className="italic whitespace-pre-wrap line-clamp-2" title={issue.repairDetails}>{issue.repairDetails}</span>
+                                                {isBorrowInProgress(issue) && (
+                                                    <span className="font-bold text-red-600 dark:text-red-400">อยู่ระหว่างการยืม</span>
+                                                )}
+                                                {issue.repairDetails && !isBorrowInProgress(issue) && (
+                                                    <span className="italic whitespace-pre-wrap line-clamp-2" title={issue.repairDetails}>{issue.repairDetails}</span>
+                                                )}
                                             </div>
                                         )}
                                         {/* Attachment section */}
@@ -1596,7 +1608,12 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                     <DetailItem label="วันที่ปิดจบ" value={displayDate(currentRepairIssue?.userClosedAt)} />
                                     <DetailItem label="งบประมาณ" value={displayBudget(currentRepairIssue?.budget)} />
                                     <DetailItem label="รายละเอียดปัญหา" value={currentRepairIssue?.description} full />
-                                    <DetailItem label="แนวทางแก้ไข / ความคิดเห็น" value={currentRepairIssue?.repairDetails} full />
+                                    <DetailItem
+                                        label="แนวทางแก้ไข / ความคิดเห็น"
+                                        value={isBorrowInProgress(currentRepairIssue) ? 'อยู่ระหว่างการยืม' : currentRepairIssue?.repairDetails}
+                                        full
+                                        valueClassName={isBorrowInProgress(currentRepairIssue) ? '!font-bold !text-red-600 dark:!text-red-400' : ''}
+                                    />
                                     <DetailItem label="ผู้ตรวจสอบ" value={currentRepairIssue?.inspectorName} />
                                     <DetailItem label="ตำแหน่งผู้ตรวจสอบ" value={currentRepairIssue?.inspectorPosition} />
                                     <DetailItem label="วันที่ผู้ตรวจสอบเซ็น" value={displayDate(currentRepairIssue?.inspectorSignedAt)} />

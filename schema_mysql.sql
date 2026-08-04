@@ -244,6 +244,31 @@ CREATE INDEX idx_asset_pm_records_asset_glpi_id ON asset_pm_records(asset_glpi_i
 CREATE INDEX idx_asset_pm_records_pm_date ON asset_pm_records(pm_date);
 CREATE INDEX idx_asset_pm_records_overall_status ON asset_pm_records(overall_status);
 
+-- IT contact chat messages
+CREATE TABLE IF NOT EXISTS it_chat_messages (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  session_id VARCHAR(64) NOT NULL,
+  sender_type VARCHAR(32) NOT NULL,
+  sender_name VARCHAR(255),
+  requester_name VARCHAR(255),
+  document_no VARCHAR(128),
+  category VARCHAR(255),
+  assignee_key VARCHAR(64),
+  assignee_name VARCHAR(255),
+  assignee_role VARCHAR(255),
+  message_text TEXT NOT NULL,
+  attachments_json LONGTEXT,
+  status VARCHAR(32) NOT NULL DEFAULT 'Open',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_it_chat_messages_session_id ON it_chat_messages(session_id);
+CREATE INDEX idx_it_chat_messages_document_no ON it_chat_messages(document_no);
+CREATE INDEX idx_it_chat_messages_assignee_key ON it_chat_messages(assignee_key);
+CREATE INDEX idx_it_chat_messages_status ON it_chat_messages(status);
+CREATE INDEX idx_it_chat_messages_created_at ON it_chat_messages(created_at);
+
 -- GLPI Users (synced)
 CREATE TABLE IF NOT EXISTS glpi_users (
   id INT NOT NULL PRIMARY KEY,

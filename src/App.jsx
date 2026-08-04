@@ -2,8 +2,9 @@ import { Suspense, lazy, useState, useEffect, useRef } from 'react';
 import SignatureCanvas from 'react-signature-canvas';
 import { getAdminProfile, mysql, updateAdminProfile } from './mysqlClient';
 import ThemePicker from './components/ThemePicker';
-import { ChevronDown, LogIn, LogOut, Monitor, MoreHorizontal, PanelLeftClose, PanelLeftOpen, UserCog } from 'lucide-react';
+import { ChevronDown, LogIn, LogOut, Maximize2, MessageCircle, Monitor, MoreHorizontal, PanelLeftClose, PanelLeftOpen, UserCog, X } from 'lucide-react';
 import { ADMIN_SUB_TABS, MAIN_NAV_ITEMS, canSee, normalizeRole } from './config/navigation';
+import { canAdminSeeItChatSession } from './config/itChatAssignees';
 import { ACCESS_QUEUE_STATUS_BY_ROLE, APPROVAL_QUEUE_STATUS_BY_ROLE, CHANGE_QUEUE_STATUS_BY_ROLE, ROLE_LABELS, canApproveServerRoomEntry, canHandleChangeRequestCategory, countVisibleQueue } from './config/roles';
 import Swal from 'sweetalert2';
 import { notifyNewIssue, notifyStatusChange, notifyRepairUpdate } from './telegramNotify';
@@ -21,6 +22,8 @@ const AdminLogin = lazy(() => import('./components/AdminLogin'));
 const UserManagement = lazy(() => import('./components/UserManagement'));
 const EmployeeManagement = lazy(() => import('./components/EmployeeManagement'));
 const AIHelpdesk = lazy(() => import('./components/AIHelpdesk'));
+const ContactITChat = lazy(() => import('./components/ContactITChat'));
+const AdminITChat = lazy(() => import('./components/AdminITChat'));
 const HomePage = lazy(() => import('./components/HomePage'));
 const AssetInventory = lazy(() => import('./components/AssetInventory'));
 const IssueStatistics = lazy(() => import('./components/IssueStatistics'));
@@ -53,6 +56,7 @@ const AUTH_HIDDEN_MAIN_NAV_ITEMS = new Set(['user', 'access_request', 'change_re
 const BOTTOM_NAV_VISIBLE_LIMIT = 4;
 const TAB_PATHS = {
     home: '/',
+    contact_it: '/contact-it',
     ai_helpdesk: '/ai-helpdesk',
     user: '/report-issue',
     tracking: '/track-repair',
@@ -74,6 +78,7 @@ const TAB_PATHS = {
 };
 const ADMIN_SUB_TAB_PATHS = {
     issues: 'issues',
+    it_chat: 'it-chat',
     assets: 'assets',
     asset_pm: 'assets/pm',
     access_requests: 'access-requests',
@@ -217,6 +222,7 @@ function App() {
     const [isSidebarAccountOpen, setIsSidebarAccountOpen] = useState(false);
     const [isMainMoreOpen, setIsMainMoreOpen] = useState(false);
     const [isAdminMoreOpen, setIsAdminMoreOpen] = useState(false);
+    const [isContactWidgetOpen, setIsContactWidgetOpen] = useState(false);
     const [activeAdminMobileGroupId, setActiveAdminMobileGroupId] = useState(null);
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === 'true');
     const [openAdminSubmenus, setOpenAdminSubmenus] = useState(() => {
@@ -233,6 +239,7 @@ function App() {
     const [isSavingProfile, setIsSavingProfile] = useState(false);
     const [profileForm, setProfileForm] = useState({ username: '', name: '', position: '', signature: '', password: '' });
     const [approvalQueues, setApprovalQueues] = useState({ access: [], change: [], serverRoom: [] });
+    const [itChatMessages, setItChatMessages] = useState([]);
     const profileSignatureRef = useRef(null);
     const sessionRefreshRef = useRef({ inFlight: false, lastAt: 0 });
     const currentRole = normalizeRole(isAdminAuth);
@@ -282,6 +289,8 @@ function App() {
     const isAdminMoreSelected = adminMoreItems.some(isAdminNavItemSelected);
     const activeAdminMobileGroupItems = adminSubTabsByParent[activeAdminMobileGroupId] || [];
     const isStandaloneSignaturePage = activeTab === 'issue_close' || activeTab === 'issue_waiting_parts' || activeTab === 'change_request_acceptance' || activeTab === 'access_request_acknowledgement';
+    const showFloatingContactButton = !isStandaloneSignaturePage && !isAdminAuth && activeTab !== 'contact_it' && !isContactWidgetOpen;
+    const showContactWidget = !isStandaloneSignaturePage && !isAdminAuth && activeTab !== 'contact_it' && isContactWidgetOpen;
 
     // QR parameters are consumed once. Workflow parameters stay in the URL so shared links survive refresh.
     useEffect(() => {
@@ -357,6 +366,7 @@ function App() {
     useEffect(() => {
         if (!isAdminAuth) {
             setApprovalQueues({ access: [], change: [], serverRoom: [] });
+            setItChatMessages([]);
             setIsProfileMenuOpen(false);
             setIsProfileModalOpen(false);
             setIsMainMoreOpen(false);
@@ -366,16 +376,18 @@ function App() {
         }
 
         const fetchApprovalQueues = async () => {
-            const [accessResult, changeResult, serverRoomResult] = await Promise.all([
+            const [accessResult, changeResult, serverRoomResult, itChatResult] = await Promise.all([
                 mysql.from('access_requests').select('id, status').in('status', ACCESS_QUEUE_FETCH_STATUSES),
                 mysql.from('change_requests').select('id, status, request_category').in('status', CHANGE_QUEUE_FETCH_STATUSES),
-                mysql.from('controlled_area_logs').select('id, status').in('status', SERVER_ROOM_QUEUE_FETCH_STATUSES)
+                mysql.from('controlled_area_logs').select('id, status').in('status', SERVER_ROOM_QUEUE_FETCH_STATUSES),
+                mysql.from('it_chat_messages').select('id, session_id, sender_type, status, assignee_key, created_at').order('created_at', { ascending: false }).limit(300)
             ]);
             setApprovalQueues({
                 access: accessResult.error ? [] : accessResult.data || [],
                 change: changeResult.error ? [] : changeResult.data || [],
                 serverRoom: serverRoomResult.error ? [] : serverRoomResult.data || []
             });
+            setItChatMessages(itChatResult.error ? [] : itChatResult.data || []);
         };
 
         fetchApprovalQueues();
@@ -1115,6 +1127,10 @@ function App() {
             return <IssueForm addIssue={addIssue} qrParams={qrParams} />;
         }
 
+        if (activeTab === 'contact_it') {
+            return <ContactITChat onNavigateTo={navigateToTab} />;
+        }
+
         if (activeTab === 'ai_helpdesk') {
             return <AIHelpdesk />;
         }
@@ -1234,6 +1250,8 @@ function App() {
                                 deleteIssue={deleteIssue}
                                 isLoading={isIssuesLoading}
                             />
+                        ) : selectedAdminSubTab === 'it_chat' ? (
+                            <AdminITChat currentAdmin={isAdminAuth} />
                         ) : selectedAdminSubTab === 'assets' ? (
                             <AssetInventory issues={issues} currentAdmin={isAdminAuth} />
                         ) : selectedAdminSubTab === 'asset_pm' ? (
@@ -1295,6 +1313,20 @@ function App() {
     };
 
     const getAdminNavPendingCount = (itemId) => {
+        if (itemId === 'it_chat') {
+            const sessions = new Map();
+            itChatMessages.forEach((message) => {
+                const sessionId = message.session_id;
+                if (!sessionId) return;
+                const current = sessions.get(sessionId);
+                if (!current || new Date(message.created_at) > new Date(current.created_at)) {
+                    sessions.set(sessionId, message);
+                }
+            });
+            return Array.from(sessions.values()).filter((message) =>
+                message.status !== 'Closed' && canAdminSeeItChatSession(isAdminAuth, message.assignee_key)
+            ).length;
+        }
         if (itemId === 'access_requests') {
             return countVisibleQueue(approvalQueues.access, currentRole, ACCESS_QUEUE_STATUS_BY_ROLE);
         }
@@ -1630,6 +1662,65 @@ function App() {
                     </Suspense>
                 </div>
             </main>
+
+            {showFloatingContactButton && (
+                <button
+                    type="button"
+                    onClick={() => setIsContactWidgetOpen(true)}
+                    className="group fixed bottom-24 right-4 z-[60] inline-flex h-14 w-14 items-center justify-center rounded-full bg-emerald-600 text-white shadow-2xl shadow-emerald-900/25 ring-1 ring-white/40 transition hover:-translate-y-0.5 hover:bg-emerald-700 focus:outline-none focus:ring-4 focus:ring-emerald-300 dark:bg-emerald-500 dark:text-emerald-950 dark:shadow-emerald-950/40 dark:hover:bg-emerald-400 dark:focus:ring-emerald-800 sm:right-6 xl:bottom-6"
+                    title="ติดต่อ IT"
+                    aria-label="ติดต่อ IT"
+                >
+                    <MessageCircle className="h-6 w-6" />
+                    <span className="pointer-events-none absolute right-full mr-3 hidden whitespace-nowrap rounded-lg bg-slate-900 px-3 py-2 text-xs font-bold text-white opacity-0 shadow-xl transition group-hover:block group-hover:opacity-100 group-focus-visible:block group-focus-visible:opacity-100 dark:bg-white dark:text-slate-900">
+                        ติดต่อ IT
+                    </span>
+                </button>
+            )}
+
+            {showContactWidget && (
+                <div className="fixed bottom-24 right-3 z-[70] flex h-[min(680px,calc(100dvh-7rem))] w-[min(420px,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/25 dark:border-slate-700 dark:bg-slate-900 dark:shadow-black/40 sm:right-6 xl:bottom-6">
+                    <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-emerald-600 px-4 py-3 text-white dark:border-emerald-900 dark:bg-emerald-500 dark:text-emerald-950">
+                        <div className="flex min-w-0 items-center gap-2">
+                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/15">
+                                <MessageCircle className="h-5 w-5" />
+                            </span>
+                            <div className="min-w-0">
+                                <div className="truncate text-sm font-extrabold">ติดต่อ IT</div>
+                                <div className="truncate text-[11px] font-semibold opacity-80">คุยกับแอดมินฝ่าย IT</div>
+                            </div>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-1">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setIsContactWidgetOpen(false);
+                                    navigateToTab('contact_it');
+                                }}
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-white/90 transition hover:bg-white/15 dark:text-emerald-950"
+                                title="เปิดหน้าเต็ม"
+                                aria-label="เปิดหน้าเต็ม"
+                            >
+                                <Maximize2 className="h-4 w-4" />
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setIsContactWidgetOpen(false)}
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-white/90 transition hover:bg-white/15 dark:text-emerald-950"
+                                title="ปิด"
+                                aria-label="ปิด"
+                            >
+                                <X className="h-4 w-4" />
+                            </button>
+                        </div>
+                    </div>
+                    <div className="min-h-0 flex-1">
+                        <Suspense fallback={<div className="p-4 text-sm font-semibold text-slate-500">กำลังโหลดแชท...</div>}>
+                            <ContactITChat compact />
+                        </Suspense>
+                    </div>
+                </div>
+            )}
 
             {isProfileModalOpen && (
                 <div className="fixed inset-0 z-[120] flex items-start sm:items-center justify-center overflow-y-auto p-3 sm:p-4 bg-slate-950/50 backdrop-blur-sm">

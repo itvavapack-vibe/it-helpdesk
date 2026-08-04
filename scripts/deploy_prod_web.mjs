@@ -277,24 +277,33 @@ async function getProjectStatus(productionPath) {
 
 function startProduction(productionPath) {
   sendLog('> npm run lan')
-  if (os.platform() === 'win32') {
-    spawn('cmd.exe', ['/k', 'npm run lan'], {
-      cwd: productionPath,
-      detached: true,
-      stdio: 'ignore',
-    }).unref()
-  } else {
-    spawn(npmCommand, ['run', 'lan'], {
-      cwd: productionPath,
-      detached: true,
-      stdio: 'ignore',
-    }).unref()
-  }
-  sendLog('Production started in a new terminal window.')
+  spawnCommand(npmCommand, ['run', 'lan'], {
+    cwd: productionPath,
+    detached: true,
+    stdio: 'ignore',
+    windowsHide: true,
+    env: process.env,
+  }).unref()
+  sendLog('Production started in the background.')
 }
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+async function waitForWindowsPorts(ports, timeoutMs = 20000) {
+  const startedAt = Date.now()
+  while (Date.now() - startedAt < timeoutMs) {
+    const listeners = await getWindowsPortListeners(ports)
+    const listeningPorts = new Set(listeners.map(listener => listener.port))
+    if (ports.every(port => listeningPorts.has(port))) return listeners
+    await sleep(1000)
+  }
+
+  const listeners = await getWindowsPortListeners(ports)
+  const listeningPorts = new Set(listeners.map(listener => listener.port))
+  const missingPorts = ports.filter(port => !listeningPorts.has(port))
+  throw new Error(`Production did not start on port(s): ${missingPorts.join(', ')}`)
 }
 
 async function controlProject(payload) {
@@ -314,14 +323,14 @@ async function controlProject(payload) {
       throw new Error(`Project is already running on port(s): ${listeners.map(item => item.port).join(', ')}`)
     }
     startProduction(productionPath)
-    await sleep(2000)
+    await waitForWindowsPorts(ports)
     return getProjectStatus(productionPath)
   }
 
   await stopWindowsPorts(ports)
   if (action === 'restart') {
     startProduction(productionPath)
-    await sleep(2000)
+    await waitForWindowsPorts(ports)
   }
   return getProjectStatus(productionPath)
 }
@@ -475,6 +484,7 @@ async function deploy(payload) {
         await stopWindowsPorts([webPort, apiPort])
       }
       startProduction(values.productionPath)
+      await waitForWindowsPorts([webPort, apiPort])
       return `Web port: ${webPort}\nAPI port: ${apiPort}`
     })
 
