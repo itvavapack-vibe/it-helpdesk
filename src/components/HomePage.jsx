@@ -86,6 +86,10 @@ const HomePage = ({ onNavigateTo, currentRole = 'public' }) => {
                                 <img
                                     src="/it-helpdesk-hero.jpg"
                                     alt="VAVA PACK IT Helpdesk"
+                                    width="680"
+                                    height="760"
+                                    fetchPriority="high"
+                                    decoding="async"
                                     className="w-full h-auto object-contain rounded-2xl max-h-[300px] sm:max-h-[350px] xl:max-h-[380px]"
                                 />
                             </div>

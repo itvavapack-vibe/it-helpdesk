@@ -34,6 +34,7 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 const { API_PORT = '4000', API_HOST = '0.0.0.0' } = process.env
+const WEB_PORT = process.env.WEB_PORT || process.env.VITE_WEB_PORT || '5173'
 
 const app = express()
 app.use(cors())
@@ -279,14 +280,52 @@ app.delete('/api/:table', async (req, res) => {
   }
 })
 
-app.listen(Number(API_PORT), API_HOST, () => {
-  console.log(`MySQL API listening on http://${API_HOST}:${API_PORT}`)
-  console.log(`  Health: http://127.0.0.1:${API_PORT}/api/health`)
+const distDir = path.join(__dirname, 'dist')
+const indexHtml = path.join(distDir, 'index.html')
+
+if (fs.existsSync(indexHtml)) {
+  app.use(express.static(distDir, {
+    etag: true,
+    maxAge: '1h',
+    setHeaders(res, filePath) {
+      if (filePath.endsWith('index.html')) {
+        res.setHeader('Cache-Control', 'no-store')
+      } else if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+        res.setHeader('Cache-Control', 'public, max-age=2592000, immutable')
+      }
+    },
+  }))
+
+  app.get(/^(?!\/(?:api|uploads|glpi-proxy)(?:\/|$)).*/, (_req, res) => {
+    res.sendFile(indexHtml)
+  })
+} else {
+  console.warn(`Built frontend not found at ${indexHtml}. Run "npm run build" before production start.`)
+}
+
+const listenPorts = [...new Set([Number(API_PORT), Number(WEB_PORT)].filter(Boolean))]
+
+for (const port of listenPorts) {
+  app.listen(port, API_HOST, () => {
+    const isWebPort = port === Number(WEB_PORT)
+    console.log(`${isWebPort ? 'Web/API' : 'MySQL API'} listening on http://${API_HOST}:${port}`)
+    console.log(`  Health: http://127.0.0.1:${port}/api/health`)
+    if (isWebPort && fs.existsSync(indexHtml)) {
+      console.log(`  Web: http://127.0.0.1:${port}/`)
+    }
+  })
+}
+
+console.log(`Configured API port: ${API_PORT}`)
+console.log(`Configured web port: ${WEB_PORT}`)
+
+if (listenPorts.length) {
   const lanIps = getLanAddresses()
   if (lanIps.length) {
     console.log('  LAN access (other devices on same network):')
     for (const ip of lanIps) {
-      console.log(`    http://${ip}:${API_PORT}/api/health`)
+      console.log(`    Web:    http://${ip}:${WEB_PORT}/`)
+      console.log(`    Health: http://${ip}:${API_PORT}/api/health`)
     }
   }
-})
+}

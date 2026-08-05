@@ -2,6 +2,7 @@ import { Suspense, lazy, useState, useEffect, useRef } from 'react';
 import SignatureCanvas from 'react-signature-canvas';
 import { getAdminProfile, mysql, updateAdminProfile } from './mysqlClient';
 import ThemePicker from './components/ThemePicker';
+import HomePage from './components/HomePage';
 import { ChevronDown, LogIn, LogOut, Maximize2, MessageCircle, Monitor, MoreHorizontal, PanelLeftClose, PanelLeftOpen, UserCog, X } from 'lucide-react';
 import { ADMIN_SUB_TABS, MAIN_NAV_ITEMS, canSee, normalizeRole } from './config/navigation';
 import { canAdminSeeItChatSession } from './config/itChatAssignees';
@@ -24,7 +25,6 @@ const EmployeeManagement = lazy(() => import('./components/EmployeeManagement'))
 const AIHelpdesk = lazy(() => import('./components/AIHelpdesk'));
 const ContactITChat = lazy(() => import('./components/ContactITChat'));
 const AdminITChat = lazy(() => import('./components/AdminITChat'));
-const HomePage = lazy(() => import('./components/HomePage'));
 const AssetInventory = lazy(() => import('./components/AssetInventory'));
 const IssueStatistics = lazy(() => import('./components/IssueStatistics'));
 const UserAccessRequestForm = lazy(() => import('./components/UserAccessRequestForm'));
@@ -46,6 +46,7 @@ const ChangeManagerApproval = lazy(() => import('./components/ChangeManagerAppro
 const AUTO_CLOSE_AFTER_MS = 3 * 24 * 60 * 60 * 1000;
 const SESSION_ACTIVITY_EVENTS = ['mousedown', 'keydown', 'scroll', 'touchstart', 'pointerdown'];
 const SESSION_REFRESH_THROTTLE_MS = 30 * 1000;
+const ISSUE_SYNC_TABS = new Set(['tracking', 'admin']);
 
 const ACTIVE_TAB_STORAGE_KEY = 'it-helpdesk-active-tab';
 const ADMIN_SUB_TAB_STORAGE_KEY = 'it-helpdesk-admin-sub-tab';
@@ -291,6 +292,7 @@ function App() {
     const isStandaloneSignaturePage = activeTab === 'issue_close' || activeTab === 'issue_waiting_parts' || activeTab === 'change_request_acceptance' || activeTab === 'access_request_acknowledgement';
     const showFloatingContactButton = !isStandaloneSignaturePage && !isAdminAuth && activeTab !== 'contact_it' && !isContactWidgetOpen;
     const showContactWidget = !isStandaloneSignaturePage && !isAdminAuth && activeTab !== 'contact_it' && isContactWidgetOpen;
+    const shouldSyncIssues = ISSUE_SYNC_TABS.has(activeTab) && (activeTab !== 'admin' || Boolean(isAdminAuth));
 
     // QR parameters are consumed once. Workflow parameters stay in the URL so shared links survive refresh.
     useEffect(() => {
@@ -536,11 +538,17 @@ function App() {
 
     // Fetch issues from mysql
     useEffect(() => {
+        if (!shouldSyncIssues) {
+            setIsIssuesLoading(false);
+            return;
+        }
         fetchIssues();
-    }, []);
+    }, [shouldSyncIssues]);
 
     // mysql Realtime: อัปเดตข้อมูลอัตโนมัติเมื่อมีการเปลี่ยนแปลง
     useEffect(() => {
+        if (!shouldSyncIssues) return undefined;
+
         const channel = mysql
             .channel('issues-realtime')
             .on('mysql_changes', { event: '*', schema: 'public', table: 'issues' }, () => {
@@ -549,9 +557,11 @@ function App() {
             .subscribe();
 
         return () => mysql.removeChannel(channel);
-    }, []);
+    }, [shouldSyncIssues]);
 
     useEffect(() => {
+        if (!shouldSyncIssues) return undefined;
+
         const intervalId = setInterval(() => {
             if (document.visibilityState === 'visible') {
                 fetchIssues({ silent: true });
@@ -569,7 +579,7 @@ function App() {
             clearInterval(intervalId);
             document.removeEventListener('visibilitychange', handleVisibilityChange);
         };
-    }, []);
+    }, [shouldSyncIssues]);
 
     // Time-based Dark Mode Logic (18:00 - 05:59 is Dark)
     useEffect(() => {
@@ -593,18 +603,10 @@ function App() {
     const fetchIssues = async ({ silent = false } = {}) => {
         if (!silent) setIsIssuesLoading(true);
 
-        // Add a slight artificial delay (min 500ms) for better UX with the spinner
-        const startTime = Date.now();
-
         const { data, error } = await mysql
             .from('issues')
             .select('*')
             .order('created_at', { ascending: false });
-
-        const elapsedTime = Date.now() - startTime;
-        if (!silent && elapsedTime < 500) {
-            await new Promise(resolve => setTimeout(resolve, 500 - elapsedTime));
-        }
 
         if (error) {
             console.error("Error fetching issues from mysql:", error);

@@ -117,7 +117,7 @@ try {
             Start-NpmHidden $productionPath @('run', 'start:api')
         }
         if (-not $webRunning) {
-            Start-NpmHidden $productionPath @('run', 'dev:lan')
+            Start-NpmHidden $productionPath @('run', 'lan')
         }
     }
 
@@ -144,7 +144,7 @@ try {
                 Start-NpmHidden $appRoot @('run', 'start:api')
             }
             if (-not $testWebRunning) {
-                Start-NpmHidden $appRoot @('run', 'dev:lan')
+                Start-NpmHidden $appRoot @('run', 'lan')
             }
         }
     }
