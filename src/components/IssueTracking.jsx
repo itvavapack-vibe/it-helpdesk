@@ -26,6 +26,11 @@ const isBorrowInProgress = (issue) =>
     && isIssueClosed(issue)
     && !hasBorrowReturnerSubmission(issue)
     && !hasBorrowReceiverSubmission(issue);
+const canSubmitBorrowReturn = (issue) =>
+    isBorrowIssue(issue)
+    && (issue?.status === 'Resolved' || isIssueClosed(issue))
+    && !hasBorrowReturnerSubmission(issue)
+    && !hasBorrowReceiverSubmission(issue);
 const displayValue = (value) => value || '-';
 
 const resolveAttachmentUrl = (url) => {
@@ -303,7 +308,7 @@ const IssueTracking = ({ issues = [], isLoading = false }) => {
                                 {issue.status === 'Resolved' && issue.userCloseSign && (
                                     <span className="text-xs text-emerald-600 font-medium">เซ็นปิดงานแล้ว</span>
                                 )}
-                                {isBorrowInProgress(issue) && (
+                                {canSubmitBorrowReturn(issue) && (
                                     <a
                                         href={buildBorrowReturnIssueLink(issue.id)}
                                         className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-700 transition-colors hover:bg-amber-100 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200 dark:hover:bg-amber-950/50"

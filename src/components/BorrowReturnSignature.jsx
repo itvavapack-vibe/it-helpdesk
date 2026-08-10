@@ -62,8 +62,8 @@ const BorrowReturnSignature = ({ issueId, onReturnBorrowIssue }) => {
             Swal.fire('ไม่ใช่รายการยืมอุปกรณ์', 'ลิงก์นี้ใช้ได้เฉพาะหมวดหมู่ยืมคอมพิวเตอร์/อุปกรณ์ IT', 'warning');
             return;
         }
-        if (!(issue.status === 'Closed' || issue.user_closed_at)) {
-            Swal.fire('ยังส่งคืนไม่ได้', 'รายการนี้ต้องปิดจบก่อนจึงจะบันทึกส่งคืนได้', 'warning');
+        if (!(issue.status === 'Resolved' || issue.status === 'Closed' || issue.user_closed_at)) {
+            Swal.fire('ยังส่งคืนไม่ได้', 'รายการนี้ต้องอยู่ในสถานะเสร็จสิ้นหรือปิดจบก่อนจึงจะบันทึกส่งคืนได้', 'warning');
             return;
         }
         if (issue.borrow_returned_at || issue.borrow_returner_sign) {
@@ -130,7 +130,7 @@ const BorrowReturnSignature = ({ issueId, onReturnBorrowIssue }) => {
     }
 
     const alreadyReturned = Boolean(issue.borrow_returner_sign || issue.borrow_returned_at);
-    const canReturn = isBorrowIssue(issue) && (issue.status === 'Closed' || issue.user_closed_at);
+    const canReturn = isBorrowIssue(issue) && (issue.status === 'Resolved' || issue.status === 'Closed' || issue.user_closed_at);
 
     return (
         <div className="flex min-h-screen w-full items-start justify-center p-0 sm:p-6 animate-fade-in">

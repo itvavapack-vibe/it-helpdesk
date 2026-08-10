@@ -38,6 +38,12 @@ const isBorrowInProgress = (issue) =>
     && !issue?.borrowReturnerSign
     && !issue?.borrowReceivedAt
     && !issue?.borrowReceiverSign;
+const isBorrowReturnStage = (issue) => issue?.status === 'Resolved' || isIssueClosed(issue);
+const canSubmitBorrowReturn = (issue) =>
+    isBorrowIssue(issue)
+    && isBorrowReturnStage(issue)
+    && !issue?.borrowReturnedAt
+    && !issue?.borrowReturnerSign;
 const isImageAttachment = (file) => {
     const mimeType = String(file?.type || file?.mimetype || file?.mimeType || '').toLowerCase();
     const fileRef = String(file?.url || file?.path || file?.name || '').toLowerCase();
@@ -1419,7 +1425,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                                         <Link2 className="w-4 h-4" />
                                                     </button>
                                                 )}
-                                                {isBorrowIssue(issue) && isIssueClosed(issue) && !issue.borrowReturnedAt && !issue.borrowReturnerSign && (
+                                                {canSubmitBorrowReturn(issue) && (
                                                     <button
                                                         type="button"
                                                         onClick={() => showBorrowReturnIssueLinkDialog(issue)}
@@ -1429,7 +1435,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                                         <Link2 className="w-4 h-4" />
                                                     </button>
                                                 )}
-                                                {isBorrowIssue(issue) && isIssueClosed(issue) && (issue.borrowReturnedAt || issue.borrowReturnerSign) && !issue.borrowReceivedAt && !issue.borrowReceiverSign && (
+                                                {isBorrowIssue(issue) && isBorrowReturnStage(issue) && (issue.borrowReturnedAt || issue.borrowReturnerSign) && !issue.borrowReceivedAt && !issue.borrowReceiverSign && (
                                                     <button
                                                         type="button"
                                                         onClick={() => handleReceiveBorrowReturn(issue)}
@@ -1439,7 +1445,7 @@ const IssueDashboard = ({ issues, currentAdmin, updateIssueStatus, updateIssueRe
                                                         <CheckCircle2 className="w-4 h-4" />
                                                     </button>
                                                 )}
-                                                {isBorrowIssue(issue) && isIssueClosed(issue) && (
+                                                {isBorrowIssue(issue) && isBorrowReturnStage(issue) && (
                                                     <button
                                                         type="button"
                                                         onClick={() => setReturnInfoIssue(issue)}
