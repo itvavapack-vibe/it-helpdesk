@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Lock, User } from 'lucide-react';
+import { Eye, EyeOff, Lock, User } from 'lucide-react';
 import { changeExpiredAdminPassword, loginAdmin } from '../mysqlClient';
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Label } from '@/components/ui';
 import { PASSWORD_POLICY_TEXT, getPasswordPolicyErrors } from '../../shared/passwordPolicy';
@@ -12,6 +12,15 @@ const AdminLogin = ({ onLogin }) => {
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [visiblePasswords, setVisiblePasswords] = useState({
+        current: false,
+        new: false,
+        confirm: false
+    });
+
+    const togglePasswordVisibility = (field) => {
+        setVisiblePasswords((current) => ({ ...current, [field]: !current[field] }));
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -125,13 +134,24 @@ const AdminLogin = ({ onLogin }) => {
                         <div className="relative">
                             <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 dark:text-slate-500" />
                             <Input
-                                type="password"
+                                type={visiblePasswords.current ? 'text' : 'password'}
                                 id="password"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
-                                className="!pl-11"
+                                className="!pl-11 !pr-12"
+                                autoComplete="current-password"
                                 required
                             />
+                            <button
+                                type="button"
+                                onClick={() => togglePasswordVisibility('current')}
+                                className="absolute right-1 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-indigo-600 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-indigo-300"
+                                title={visiblePasswords.current ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'}
+                                aria-label={visiblePasswords.current ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'}
+                                aria-pressed={visiblePasswords.current}
+                            >
+                                {visiblePasswords.current ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                            </button>
                         </div>
                     </div>
 
@@ -144,23 +164,51 @@ const AdminLogin = ({ onLogin }) => {
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="new-password" className="ml-1">รหัสผ่านใหม่</Label>
-                        <Input
-                            type="password"
-                            id="new-password"
-                            value={newPassword}
-                            onChange={(event) => setNewPassword(event.target.value)}
-                            required
-                        />
+                        <div className="relative">
+                            <Input
+                                type={visiblePasswords.new ? 'text' : 'password'}
+                                id="new-password"
+                                value={newPassword}
+                                onChange={(event) => setNewPassword(event.target.value)}
+                                className="!pr-12"
+                                autoComplete="new-password"
+                                required
+                            />
+                            <button
+                                type="button"
+                                onClick={() => togglePasswordVisibility('new')}
+                                className="absolute right-1 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-indigo-600 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-indigo-300"
+                                title={visiblePasswords.new ? 'ซ่อนรหัสผ่านใหม่' : 'แสดงรหัสผ่านใหม่'}
+                                aria-label={visiblePasswords.new ? 'ซ่อนรหัสผ่านใหม่' : 'แสดงรหัสผ่านใหม่'}
+                                aria-pressed={visiblePasswords.new}
+                            >
+                                {visiblePasswords.new ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                            </button>
+                        </div>
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="confirm-password" className="ml-1">ยืนยันรหัสผ่านใหม่</Label>
-                        <Input
-                            type="password"
-                            id="confirm-password"
-                            value={confirmPassword}
-                            onChange={(event) => setConfirmPassword(event.target.value)}
-                            required
-                        />
+                        <div className="relative">
+                            <Input
+                                type={visiblePasswords.confirm ? 'text' : 'password'}
+                                id="confirm-password"
+                                value={confirmPassword}
+                                onChange={(event) => setConfirmPassword(event.target.value)}
+                                className="!pr-12"
+                                autoComplete="new-password"
+                                required
+                            />
+                            <button
+                                type="button"
+                                onClick={() => togglePasswordVisibility('confirm')}
+                                className="absolute right-1 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-indigo-600 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-indigo-300"
+                                title={visiblePasswords.confirm ? 'ซ่อนรหัสผ่านยืนยัน' : 'แสดงรหัสผ่านยืนยัน'}
+                                aria-label={visiblePasswords.confirm ? 'ซ่อนรหัสผ่านยืนยัน' : 'แสดงรหัสผ่านยืนยัน'}
+                                aria-pressed={visiblePasswords.confirm}
+                            >
+                                {visiblePasswords.confirm ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                            </button>
+                        </div>
                     </div>
                     <Button type="submit" className="w-full" disabled={isSubmitting}>
                         {isSubmitting ? 'กำลังบันทึก...' : 'ตั้งรหัสผ่านใหม่และเข้าสู่ระบบ'}

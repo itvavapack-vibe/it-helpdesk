@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   ClipboardList,
   ClipboardPlus,
+  Eye,
+  EyeOff,
   LayoutDashboard,
   LayoutGrid,
   Loader2,
@@ -38,6 +40,7 @@ const SecretaryLogin = ({ onLogin }) => {
   const [credentials, setCredentials] = useState({ username: '', password: '' })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false)
 
   const submit = async (event) => {
     event.preventDefault()
@@ -77,7 +80,22 @@ const SecretaryLogin = ({ onLogin }) => {
           {error && <div className="mt-5 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-300">{error}</div>}
           <div className="mt-6 space-y-4">
             <label><span className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-200">ชื่อผู้ใช้</span><input autoFocus required autoComplete="username" value={credentials.username} onChange={(event) => setCredentials((current) => ({ ...current, username: event.target.value }))} className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 dark:border-slate-600 dark:bg-slate-950 dark:text-white dark:focus:ring-indigo-950/60" /></label>
-            <label><span className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-200">รหัสผ่าน</span><input type="password" required autoComplete="current-password" value={credentials.password} onChange={(event) => setCredentials((current) => ({ ...current, password: event.target.value }))} className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 dark:border-slate-600 dark:bg-slate-950 dark:text-white dark:focus:ring-indigo-950/60" /></label>
+            <label>
+              <span className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-200">รหัสผ่าน</span>
+              <span className="relative block">
+                <input type={isPasswordVisible ? 'text' : 'password'} required autoComplete="current-password" value={credentials.password} onChange={(event) => setCredentials((current) => ({ ...current, password: event.target.value }))} className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 pr-12 text-sm outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 dark:border-slate-600 dark:bg-slate-950 dark:text-white dark:focus:ring-indigo-950/60" />
+                <button
+                  type="button"
+                  onClick={() => setIsPasswordVisible((current) => !current)}
+                  className="absolute right-1 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-indigo-600 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-indigo-300"
+                  title={isPasswordVisible ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'}
+                  aria-label={isPasswordVisible ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'}
+                  aria-pressed={isPasswordVisible}
+                >
+                  {isPasswordVisible ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                </button>
+              </span>
+            </label>
           </div>
           <button type="submit" disabled={isSubmitting} className="app-primary-button mt-6 flex h-11 w-full items-center justify-center gap-2 rounded-xl text-sm font-bold text-white shadow-md disabled:opacity-60">{isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}เข้าสู่ระบบ</button>
         </form>
