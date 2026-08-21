@@ -128,6 +128,11 @@ const Fmit12PdfPreview = ({ isOpen, onClose, formData }) => {
     const requestDate = formData.createdAt
         ? formatDate(formData.createdAt)
         : new Date().toLocaleDateString('th-TH');
+    const installerName = String(formData.itStaffName || '').trim().toLocaleLowerCase();
+    const cancellerName = String(formData.cancelItName || '').trim().toLocaleLowerCase();
+    const cancellationSignature = installerName && installerName === cancellerName && formData.itSign
+        ? formData.itSign
+        : formData.cancelItSign;
 
     const styles = {
         paper: {
@@ -193,13 +198,15 @@ const Fmit12PdfPreview = ({ isOpen, onClose, formData }) => {
         </div>
     );
 
-    const SignatureBox = ({ title, sign, name, date, height = 64 }) => (
+    const SignatureBox = ({ title, sign, name, date, height = 64, fixedSignatureSize = false }) => (
         <td style={{ ...styles.cell, height, verticalAlign: 'top', padding: '5px 6px' }}>
             <div style={{ textDecoration: 'underline', fontWeight: 700, textAlign: 'center', marginBottom: '9px', fontSize: '10.8px' }}>{title}</div>
             <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: '4px', fontSize: '10.8px' }}>
                 <span>ลงนาม</span>
-                <span style={{ borderBottom: sign || name ? 'none' : '1px dotted #000', minWidth: '92px', height: '23px', display: 'inline-flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-                    {sign && <img src={sign} alt="signature" style={{ maxHeight: '27px', maxWidth: '88px', objectFit: 'contain' }} />}
+                <span style={{ borderBottom: sign || name ? 'none' : '1px dotted #000', minWidth: fixedSignatureSize ? '88px' : '92px', height: fixedSignatureSize ? '27px' : '23px', display: 'inline-flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+                    {sign && <img src={sign} alt="signature" style={fixedSignatureSize
+                        ? { width: '88px', height: '27px', objectFit: 'contain' }
+                        : { maxHeight: '27px', maxWidth: '88px', objectFit: 'contain' }} />}
                     {!sign && name}
                 </span>
             </div>
@@ -381,21 +388,22 @@ const Fmit12PdfPreview = ({ isOpen, onClose, formData }) => {
                                 <tbody>
                                     <tr>
                                         <SignatureBox title="ผู้แจ้งงานลงนามรับทราบผลการใช้งาน" sign={formData.userAcknowledgeSign} date={formData.userAcknowledgeDate} height={52} />
-                                        <SignatureBox title="ลงนามผู้ปฏิบัติงาน ผู้ติดตั้งการใช้งาน" sign={formData.itSign} name={formData.itStaffName} date={formData.itStaffDate} height={52} />
+                                        <SignatureBox title="ลงนามผู้ปฏิบัติงาน ผู้ติดตั้งการใช้งาน" sign={formData.itSign} name={formData.itStaffName} date={formData.itStaffDate} height={52} fixedSignatureSize />
                                     </tr>
                                 </tbody>
                             </table>
 
                             <div style={styles.sectionTitle}>ส่วนยกเลิกการใช้งาน</div>
-                            <table style={{ width: '48%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+                            <table style={{ width: '50%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
                                 <tbody>
                                     <tr>
                                         <SignatureBox
                                             title="ลงนามผู้ปฏิบัติงาน ผู้ยกเลิกการใช้งาน"
-                                            sign={formData.cancelItSign}
+                                            sign={cancellationSignature}
                                             name={formData.cancelItName}
                                             date={formData.cancelledAt}
                                             height={52}
+                                            fixedSignatureSize
                                         />
                                     </tr>
                                 </tbody>

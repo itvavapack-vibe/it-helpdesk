@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { mysql } from '../mysqlClient';
 import {
     Briefcase,
@@ -12,10 +12,8 @@ import {
     X
 } from 'lucide-react';
 import Swal from 'sweetalert2';
-import SignatureCanvas from 'react-signature-canvas';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { toLocalDateInputValue, toMysqlDateTime } from '../utils/dateTime';
-import { loadSignatureIntoCanvas } from '../utils/signatureCanvas';
 
 const DEPARTMENTS = [
     'แอดมิน',
@@ -127,6 +125,7 @@ const EmployeeManagement = ({ currentAdmin }) => {
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('All');
+    const [monthlyEventFilter, setMonthlyEventFilter] = useState('All');
     const currentMonthFilter = toLocalDateInputValue().slice(0, 7);
     const initialMonthFilter = '';
     const [monthFilter, setMonthFilter] = useState(initialMonthFilter);
@@ -135,7 +134,6 @@ const EmployeeManagement = ({ currentAdmin }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalMode, setModalMode] = useState('add');
     const [formData, setFormData] = useState(emptyForm);
-    const cancelSignatureRef = useRef(null);
 
     useEffect(() => {
         fetchEmployees();
@@ -220,14 +218,51 @@ const EmployeeManagement = ({ currentAdmin }) => {
         return toDateInputValue(dateValue).slice(0, 7) === monthFilter;
     };
 
+    const yearFilter = /^\d{4}$/.test(yearInput) ? yearInput : '';
+
+    const isSameYear = (dateValue) => {
+        if (!dateValue || !yearFilter) return false;
+        return toDateInputValue(dateValue).slice(0, 4) === yearFilter;
+    };
+
+    const hasTransferInSelectedYear = (employee) => {
+        const employeeId = String(employee?.emp_id || '').trim();
+        if (!employeeId || !yearFilter) return false;
+
+        if (isSameYear(employee.transfer_date)) return true;
+
+        return transferHistories.some((transfer) =>
+            String(transfer.emp_id || '').trim() === employeeId &&
+            isSameYear(transfer.transfer_date)
+        );
+    };
+
+    const isActiveInSelectedYear = (employee) => {
+        if (employee.status !== EMPLOYEE_STATUS.ACTIVE) return false;
+        if (!yearFilter) return true;
+
+        const startYear = toDateInputValue(employee.start_date).slice(0, 4);
+        return !startYear || startYear <= yearFilter;
+    };
+
+    const hasTransferInSelectedMonth = (employee) => {
+        const employeeId = String(employee?.emp_id || '').trim();
+        if (!employeeId) return false;
+
+        if (isSameMonth(employee.transfer_date)) return true;
+
+        return transferHistories.some((transfer) =>
+            String(transfer.emp_id || '').trim() === employeeId &&
+            isSameMonth(transfer.transfer_date)
+        );
+    };
+
     const isEmployeeInSelectedMonth = (employee) => {
-        if (employee.status === EMPLOYEE_STATUS.RESIGNED) {
-            return isSameMonth(employee.end_date);
-        }
-        if (employee.status === EMPLOYEE_STATUS.TRANSFERRED) {
-            return isSameMonth(employee.transfer_date || employee.updated_at);
-        }
-        return isSameMonth(employee.start_date);
+        return (
+            isSameMonth(employee.start_date) ||
+            (employee.status === EMPLOYEE_STATUS.RESIGNED && isSameMonth(employee.end_date)) ||
+            hasTransferInSelectedMonth(employee)
+        );
     };
 
     const monthlyStats = useMemo(() => {
@@ -235,10 +270,19 @@ const EmployeeManagement = ({ currentAdmin }) => {
 
         const newJoiners = employees.filter((employee) => isSameMonth(employee.start_date));
         const exits = employees.filter((employee) => employee.status === EMPLOYEE_STATUS.RESIGNED && isSameMonth(employee.end_date));
-        const transfers = employees.filter((employee) => employee.status === EMPLOYEE_STATUS.TRANSFERRED && isSameMonth(employee.transfer_date || employee.updated_at));
+        const transfers = employees.filter(hasTransferInSelectedMonth);
 
         return { newJoiners, exits, transfers };
-    }, [employees, monthFilter]);
+    }, [employees, transferHistories, monthFilter]);
+
+    const yearlyStats = useMemo(() => ({
+        total: employees.length,
+        active: employees.filter(isActiveInSelectedYear).length,
+        resigned: employees.filter((employee) => employee.status === EMPLOYEE_STATUS.RESIGNED && (!yearFilter || isSameYear(employee.end_date))).length,
+        transferred: employees.filter((employee) => !yearFilter
+            ? employee.status === EMPLOYEE_STATUS.TRANSFERRED
+            : hasTransferInSelectedYear(employee)).length
+    }), [employees, transferHistories, yearFilter]);
 
     const filteredEmployees = useMemo(() => {
         const keyword = searchTerm.trim().toLowerCase();
@@ -252,18 +296,26 @@ const EmployeeManagement = ({ currentAdmin }) => {
                 employee.position?.toLowerCase().includes(keyword) ||
                 employee.transfer_department?.toLowerCase().includes(keyword) ||
                 employee.transfer_position?.toLowerCase().includes(keyword);
-            const matchesStatus = statusFilter === 'All' || employee.status === statusFilter;
+            const matchesStatus =
+                statusFilter === 'All' ||
+                (statusFilter === EMPLOYEE_STATUS.ACTIVE && !monthFilter && yearFilter
+                    ? isActiveInSelectedYear(employee)
+                    : statusFilter === EMPLOYEE_STATUS.RESIGNED && !monthFilter && yearFilter
+                        ? employee.status === EMPLOYEE_STATUS.RESIGNED && isSameYear(employee.end_date)
+                        : statusFilter === EMPLOYEE_STATUS.TRANSFERRED && monthFilter
+                            ? hasTransferInSelectedMonth(employee)
+                            : statusFilter === EMPLOYEE_STATUS.TRANSFERRED && yearFilter
+                                ? hasTransferInSelectedYear(employee)
+                                : employee.status === statusFilter);
             const matchesMonth = !monthFilter || isEmployeeInSelectedMonth(employee);
-            return matchesSearch && matchesStatus && matchesMonth;
+            const matchesMonthlyEvent =
+                monthlyEventFilter === 'All' ||
+                (monthlyEventFilter === 'newJoiners' && isSameMonth(employee.start_date)) ||
+                (monthlyEventFilter === 'exits' && employee.status === EMPLOYEE_STATUS.RESIGNED && isSameMonth(employee.end_date)) ||
+                (monthlyEventFilter === 'transfers' && hasTransferInSelectedMonth(employee));
+            return matchesSearch && matchesStatus && matchesMonth && matchesMonthlyEvent;
         });
-    }, [employees, searchTerm, statusFilter, monthFilter]);
-
-    const overallStats = useMemo(() => ({
-        total: employees.length,
-        active: employees.filter((employee) => employee.status === EMPLOYEE_STATUS.ACTIVE).length,
-        resigned: employees.filter((employee) => employee.status === EMPLOYEE_STATUS.RESIGNED).length,
-        transferred: employees.filter((employee) => employee.status === EMPLOYEE_STATUS.TRANSFERRED).length
-    }), [employees]);
+    }, [employees, transferHistories, searchTerm, statusFilter, monthFilter, monthlyEventFilter, yearFilter]);
 
     const departmentOptions = useMemo(
         () => getDepartmentOptions(formData.department, formData.transfer_department),
@@ -290,6 +342,7 @@ const EmployeeManagement = ({ currentAdmin }) => {
 
         if (!nextMonth || nextYear.length !== 4) {
             setMonthFilter('');
+            setMonthlyEventFilter('All');
             return;
         }
 
@@ -321,20 +374,14 @@ const EmployeeManagement = ({ currentAdmin }) => {
             setFormData(emptyForm);
         }
         setIsModalOpen(true);
-        setTimeout(() => cancelSignatureRef.current?.clear(), 50);
     };
 
     const closeModal = () => {
         setIsModalOpen(false);
         setFormData(emptyForm);
-        cancelSignatureRef.current?.clear();
     };
 
     const updateFormField = (field, value) => {
-        if (field === 'status' && value === EMPLOYEE_STATUS.RESIGNED) {
-            loadSignatureIntoCanvas(cancelSignatureRef, currentAdmin?.signature);
-        }
-
         setFormData((prev) => {
             const next = { ...prev, [field]: value };
 
@@ -432,7 +479,7 @@ const EmployeeManagement = ({ currentAdmin }) => {
         }
 
         if (modalMode === 'edit' && formData.status === EMPLOYEE_STATUS.TRANSFERRED && (!formData.transfer_department || !formData.transfer_position.trim())) {
-            Swal.fire('ข้อมูลสถานะไม่ครบ', 'กรุณาระบุแผนกและตำแหน่งหลังโอนย้าย', 'warning');
+            Swal.fire('ข้อมูลสถานะไม่ครบ', 'กรุณาระบุแผนกโอนย้ายและตำแหน่งโอนย้าย', 'warning');
             return false;
         }
 
@@ -447,12 +494,7 @@ const EmployeeManagement = ({ currentAdmin }) => {
             employees.find((employee) => employee.id === formData.id)?.status !== EMPLOYEE_STATUS.RESIGNED
         ) {
             if (!formData.cancel_it_name.trim()) {
-                Swal.fire('ข้อมูลยกเลิกไม่ครบ', 'กรุณาระบุชื่อ IT ผู้ยกเลิกสิทธิ์', 'warning');
-                return false;
-            }
-
-            if (!cancelSignatureRef.current || cancelSignatureRef.current.isEmpty()) {
-                Swal.fire('ข้อมูลยกเลิกไม่ครบ', 'กรุณาให้ IT ลงนามยกเลิกสิทธิ์', 'warning');
+                Swal.fire('ข้อมูลยกเลิกไม่ครบ', 'กรุณาระบุผู้แจ้ง', 'warning');
                 return false;
             }
         }
@@ -497,10 +539,6 @@ const EmployeeManagement = ({ currentAdmin }) => {
                 const becomesResigned = formData.status === EMPLOYEE_STATUS.RESIGNED;
                 const departmentChanged = original?.department !== payload.department;
                 const positionChanged = (original?.position || '') !== payload.position;
-                const cancelItSign = becomesResigned && !wasResigned
-                    ? cancelSignatureRef.current.getCanvas().toDataURL('image/png')
-                    : null;
-
                 const { error } = await mysql.from('employees').update(payload).eq('id', formData.id);
                 if (error) throw error;
 
@@ -519,7 +557,7 @@ const EmployeeManagement = ({ currentAdmin }) => {
                 if (becomesResigned && !wasResigned) {
                     await cancelEmployeeRequests(formData.emp_id, {
                         cancelItName: formData.cancel_it_name.trim(),
-                        cancelItSign: cancelItSign
+                        cancelItSign: null
                     });
                     Swal.fire('อัปเดตสถานะแล้ว', 'บันทึกสถานะลาออก และยกเลิกคำร้องที่ยังค้างของพนักงานคนนี้แล้ว', 'success');
                 } else {
@@ -630,7 +668,13 @@ const EmployeeManagement = ({ currentAdmin }) => {
                         />
                     </div>
 
-                    <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <Select
+                        value={statusFilter}
+                        onValueChange={(value) => {
+                            setStatusFilter(value);
+                            setMonthlyEventFilter('All');
+                        }}
+                    >
                         <SelectTrigger className="input-modern !py-2 !text-sm w-full sm:w-44">
                             <SelectValue placeholder="สถานะทั้งหมด" />
                         </SelectTrigger>
@@ -670,6 +714,8 @@ const EmployeeManagement = ({ currentAdmin }) => {
                             setMonthInput('');
                             setYearInput('');
                             setMonthFilter('');
+                            setStatusFilter('All');
+                            setMonthlyEventFilter('All');
                         }}
                         disabled={!monthFilter}
                         className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-blue-300 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-blue-500 dark:hover:text-blue-300"
@@ -690,20 +736,25 @@ const EmployeeManagement = ({ currentAdmin }) => {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
                 {[
-                    { label: 'พนักงานทั้งหมด', value: overallStats.total, status: 'All', icon: Users, className: 'bg-slate-100 text-slate-700 dark:bg-slate-700/60 dark:text-slate-200' },
-                    { label: 'ทำงาน', value: overallStats.active, status: EMPLOYEE_STATUS.ACTIVE, icon: Briefcase, className: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-300' },
-                    { label: 'ลาออก', value: overallStats.resigned, status: EMPLOYEE_STATUS.RESIGNED, icon: UserMinus, className: 'bg-rose-100 text-rose-600 dark:bg-rose-900/40 dark:text-rose-300' },
-                    { label: 'โอนย้าย', value: overallStats.transferred, status: EMPLOYEE_STATUS.TRANSFERRED, icon: MoveRight, className: 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300' }
+                    { label: 'พนักงานทั้งหมด', value: yearlyStats.total, status: 'All', icon: Users, className: 'bg-slate-100 text-slate-700 dark:bg-slate-700/60 dark:text-slate-200' },
+                    { label: 'ทำงานประจำปี', value: yearlyStats.active, status: EMPLOYEE_STATUS.ACTIVE, icon: Briefcase, className: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-300' },
+                    { label: 'ลาออกประจำปี', value: yearlyStats.resigned, status: EMPLOYEE_STATUS.RESIGNED, icon: UserMinus, className: 'bg-rose-100 text-rose-600 dark:bg-rose-900/40 dark:text-rose-300' },
+                    { label: 'โอนย้ายประจำปี', value: yearlyStats.transferred, status: EMPLOYEE_STATUS.TRANSFERRED, icon: MoveRight, className: 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300' }
                 ].map((item) => {
                     const Icon = item.icon;
-                    const isSelected = statusFilter === item.status;
+                    const isSelected = statusFilter === item.status && monthlyEventFilter === 'All';
                     return (
                         <button
                             key={item.label}
                             type="button"
-                            onClick={() => setStatusFilter((currentStatus) => (
-                                item.status !== 'All' && currentStatus === item.status ? 'All' : item.status
-                            ))}
+                            onClick={() => {
+                                setMonthInput('');
+                                setMonthFilter('');
+                                setMonthlyEventFilter('All');
+                                setStatusFilter((currentStatus) => (
+                                    item.status !== 'All' && currentStatus === item.status ? 'All' : item.status
+                                ));
+                            }}
                             aria-pressed={isSelected}
                             className={`glass-card rounded-2xl p-5 flex items-center gap-4 text-left transition-all hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900 ${
                                 isSelected
@@ -726,13 +777,27 @@ const EmployeeManagement = ({ currentAdmin }) => {
             {monthFilter && (
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     {[
-                        { label: 'เข้าใหม่เดือนนี้', value: monthlyStats.newJoiners.length, icon: UserPlus, className: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-300' },
-                        { label: 'ลาออกเดือนนี้', value: monthlyStats.exits.length, icon: UserMinus, className: 'bg-rose-100 text-rose-600 dark:bg-rose-900/40 dark:text-rose-300' },
-                        { label: 'โอนย้ายเดือนนี้', value: monthlyStats.transfers.length, icon: MoveRight, className: 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300' }
+                        { label: 'เข้าใหม่เดือนนี้', value: monthlyStats.newJoiners.length, filter: 'newJoiners', icon: UserPlus, className: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-300' },
+                        { label: 'ลาออกเดือนนี้', value: monthlyStats.exits.length, filter: 'exits', icon: UserMinus, className: 'bg-rose-100 text-rose-600 dark:bg-rose-900/40 dark:text-rose-300' },
+                        { label: 'โอนย้ายเดือนนี้', value: monthlyStats.transfers.length, filter: 'transfers', icon: MoveRight, className: 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300' }
                     ].map((item) => {
                         const Icon = item.icon;
+                        const isSelected = monthlyEventFilter === item.filter;
                         return (
-                            <div key={item.label} className="glass-card rounded-2xl p-5 flex items-center gap-4">
+                            <button
+                                key={item.label}
+                                type="button"
+                                onClick={() => {
+                                    setStatusFilter('All');
+                                    setMonthlyEventFilter((currentFilter) => currentFilter === item.filter ? 'All' : item.filter);
+                                }}
+                                aria-pressed={isSelected}
+                                className={`glass-card rounded-2xl p-5 flex items-center gap-4 text-left transition-all hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900 ${
+                                    isSelected
+                                        ? 'border-blue-400 ring-2 ring-blue-200 dark:border-blue-500 dark:ring-blue-900/60'
+                                        : ''
+                                }`}
+                            >
                                 <div className={`p-3 rounded-xl ${item.className}`}>
                                     <Icon className="w-6 h-6" />
                                 </div>
@@ -740,7 +805,7 @@ const EmployeeManagement = ({ currentAdmin }) => {
                                     <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">{item.label}</p>
                                     <p className="text-2xl font-extrabold text-slate-800 dark:text-white">{item.value}</p>
                                 </div>
-                            </div>
+                            </button>
                         );
                     })}
                 </div>
@@ -963,13 +1028,21 @@ const EmployeeManagement = ({ currentAdmin }) => {
                                             {[...currentTransferHistory]
                                                 .sort((a, b) => new Date(a.transfer_date || 0) - new Date(b.transfer_date || 0))
                                                 .map((transfer, index) => (
-                                                <div key={transfer.id || `${transfer.transfer_date}-${index}`} className="grid grid-cols-1 gap-3 rounded-xl border border-blue-100 bg-white p-3 text-sm dark:border-blue-900/40 dark:bg-slate-800 sm:grid-cols-3">
+                                                <div key={transfer.id || `${transfer.transfer_date}-${index}`} className="grid grid-cols-1 gap-3 rounded-xl border border-blue-100 bg-white p-3 text-sm dark:border-blue-900/40 dark:bg-slate-800 sm:grid-cols-5">
                                                     <div>
-                                                        <span className="block text-xs font-semibold text-slate-500 dark:text-slate-400">ตำแหน่ง</span>
+                                                        <span className="block text-xs font-semibold text-slate-500 dark:text-slate-400">ย้ายจากตำแหน่ง</span>
+                                                        <span className="font-semibold text-slate-800 dark:text-slate-100">{transfer.from_position || '-'}</span>
+                                                    </div>
+                                                    <div>
+                                                        <span className="block text-xs font-semibold text-slate-500 dark:text-slate-400">ย้ายจากแผนก</span>
+                                                        <span className="font-semibold text-slate-800 dark:text-slate-100">{transfer.from_department || '-'}</span>
+                                                    </div>
+                                                    <div>
+                                                        <span className="block text-xs font-semibold text-slate-500 dark:text-slate-400">ตำแหน่งโอนย้าย</span>
                                                         <span className="font-semibold text-slate-800 dark:text-slate-100">{transfer.to_position || '-'}</span>
                                                     </div>
                                                     <div>
-                                                        <span className="block text-xs font-semibold text-slate-500 dark:text-slate-400">แผนก</span>
+                                                        <span className="block text-xs font-semibold text-slate-500 dark:text-slate-400">แผนกโอนย้าย</span>
                                                         <span className="font-semibold text-slate-800 dark:text-slate-100">{transfer.to_department || '-'}</span>
                                                     </div>
                                                     <div>
@@ -997,11 +1070,11 @@ const EmployeeManagement = ({ currentAdmin }) => {
                                         </div>
                                         <div>
                                             <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                                                แผนกหลังโอนย้าย <span className="text-red-500">*</span>
+                                                แผนกโอนย้าย <span className="text-red-500">*</span>
                                             </label>
                                             <Select value={formData.transfer_department} onValueChange={(value) => updateFormField('transfer_department', value)}>
                                                 <SelectTrigger className="input-modern w-full">
-                                                    <SelectValue placeholder="เลือกแผนกหลังโอนย้าย" />
+                                                    <SelectValue placeholder="เลือกแผนกโอนย้าย" />
                                                 </SelectTrigger>
                                                 <SelectContent>
                                                     {departmentOptions.map((department) => (
@@ -1012,13 +1085,13 @@ const EmployeeManagement = ({ currentAdmin }) => {
                                         </div>
                                         <div className="sm:col-span-2">
                                             <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                                                ตำแหน่งหลังโอนย้าย <span className="text-red-500">*</span>
+                                                ตำแหน่งโอนย้าย <span className="text-red-500">*</span>
                                             </label>
                                             <input
                                                 type="text"
                                                 value={formData.transfer_position}
                                                 onChange={(event) => updateFormField('transfer_position', event.target.value)}
-                                                placeholder="ระบุตำแหน่งหลังโอนย้าย"
+                                                placeholder="ระบุตำแหน่งโอนย้าย"
                                                 className="input-modern w-full"
                                             />
                                         </div>
@@ -1052,37 +1125,15 @@ const EmployeeManagement = ({ currentAdmin }) => {
                                         </div>
                                         <div className="sm:col-span-2">
                                             <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                                                ชื่อ IT ผู้ยกเลิกสิทธิ์ <span className="text-red-500">*</span>
+                                                ผู้แจ้ง <span className="text-red-500">*</span>
                                             </label>
                                             <input
                                                 type="text"
                                                 value={formData.cancel_it_name}
                                                 onChange={(event) => updateFormField('cancel_it_name', event.target.value)}
-                                                placeholder="ระบุชื่อเจ้าหน้าที่ IT"
+                                                placeholder="ระบุชื่อผู้แจ้ง"
                                                 className="input-modern w-full"
                                             />
-                                        </div>
-                                        <div className="sm:col-span-2">
-                                            <div className="flex justify-between items-center mb-2">
-                                                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300">
-                                                    ลายเซ็น IT ผู้ยกเลิกสิทธิ์ <span className="text-red-500">*</span>
-                                                </label>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => cancelSignatureRef.current?.clear()}
-                                                    className="text-xs text-red-500 font-bold hover:underline"
-                                                >
-                                                    ล้างลายเซ็น
-                                                </button>
-                                            </div>
-                                            <div className="border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-900/50 relative overflow-hidden" style={{ height: '140px' }}>
-                                                <SignatureCanvas
-                                                    ref={cancelSignatureRef}
-                                                    penColor="black"
-                                                    canvasProps={{ className: 'w-full h-full xl-signature' }}
-                                                />
-                                                <div className="absolute bottom-2 right-3 text-slate-400 text-xs pointer-events-none opacity-50">เซ็นชื่อผู้ยกเลิกสิทธิ์ที่นี่</div>
-                                            </div>
                                         </div>
                                     </div>
                                 )}

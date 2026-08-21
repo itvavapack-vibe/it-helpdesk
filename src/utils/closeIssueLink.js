@@ -1,4 +1,5 @@
 import Swal from 'sweetalert2'
+import { toItHelpdeskPath } from '../config/appPaths'
 
 /** URL สาธารณะของแอป (ตั้ง VITE_PUBLIC_URL สำหรับ LAN เช่น http://192.168.10.213:5173) */
 const buildWorkflowLink = (path, queryKey, id) => {
@@ -7,7 +8,7 @@ const buildWorkflowLink = (path, queryKey, id) => {
     configured ||
     (typeof window !== 'undefined' ? window.location.origin : '')
   const base = origin.replace(/\/+$/, '')
-  return `${base}${path}?${queryKey}=${encodeURIComponent(id)}`
+  return `${base}${toItHelpdeskPath(path)}?${queryKey}=${encodeURIComponent(id)}`
 }
 
 export function buildCloseIssueLink(issueId) {

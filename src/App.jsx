@@ -3,7 +3,7 @@ import SignatureCanvas from 'react-signature-canvas';
 import { getAdminProfile, mysql, updateAdminProfile } from './mysqlClient';
 import ThemePicker from './components/ThemePicker';
 import HomePage from './components/HomePage';
-import { ChevronDown, LogIn, LogOut, Maximize2, MessageCircle, Monitor, MoreHorizontal, PanelLeftClose, PanelLeftOpen, UserCog, X } from 'lucide-react';
+import { ChevronDown, LayoutGrid, LogIn, LogOut, Maximize2, MessageCircle, Monitor, MoreHorizontal, PanelLeftClose, PanelLeftOpen, UserCog, X } from 'lucide-react';
 import { ADMIN_SUB_TABS, MAIN_NAV_ITEMS, canSee, normalizeRole } from './config/navigation';
 import { canAdminSeeItChatSession } from './config/itChatAssignees';
 import { ACCESS_QUEUE_STATUS_BY_ROLE, APPROVAL_QUEUE_STATUS_BY_ROLE, CHANGE_QUEUE_STATUS_BY_ROLE, ROLE_LABELS, canApproveServerRoomEntry, canHandleChangeRequestCategory, countVisibleQueue } from './config/roles';
@@ -14,6 +14,7 @@ import { toMysqlDateTime } from './utils/dateTime';
 import { insertWithMonthlyDocumentNumber } from './utils/ticketNumber';
 import { loadSignatureIntoCanvas } from './utils/signatureCanvas';
 import { PASSWORD_POLICY_TEXT, getPasswordPolicyErrors } from '../shared/passwordPolicy';
+import { CENTER_PATH, stripItHelpdeskBase, toItHelpdeskPath } from './config/appPaths';
 
 const IssueForm = lazy(() => import('./components/IssueForm'));
 const IssueTracking = lazy(() => import('./components/IssueTracking'));
@@ -122,7 +123,7 @@ const getWorkflowTab = (params) =>
     Object.entries(WORKFLOW_QUERY_TABS).find(([queryKey]) => params.has(queryKey))?.[1] || null;
 
 const getRouteFromPathname = (pathname) => {
-    const normalizedPathname = normalizePathname(pathname);
+    const normalizedPathname = normalizePathname(stripItHelpdeskBase(pathname));
     const adminRoute = Object.entries(ADMIN_SUB_TAB_PATHS)
         .find(([, path]) => normalizedPathname === `/admin/${path}`);
     if (adminRoute) return { activeTab: 'admin', adminSubTab: adminRoute[0] };
@@ -134,9 +135,9 @@ const getRouteFromPathname = (pathname) => {
 
 const getPathForTab = (activeTab, adminSubTab) => {
     if (activeTab === 'admin' && adminSubTab && ADMIN_SUB_TAB_PATHS[adminSubTab]) {
-        return `/admin/${ADMIN_SUB_TAB_PATHS[adminSubTab]}`;
+        return toItHelpdeskPath(`/admin/${ADMIN_SUB_TAB_PATHS[adminSubTab]}`);
     }
-    return TAB_PATHS[activeTab] || '/';
+    return toItHelpdeskPath(TAB_PATHS[activeTab] || '/');
 };
 
 const updateBrowserPath = (path, { replace = false } = {}) => {
@@ -319,7 +320,7 @@ function App() {
 
             const route = getRouteFromPathname(window.location.pathname);
             if (!route) {
-                window.history.replaceState({}, document.title, '/');
+                window.history.replaceState({}, document.title, toItHelpdeskPath('/'));
                 setActiveTab('home');
                 return;
             }
@@ -1483,7 +1484,16 @@ function App() {
                     )}
                 </div>
 
-                <div className={`mb-3 border-t border-slate-100 pt-3 dark:border-slate-800 ${isSidebarCollapsed ? '' : 'px-2'}`}>
+                <div className={`mb-3 space-y-2 border-t border-slate-100 pt-3 dark:border-slate-800 ${isSidebarCollapsed ? '' : 'px-2'}`}>
+                    <button
+                        type="button"
+                        onClick={() => window.location.assign(CENTER_PATH)}
+                        className={`flex h-10 w-full items-center rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-600 shadow-sm hover:border-indigo-300 hover:text-indigo-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-indigo-600 dark:hover:text-indigo-300 ${isSidebarCollapsed ? 'justify-center px-0' : 'gap-2 px-3'}`}
+                        title="App Center"
+                    >
+                        <LayoutGrid className="h-5 w-5 shrink-0" />
+                        <span className={isSidebarCollapsed ? 'hidden' : ''}>App Center</span>
+                    </button>
                     <ThemePicker variant="sidebar" isCollapsed={isSidebarCollapsed} />
                 </div>
 
@@ -1575,6 +1585,15 @@ function App() {
                     </div>
 
                     <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={() => window.location.assign(CENTER_PATH)}
+                            className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm hover:border-indigo-300 hover:text-indigo-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-indigo-600 dark:hover:text-indigo-300 min-[360px]:h-10 min-[360px]:w-10"
+                            title="App Center"
+                            aria-label="ไปหน้า App Center"
+                        >
+                            <LayoutGrid className="h-5 w-5" />
+                        </button>
                         <ThemePicker />
                         {isAdminAuth ? (
                         <div className="relative">

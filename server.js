@@ -27,6 +27,21 @@ import { proxyGlpiRequest } from './lib/glpi-proxy.js'
 import { getLanAddresses } from './lib/network.js'
 import { sendTelegramNotification } from './lib/telegram.js'
 import { answerAiHelpdeskQuestion } from './lib/ai-helpdesk.js'
+import {
+  createSecretaryIssue,
+  createSecretaryUser,
+  deleteSecretaryUser,
+  getSecretaryDashboard,
+  getSecretaryIssueHistory,
+  getSecretaryProfile,
+  importSecretaryUsers,
+  listSecretaryIssues,
+  listSecretaryUserOptions,
+  listSecretaryUsers,
+  loginSecretary,
+  updateSecretaryIssueStatus,
+  updateSecretaryUser,
+} from './lib/secretary.js'
 
 dotenv.config()
 
@@ -215,6 +230,110 @@ app.post('/api/ai-helpdesk/chat', async (req, res) => {
     return res.json({ data: await answerAiHelpdeskQuestion(req.body || {}) })
   } catch (error) {
     return res.status(error.status || 500).json({ error: error.message })
+  }
+})
+
+app.post('/api/secretary/auth/login', async (req, res) => {
+  try {
+    return res.json({ data: await loginSecretary(req.body || {}) })
+  } catch (error) {
+    return res.status(error.status || 500).json({ error: error.message, code: error.code })
+  }
+})
+
+app.get('/api/secretary/auth/me', async (req, res) => {
+  try {
+    return res.json({ data: await getSecretaryProfile(req) })
+  } catch (error) {
+    return res.status(error.status || 500).json({ error: error.message, code: error.code })
+  }
+})
+
+app.get('/api/secretary/issues', async (req, res) => {
+  try {
+    return res.json({ data: await listSecretaryIssues(req) })
+  } catch (error) {
+    return res.status(error.status || 500).json({ error: error.message, code: error.code })
+  }
+})
+
+app.post('/api/secretary/issues', async (req, res) => {
+  try {
+    return res.status(201).json({ data: await createSecretaryIssue(req) })
+  } catch (error) {
+    return res.status(error.status || 500).json({ error: error.message, code: error.code })
+  }
+})
+
+app.get('/api/secretary/issues/:id/history', async (req, res) => {
+  try {
+    return res.json({ data: await getSecretaryIssueHistory(req, req.params.id) })
+  } catch (error) {
+    return res.status(error.status || 500).json({ error: error.message, code: error.code })
+  }
+})
+
+app.patch('/api/secretary/issues/:id/status', async (req, res) => {
+  try {
+    return res.json({ data: await updateSecretaryIssueStatus(req, req.params.id) })
+  } catch (error) {
+    return res.status(error.status || 500).json({ error: error.message, code: error.code })
+  }
+})
+
+app.get('/api/secretary/dashboard', async (req, res) => {
+  try {
+    return res.json({ data: await getSecretaryDashboard(req) })
+  } catch (error) {
+    return res.status(error.status || 500).json({ error: error.message, code: error.code })
+  }
+})
+
+app.get('/api/secretary/user-options', async (req, res) => {
+  try {
+    return res.json({ data: await listSecretaryUserOptions(req) })
+  } catch (error) {
+    return res.status(error.status || 500).json({ error: error.message, code: error.code })
+  }
+})
+
+app.get('/api/secretary/users', async (req, res) => {
+  try {
+    return res.json({ data: await listSecretaryUsers(req) })
+  } catch (error) {
+    return res.status(error.status || 500).json({ error: error.message, code: error.code })
+  }
+})
+
+app.post('/api/secretary/users', async (req, res) => {
+  try {
+    return res.status(201).json({ data: await createSecretaryUser(req) })
+  } catch (error) {
+    return res.status(error.status || 500).json({ error: error.message, code: error.code })
+  }
+})
+
+app.put('/api/secretary/users/:id', async (req, res) => {
+  try {
+    return res.json({ data: await updateSecretaryUser(req, req.params.id) })
+  } catch (error) {
+    return res.status(error.status || 500).json({ error: error.message, code: error.code })
+  }
+})
+
+app.delete('/api/secretary/users/:id', async (req, res) => {
+  try {
+    return res.json({ data: await deleteSecretaryUser(req, req.params.id) })
+  } catch (error) {
+    return res.status(error.status || 500).json({ error: error.message, code: error.code })
+  }
+})
+
+app.post('/api/secretary/users/import', async (req, res) => {
+  try {
+    return res.json({ data: await importSecretaryUsers(req) })
+  } catch (error) {
+    return res.status(error.status || 500).json({ error: error.message, code: error.code })
   }
 })
 

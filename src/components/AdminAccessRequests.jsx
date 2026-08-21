@@ -149,7 +149,13 @@ const AdminAccessRequests = ({ currentAdmin }) => {
     const [selectedActionStatus, setSelectedActionStatus] = useState('');
     const [itStaffName, setItStaffName] = useState('');
     const [actionResult, setActionResult] = useState('');
+    const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+    const [cancellingRequest, setCancellingRequest] = useState(null);
+    const [cancelReason, setCancelReason] = useState('');
+    const [isCancelling, setIsCancelling] = useState(false);
     const adminSignatureRef = useRef(null);
+    const cancelSignatureRef = useRef(null);
+    const detailCancelSignatureRef = useRef(null);
 
     const currentRole = normalizeRoleValue(currentAdmin?.role);
     const canDeleteRecord = canDeleteRecords(currentAdmin?.role);
@@ -238,6 +244,17 @@ const AdminAccessRequests = ({ currentAdmin }) => {
         if (!isSignModalOpen || selectedActionStatus !== 'Pending_IT_Supervisor') return;
         loadSignatureIntoCanvas(adminSignatureRef, currentAdmin?.signature);
     }, [isSignModalOpen, selectedActionStatus]);
+
+    useEffect(() => {
+        if (!isCancelModalOpen) return;
+        loadSignatureIntoCanvas(cancelSignatureRef, currentAdmin?.signature);
+    }, [isCancelModalOpen, currentAdmin?.signature]);
+
+    useEffect(() => {
+        const isCancellationTransition = detailForm.status === 'Cancelled' && detailRequest?.status !== 'Cancelled';
+        if (!isCancellationTransition) return;
+        loadSignatureIntoCanvas(detailCancelSignatureRef, currentAdmin?.signature);
+    }, [detailForm.status, detailRequest?.id, detailRequest?.status, currentAdmin?.signature]);
 
     const employeesById = useMemo(() => {
         const map = new Map();
@@ -379,36 +396,58 @@ const AdminAccessRequests = ({ currentAdmin }) => {
 
     const handleCancelRequest = async (req) => {
         if (!req || req.status === 'Cancelled') return;
-        const result = await Swal.fire({
-            title: 'ยืนยันการยกเลิกคำร้อง?',
-            text: 'ระบบจะเปลี่ยนสถานะเป็นยกเลิก โดยไม่ลบข้อมูลออกจากระบบ',
-            input: 'textarea',
-            inputPlaceholder: 'เหตุผลการยกเลิก (ถ้ามี)',
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#e11d48',
-            cancelButtonColor: '#64748b',
-            confirmButtonText: 'ยืนยันยกเลิก',
-            cancelButtonText: 'ปิด',
-        });
-        if (!result.isConfirmed) return;
+        setCancellingRequest(req);
+        setCancelReason('');
+        setIsCancelModalOpen(true);
+    };
+
+    const closeCancelModal = () => {
+        if (isCancelling) return;
+        setIsCancelModalOpen(false);
+        setCancellingRequest(null);
+        setCancelReason('');
+        cancelSignatureRef.current?.clear();
+    };
+
+    const confirmCancelRequest = async () => {
+        if (!cancellingRequest) return;
+        if (!cancelReason.trim()) {
+            Swal.fire('ข้อมูลไม่ครบถ้วน', 'กรุณาระบุเหตุผลยกเลิก', 'warning');
+            return;
+        }
+        const cancelSignature = currentAdmin?.signature || (
+            cancelSignatureRef.current && !cancelSignatureRef.current.isEmpty()
+                ? cancelSignatureRef.current.getCanvas().toDataURL('image/png')
+                : null
+        );
+        if (!cancelSignature) {
+            Swal.fire('ข้อมูลไม่ครบถ้วน', 'กรุณาลงนามลายเซ็นยกเลิกการใช้งาน', 'warning');
+            return;
+        }
 
         const updatePayload = {
             status: 'Cancelled',
             cancelled_at: toMysqlDateTime(),
-            cancel_reason: result.value || '',
+            cancel_reason: cancelReason.trim(),
             cancel_it_name: currentAdmin?.name || currentAdmin?.username || '',
+            cancel_it_sign: cancelSignature,
         };
 
+        setIsCancelling(true);
         try {
-            const { error } = await mysql.from('access_requests').update(updatePayload).eq('id', req.id);
+            const { error } = await mysql.from('access_requests').update(updatePayload).eq('id', cancellingRequest.id);
             if (error) throw error;
-            setRequests((prev) => prev.map((item) => (item.id === req.id ? { ...item, ...updatePayload } : item)));
+            setRequests((prev) => prev.map((item) => (item.id === cancellingRequest.id ? { ...item, ...updatePayload } : item)));
+            setIsCancelModalOpen(false);
+            setCancellingRequest(null);
+            setCancelReason('');
             window.dispatchEvent(new Event('approval-queues:refresh'));
             Swal.fire('ยกเลิกแล้ว', 'เปลี่ยนสถานะคำร้องเป็นยกเลิกเรียบร้อยแล้ว', 'success');
         } catch (error) {
             console.error('Error cancelling access request:', error);
             Swal.fire('Error', 'ไม่สามารถยกเลิกคำร้องได้', 'error');
+        } finally {
+            setIsCancelling(false);
         }
     };
 
@@ -479,6 +518,8 @@ const AdminAccessRequests = ({ currentAdmin }) => {
             it_staff_name: req.it_staff_name || '',
             action_result: req.action_result || '',
             cancel_reason: req.cancel_reason || '',
+            cancel_it_name: req.cancel_it_name || '',
+            cancel_it_sign: req.cancel_it_sign || null,
         });
     };
 
@@ -500,6 +541,20 @@ const AdminAccessRequests = ({ currentAdmin }) => {
 
     const handleSaveDetails = async () => {
         if (!detailRequest || !canEditAccessRequest(detailRequest)) return;
+        const isCancellationTransition = detailForm.status === 'Cancelled' && detailRequest.status !== 'Cancelled';
+        if (detailForm.status === 'Cancelled' && !detailForm.cancel_reason?.trim()) {
+            Swal.fire('ข้อมูลไม่ครบถ้วน', 'กรุณาระบุเหตุผลยกเลิก', 'warning');
+            return;
+        }
+        const detailCancelSignature = currentAdmin?.signature || (
+            detailCancelSignatureRef.current && !detailCancelSignatureRef.current.isEmpty()
+                ? detailCancelSignatureRef.current.getCanvas().toDataURL('image/png')
+                : null
+        );
+        if (isCancellationTransition && !detailCancelSignature) {
+            Swal.fire('ข้อมูลไม่ครบถ้วน', 'กรุณาลงนามลายเซ็นยกเลิกการใช้งาน', 'warning');
+            return;
+        }
         setIsSavingDetails(true);
         const normalizedSystems = normalizeSystems(detailForm.systems);
         const updatePayload = {
@@ -516,6 +571,11 @@ const AdminAccessRequests = ({ currentAdmin }) => {
             it_staff_name: detailForm.it_staff_name || null,
             action_result: detailForm.action_result || null,
             cancel_reason: detailForm.cancel_reason || null,
+            ...(isCancellationTransition ? {
+                cancelled_at: toMysqlDateTime(),
+                cancel_it_name: currentAdmin?.name || currentAdmin?.username || '',
+                cancel_it_sign: detailCancelSignature,
+            } : {}),
         };
         try {
             const { error } = await mysql.from('access_requests').update(updatePayload).eq('id', detailRequest.id);
@@ -1097,10 +1157,26 @@ const AdminAccessRequests = ({ currentAdmin }) => {
                                 <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-slate-400">ผลการดำเนินการ</label>
                                 <textarea className="input-modern w-full" rows="3" value={detailForm.action_result || ''} disabled={!canEditDetailRequest} onChange={(event) => handleDetailFormChange('action_result', event.target.value)} />
                             </div>
-                            <div className="md:col-span-2">
-                                <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-slate-400">เหตุผลยกเลิก</label>
-                                <textarea className="input-modern w-full" rows="2" value={detailForm.cancel_reason || ''} disabled={!canEditDetailRequest} onChange={(event) => handleDetailFormChange('cancel_reason', event.target.value)} />
-                            </div>
+                            {detailForm.status === 'Cancelled' && (
+                                <>
+                                    <div className="md:col-span-2">
+                                        <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-slate-400">เหตุผลยกเลิก <span className="text-rose-500">*</span></label>
+                                        <textarea className="input-modern w-full" rows="2" value={detailForm.cancel_reason || ''} disabled={!canEditDetailRequest} onChange={(event) => handleDetailFormChange('cancel_reason', event.target.value)} placeholder="ระบุเหตุผลที่ยกเลิกการใช้งาน" />
+                                    </div>
+                                    {detailRequest.status !== 'Cancelled' && canEditDetailRequest && (
+                                        <div className="md:col-span-2">
+                                            <div className="mb-2 flex items-center justify-between gap-3">
+                                                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400">ลายเซ็นยกเลิกการใช้งาน <span className="text-rose-500">*</span></label>
+                                                <button type="button" onClick={() => detailCancelSignatureRef.current?.clear()} className="text-xs font-bold text-rose-500 hover:underline">ล้างลายเซ็น</button>
+                                            </div>
+                                            <div className="relative h-36 overflow-hidden rounded-xl border-2 border-dashed border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-900/50">
+                                                <SignatureCanvas ref={detailCancelSignatureRef} penColor="black" canvasProps={{ className: 'h-full w-full xl-signature', 'aria-label': 'ลายเซ็นยกเลิกการใช้งาน' }} />
+                                                <div className="pointer-events-none absolute bottom-2 right-3 text-xs text-slate-400 opacity-50">ลงนามยกเลิกการใช้งานที่นี่</div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </>
+                            )}
                         </div>
 
                         <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
@@ -1110,6 +1186,40 @@ const AdminAccessRequests = ({ currentAdmin }) => {
                                     {isSavingDetails ? 'กำลังบันทึก...' : isTransferDetailUpdate ? 'อัพเดทข้อมูล' : 'บันทึกข้อมูล'}
                                 </button>
                             )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {isCancelModalOpen && cancellingRequest && (
+                <div className="fixed inset-0 z-[125] flex items-start justify-center overflow-y-auto bg-slate-900/50 p-3 backdrop-blur-sm sm:items-center sm:p-4">
+                    <div className="max-h-[calc(100dvh-1.5rem)] w-full max-w-lg overflow-y-auto rounded-2xl border border-slate-100 bg-white p-5 shadow-2xl dark:border-slate-700 dark:bg-slate-800 sm:p-6">
+                        <div className="flex items-start justify-between gap-4">
+                            <div>
+                                <h3 className="text-xl font-bold text-slate-800 dark:text-white">ยกเลิกการใช้งาน</h3>
+                                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{cancellingRequest.ticket_number} · {cancellingRequest.name_th}</p>
+                            </div>
+                            <button type="button" onClick={closeCancelModal} disabled={isCancelling} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-50 dark:hover:bg-slate-700" aria-label="ปิด"><XCircle className="h-6 w-6" /></button>
+                        </div>
+                        <div className="mt-5 space-y-5">
+                            <label className="block">
+                                <span className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-300">เหตุผลยกเลิก <span className="text-rose-500">*</span></span>
+                                <textarea value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} rows="3" className="input-modern w-full" placeholder="ระบุเหตุผลที่ยกเลิกการใช้งาน" />
+                            </label>
+                            <div>
+                                <div className="mb-2 flex items-center justify-between gap-3">
+                                    <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">ลายเซ็นยกเลิกการใช้งาน <span className="text-rose-500">*</span></span>
+                                    <button type="button" onClick={() => cancelSignatureRef.current?.clear()} className="text-xs font-bold text-rose-500 hover:underline">ล้างลายเซ็น</button>
+                                </div>
+                                <div className="relative h-40 overflow-hidden rounded-xl border-2 border-dashed border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-900/50">
+                                    <SignatureCanvas ref={cancelSignatureRef} penColor="black" canvasProps={{ className: 'h-full w-full xl-signature', 'aria-label': 'ลายเซ็นยกเลิกการใช้งาน' }} />
+                                    <div className="pointer-events-none absolute bottom-2 right-3 text-xs text-slate-400 opacity-50">ลงนามยกเลิกการใช้งานที่นี่</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row">
+                            <button type="button" onClick={closeCancelModal} disabled={isCancelling} className="flex-1 rounded-xl bg-slate-100 px-4 py-2.5 font-semibold text-slate-700 hover:bg-slate-200 disabled:opacity-50 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600">ปิด</button>
+                            <button type="button" onClick={confirmCancelRequest} disabled={isCancelling} className="flex-1 rounded-xl bg-rose-600 px-4 py-2.5 font-semibold text-white shadow-md hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60">{isCancelling ? 'กำลังบันทึก...' : 'ยืนยันยกเลิก'}</button>
                         </div>
                     </div>
                 </div>

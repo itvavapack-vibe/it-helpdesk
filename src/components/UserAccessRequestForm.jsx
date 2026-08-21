@@ -66,13 +66,6 @@ const INITIAL_FORM_DATA = {
     requestDetails: '',
 };
 
-const toDateInputValue = (value = new Date()) => {
-    const date = value instanceof Date ? value : new Date(value);
-    if (Number.isNaN(date.getTime())) return '';
-    const pad = (num) => String(num).padStart(2, '0');
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-};
-
 const escapeAttribute = (value) => String(value || '').replace(/"/g, '&quot;');
 
 const UserAccessRequestForm = ({ onCancel }) => {
@@ -129,38 +122,6 @@ const UserAccessRequestForm = ({ onCancel }) => {
         return true;
     };
 
-    const syncEmployeeRecord = async () => {
-        const { data: existingEmployees } = await mysql
-            .from('employees')
-            .select('id, status')
-            .eq('emp_id', formData.employeeId)
-            .limit(1);
-
-        const employeePayload = {
-            name_th: formData.nameTh,
-            name_en: formData.nameEn,
-            department: formData.department,
-            position: formData.position,
-        };
-
-        if (existingEmployees?.length) {
-            const { error } = await mysql
-                .from('employees')
-                .update(employeePayload)
-                .eq('emp_id', formData.employeeId);
-            if (error) throw error;
-            return;
-        }
-
-        const { error } = await mysql.from('employees').insert([{
-            emp_id: formData.employeeId,
-            ...employeePayload,
-            start_date: toDateInputValue(),
-            status: 'ทำงาน',
-        }]);
-        if (error) throw error;
-    };
-
     const handleSubmit = async (event) => {
         event.preventDefault();
         if (!validateForm()) return;
@@ -192,12 +153,6 @@ const UserAccessRequestForm = ({ onCancel }) => {
 
             if (!insertedData?.[0]?.id) {
                 throw new Error('บันทึกคำร้องแล้ว แต่ไม่พบเลขอ้างอิงรายการที่สร้าง');
-            }
-
-            try {
-                await syncEmployeeRecord();
-            } catch (employeeError) {
-                console.warn('Access request was saved, but employee sync failed:', employeeError);
             }
 
             const reqId = insertedData[0].id;

@@ -8,6 +8,7 @@ import * as XLSX from 'xlsx';
 import { withGlpiSession, getComputers, getUsers, getComputerDetail, extractIpAddresses } from '../glpiClient';
 import { mysql } from '../mysqlClient';
 import { MAX_ATTACHMENT_FILES, resolveAttachmentUrl, uploadAttachmentFiles } from '../utils/fileUpload';
+import { toItHelpdeskPath } from '../config/appPaths';
 
 const AssetPmDashboardCharts = lazy(() => import('./AssetPmDashboardCharts'));
 import { notifyGlpiSync } from '../telegramNotify';
@@ -796,7 +797,7 @@ const AssetInventory = ({ issues = [], view = 'inventory', currentAdmin = null }
     const getPmReportAttachments = (record) => parseJsonArray(record?.attachments_json).filter(isImageAttachment);
 
     const getQrUrl = (computer) => {
-        const base = `${window.location.origin}/report-issue`;
+        const base = `${window.location.origin}${toItHelpdeskPath('/report-issue')}`;
         return `${base}?assetId=${computer.id}&assetName=${encodeURIComponent(computer.name || '')}`;
     };
 
