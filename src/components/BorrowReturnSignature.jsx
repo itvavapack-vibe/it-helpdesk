@@ -5,6 +5,8 @@ import Swal from 'sweetalert2';
 import { mysql } from '../mysqlClient';
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Label } from '@/components/ui';
 import { toMysqlDateTime } from '../utils/dateTime';
+import { loadSignatureIntoCanvas } from '../utils/signatureCanvas';
+import { findReusableRequesterSignature } from '../utils/requesterSignature';
 
 const BORROW_IT_CATEGORY = 'ยืมคอมพิวเตอร์/อุปกรณ์IT';
 
@@ -23,6 +25,7 @@ const BorrowReturnSignature = ({ issueId, onReturnBorrowIssue }) => {
     const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [formData, setFormData] = useState({ name: '', position: '' });
+    const [isReusingSignature, setIsReusingSignature] = useState(false);
     const [returnDate] = useState(() => new Date());
 
     useEffect(() => {
@@ -43,10 +46,22 @@ const BorrowReturnSignature = ({ issueId, onReturnBorrowIssue }) => {
                 setIssue(null);
             } else {
                 setIssue(data);
+                const reusableSignature = await findReusableRequesterSignature({
+                    name: data?.name,
+                    currentSignatures: [
+                        { signature: data?.borrow_returner_sign, position: data?.borrow_returner_position, signedAt: data?.borrow_returned_at, source: 'current_issue_borrow_return' },
+                        { signature: data?.user_close_sign, position: data?.user_close_position, signedAt: data?.user_closed_at, source: 'current_issue_close' },
+                        { signature: data?.waiting_parts_user_sign, position: data?.waiting_parts_user_position, signedAt: data?.waiting_parts_signed_at, source: 'current_issue_waiting_parts' },
+                    ],
+                });
                 setFormData({
                     name: data?.borrow_returner_name || data?.user_close_name || data?.name || '',
-                    position: data?.borrow_returner_position || data?.user_close_position || '',
+                    position: data?.borrow_returner_position || reusableSignature?.position || data?.user_close_position || '',
                 });
+                setIsReusingSignature(Boolean(reusableSignature?.signature && !data?.borrow_returner_sign));
+                if (reusableSignature?.signature) {
+                    loadSignatureIntoCanvas(signatureRef, reusableSignature.signature, 150);
+                }
             }
             setIsLoading(false);
         };
@@ -184,7 +199,7 @@ const BorrowReturnSignature = ({ issueId, onReturnBorrowIssue }) => {
                                         <FileSignature className="w-4 h-4" />
                                         ลายเซ็นผู้ส่งคืน
                                     </Label>
-                                    <Button type="button" variant="ghost" size="sm" onClick={() => signatureRef.current?.clear()} className="text-xs text-slate-500 hover:text-rose-500">
+                                    <Button type="button" variant="ghost" size="sm" onClick={() => { signatureRef.current?.clear(); setIsReusingSignature(false); }} className="text-xs text-slate-500 hover:text-rose-500">
                                         <Eraser className="w-3.5 h-3.5" />
                                         ล้างลายเซ็น
                                     </Button>
@@ -192,6 +207,7 @@ const BorrowReturnSignature = ({ issueId, onReturnBorrowIssue }) => {
                                 <div className="h-44 rounded-2xl border border-slate-200 bg-white dark:bg-slate-950 dark:border-slate-700 overflow-hidden">
                                     <SignatureCanvas ref={signatureRef} canvasProps={{ className: 'w-full h-full', 'aria-label': 'ลายเซ็นผู้ส่งคืนอุปกรณ์' }} />
                                 </div>
+                                {isReusingSignature && <p className="mt-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400">ระบบดึงลายเซ็นล่าสุดของผู้แจ้งมาให้แล้ว</p>}
                             </div>
                             <Button type="submit" disabled={isSubmitting} className="w-full bg-amber-600 hover:bg-amber-700 shadow-amber-200/50">
                                 {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}

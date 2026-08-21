@@ -7,6 +7,7 @@ import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Inpu
 import { toMysqlDateTime } from '../utils/dateTime';
 import { loadSignatureIntoCanvas } from '../utils/signatureCanvas';
 import { resolveAttachmentUrl } from '../utils/fileUpload';
+import { findReusableRequesterSignature } from '../utils/requesterSignature';
 
 const imageExtensionPattern = /\.(png|jpe?g|gif|webp|bmp|avif)(?:\?.*)?$/i;
 
@@ -40,6 +41,7 @@ const IssueCloseSignature = ({ issueId, onCloseIssue }) => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [formData, setFormData] = useState({ name: '', position: '', note: '' });
     const [latestCloseSignature, setLatestCloseSignature] = useState(null);
+    const [isReusingSignature, setIsReusingSignature] = useState(false);
     const [previewImage, setPreviewImage] = useState(null);
 
     const repairEvidenceImages = useMemo(() => (
@@ -64,28 +66,20 @@ const IssueCloseSignature = ({ issueId, onCloseIssue }) => {
                 setIssue(null);
             } else {
                 setIssue(data);
-                let previousClose = null;
-                if (data?.name && !data?.user_close_sign && !data?.user_closed_at) {
-                    const { data: previousIssues, error: previousError } = await mysql
-                        .from('issues')
-                        .select('id,name,user_close_position,user_close_sign,user_closed_at,created_at')
-                        .eq('name', data.name)
-                        .order('user_closed_at', { ascending: false })
-                        .limit(20);
-
-                    if (previousError) {
-                        console.error('Error loading latest close signature:', previousError);
-                    } else {
-                        previousClose = (previousIssues || []).find((item) =>
-                            String(item.id) !== String(data.id) && item.user_close_sign
-                        );
-                    }
-                }
-                setLatestCloseSignature(previousClose?.user_close_sign || null);
+                const reusableSignature = await findReusableRequesterSignature({
+                    name: data?.name,
+                    currentSignatures: [
+                        { signature: data?.user_close_sign, position: data?.user_close_position, signedAt: data?.user_closed_at, source: 'current_issue_close' },
+                        { signature: data?.waiting_parts_user_sign, position: data?.waiting_parts_user_position, signedAt: data?.waiting_parts_signed_at, source: 'current_issue_waiting_parts' },
+                        { signature: data?.borrow_returner_sign, position: data?.borrow_returner_position, signedAt: data?.borrow_returned_at, source: 'current_issue_borrow_return' },
+                    ],
+                });
+                setLatestCloseSignature(reusableSignature?.signature || null);
+                setIsReusingSignature(Boolean(reusableSignature?.signature && !data?.user_close_sign));
                 setFormData(prev => ({
                     ...prev,
                     name: data?.user_close_name || data?.name || '',
-                    position: data?.user_close_position || previousClose?.user_close_position || ''
+                    position: data?.user_close_position || reusableSignature?.position || ''
                 }));
             }
             setIsLoading(false);
@@ -300,6 +294,7 @@ const IssueCloseSignature = ({ issueId, onCloseIssue }) => {
                                         onClick={() => {
                                             signatureRef.current?.clear();
                                             setLatestCloseSignature(null);
+                                            setIsReusingSignature(false);
                                         }}
                                         className="text-xs text-slate-500 hover:text-rose-500"
                                     >
@@ -310,6 +305,7 @@ const IssueCloseSignature = ({ issueId, onCloseIssue }) => {
                                 <div className="h-44 rounded-2xl border border-slate-200 bg-white dark:bg-slate-950 dark:border-slate-700 overflow-hidden">
                                     <SignatureCanvas ref={signatureRef} canvasProps={{ className: 'w-full h-full', 'aria-label': 'ลายเซ็นผู้แจ้งปิดจบงาน' }} />
                                 </div>
+                                {isReusingSignature && <p className="mt-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400">ระบบดึงลายเซ็นล่าสุดของผู้แจ้งมาให้แล้ว</p>}
                             </div>
                             <Button type="submit" disabled={isSubmitting} className="w-full bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200/50">
                                 {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}

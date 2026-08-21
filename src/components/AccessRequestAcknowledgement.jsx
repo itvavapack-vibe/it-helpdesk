@@ -5,12 +5,15 @@ import Swal from 'sweetalert2';
 import { mysql } from '../mysqlClient';
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Label } from '@/components/ui';
 import { toMysqlDateTime } from '../utils/dateTime';
+import { loadSignatureIntoCanvas } from '../utils/signatureCanvas';
+import { findReusableRequesterSignature } from '../utils/requesterSignature';
 
 const AccessRequestAcknowledgement = ({ requestId }) => {
     const signatureRef = useRef(null);
     const [request, setRequest] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isReusingSignature, setIsReusingSignature] = useState(false);
 
     useEffect(() => {
         const fetchRequest = async () => {
@@ -30,6 +33,18 @@ const AccessRequestAcknowledgement = ({ requestId }) => {
                 setRequest(null);
             } else {
                 setRequest(data);
+                const reusableSignature = await findReusableRequesterSignature({
+                    employeeId: data?.employee_id,
+                    name: data?.name_th,
+                    currentSignatures: [
+                        { signature: data?.requester_sign, position: data?.position, signedAt: data?.created_at, source: 'current_access_request' },
+                        { signature: data?.user_acknowledge_sign, position: data?.position, signedAt: data?.user_acknowledge_date, source: 'current_access_acknowledgement' },
+                    ],
+                });
+                setIsReusingSignature(Boolean(reusableSignature?.signature && !data?.user_acknowledge_sign));
+                if (reusableSignature?.signature) {
+                    loadSignatureIntoCanvas(signatureRef, reusableSignature.signature, 150);
+                }
             }
             setIsLoading(false);
         };
@@ -131,7 +146,7 @@ const AccessRequestAcknowledgement = ({ requestId }) => {
                                         <FileSignature className="h-4 w-4" />
                                         ลายเซ็นผู้แจ้ง
                                     </Label>
-                                    <Button type="button" variant="ghost" size="sm" onClick={() => signatureRef.current?.clear()} className="text-xs text-slate-500 hover:text-rose-500">
+                                    <Button type="button" variant="ghost" size="sm" onClick={() => { signatureRef.current?.clear(); setIsReusingSignature(false); }} className="text-xs text-slate-500 hover:text-rose-500">
                                         <Eraser className="h-3.5 w-3.5" />
                                         ล้างลายเซ็น
                                     </Button>
@@ -139,6 +154,7 @@ const AccessRequestAcknowledgement = ({ requestId }) => {
                                 <div className="h-44 overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-950">
                                     <SignatureCanvas ref={signatureRef} canvasProps={{ className: 'h-full w-full' }} />
                                 </div>
+                                {isReusingSignature && <p className="mt-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400">ระบบดึงลายเซ็นเดิมของผู้แจ้งมาให้แล้ว</p>}
                             </div>
                             <Button type="submit" disabled={isSubmitting} className="w-full bg-amber-600 shadow-amber-200/50 hover:bg-amber-700">
                                 {isSubmitting ? <Loader2 className="h-5 w-5 animate-spin" /> : <CheckCircle2 className="h-5 w-5" />}

@@ -6,6 +6,7 @@ import { mysql } from '../mysqlClient';
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Label } from '@/components/ui';
 import { toMysqlDateTime } from '../utils/dateTime';
 import { loadSignatureIntoCanvas } from '../utils/signatureCanvas';
+import { findReusableRequesterSignature } from '../utils/requesterSignature';
 
 const IssueWaitingPartsSignature = ({ issueId, onSignWaitingPartsIssue }) => {
     const signatureRef = useRef(null);
@@ -13,6 +14,7 @@ const IssueWaitingPartsSignature = ({ issueId, onSignWaitingPartsIssue }) => {
     const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [formData, setFormData] = useState({ name: '', position: '' });
+    const [isReusingSignature, setIsReusingSignature] = useState(false);
 
     useEffect(() => {
         const fetchIssue = async () => {
@@ -32,12 +34,21 @@ const IssueWaitingPartsSignature = ({ issueId, onSignWaitingPartsIssue }) => {
                 setIssue(null);
             } else {
                 setIssue(data);
+                const reusableSignature = await findReusableRequesterSignature({
+                    name: data?.name,
+                    currentSignatures: [
+                        { signature: data?.waiting_parts_user_sign, position: data?.waiting_parts_user_position, signedAt: data?.waiting_parts_signed_at, source: 'current_issue_waiting_parts' },
+                        { signature: data?.user_close_sign, position: data?.user_close_position, signedAt: data?.user_closed_at, source: 'current_issue_close' },
+                        { signature: data?.borrow_returner_sign, position: data?.borrow_returner_position, signedAt: data?.borrow_returned_at, source: 'current_issue_borrow_return' },
+                    ],
+                });
                 setFormData({
                     name: data?.waiting_parts_user_name || data?.name || '',
-                    position: data?.waiting_parts_user_position || data?.user_close_position || '',
+                    position: data?.waiting_parts_user_position || reusableSignature?.position || data?.user_close_position || '',
                 });
-                if (data?.waiting_parts_user_sign) {
-                    loadSignatureIntoCanvas(signatureRef, data.waiting_parts_user_sign, 150);
+                setIsReusingSignature(Boolean(reusableSignature?.signature && !data?.waiting_parts_user_sign));
+                if (reusableSignature?.signature) {
+                    loadSignatureIntoCanvas(signatureRef, reusableSignature.signature, 150);
                 }
             }
             setIsLoading(false);
@@ -180,7 +191,7 @@ const IssueWaitingPartsSignature = ({ issueId, onSignWaitingPartsIssue }) => {
                                         <FileSignature className="h-4 w-4" />
                                         ลายเซ็นผู้แจ้ง
                                     </Label>
-                                    <Button type="button" variant="ghost" size="sm" onClick={() => signatureRef.current?.clear()} className="text-xs text-slate-500 hover:text-rose-500">
+                                    <Button type="button" variant="ghost" size="sm" onClick={() => { signatureRef.current?.clear(); setIsReusingSignature(false); }} className="text-xs text-slate-500 hover:text-rose-500">
                                         <Eraser className="h-3.5 w-3.5" />
                                         ล้างลายเซ็น
                                     </Button>
@@ -188,6 +199,7 @@ const IssueWaitingPartsSignature = ({ issueId, onSignWaitingPartsIssue }) => {
                                 <div className="h-44 overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-950">
                                     <SignatureCanvas ref={signatureRef} canvasProps={{ className: 'h-full w-full', 'aria-label': 'ลายเซ็นผู้แจ้งรับทราบเปิด PR ขอซื้ออะไหล่' }} />
                                 </div>
+                                {isReusingSignature && <p className="mt-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400">ระบบดึงลายเซ็นล่าสุดของผู้แจ้งมาให้แล้ว</p>}
                             </div>
                             <Button type="submit" disabled={isSubmitting} className="w-full bg-pink-600 hover:bg-pink-700 shadow-pink-200/50">
                                 {isSubmitting ? <Loader2 className="h-5 w-5 animate-spin" /> : <CheckCircle2 className="h-5 w-5" />}
