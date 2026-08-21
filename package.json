@@ -25,6 +25,7 @@
     "migrate:secretary": "node scripts/run-migrate-secretary.mjs",
     "test:secretary": "node scripts/test-secretary-api.mjs",
     "test:secretary:issue-report": "node scripts/test-secretary-issue-report.mjs",
+    "test:issue-assignee": "node scripts/test-first-issue-assignee.mjs",
     "migrate:employee-name-en": "node scripts/run-migrate-employee-name-en.mjs",
     "import:employees": "node scripts/import-employees-xlsx.mjs",
     "import:access-requests": "node scripts/import-access-requests-xlsx.mjs",

@@ -836,8 +836,28 @@ function App() {
             return false;
         }
 
+        let persistedAssignedAdmin;
+        if (updatedFields.assignedAdmin !== undefined) {
+            const { data: assignmentRow, error: assignmentError } = await mysql
+                .from('issues')
+                .select('assigned_admin')
+                .eq('id', id)
+                .single();
+
+            if (assignmentError) {
+                console.error('Error reloading the first issue assignee:', assignmentError);
+            } else {
+                persistedAssignedAdmin = assignmentRow?.assigned_admin || null;
+            }
+        }
+
+        const persistedFields = { ...updatedFields };
+        if (persistedAssignedAdmin !== undefined) {
+            persistedFields.assignedAdmin = persistedAssignedAdmin;
+        }
+
         setIssues(currentIssues => currentIssues.map(issue =>
-            issue.id === id ? { ...issue, ...updatedFields } : issue
+            issue.id === id ? { ...issue, ...persistedFields } : issue
         ));
         if (!options.silent) {
             Swal.fire({
@@ -880,12 +900,27 @@ function App() {
             return false;
         }
 
+        let persistedAssignedAdmin = currentIssue?.assignedAdmin || null;
+        if (adminName) {
+            const { data: assignmentRow, error: assignmentError } = await mysql
+                .from('issues')
+                .select('assigned_admin')
+                .eq('id', id)
+                .single();
+
+            if (assignmentError) {
+                console.error('Error reloading the first issue assignee:', assignmentError);
+            } else {
+                persistedAssignedAdmin = assignmentRow?.assigned_admin || null;
+            }
+        }
+
         setIssues(currentIssues => currentIssues.map(issue => {
             if (issue.id === id) {
                 return {
                     ...issue,
                     status: newStatus,
-                    ...(adminName && { assignedAdmin: adminName }),
+                    ...(adminName && { assignedAdmin: persistedAssignedAdmin || adminName }),
                     ...(operationStartedAt && { operationStartedAt }),
                     ...(updateData.user_close_name && { userCloseName: updateData.user_close_name }),
                     ...(updateData.user_close_note && { userCloseNote: updateData.user_close_note }),
@@ -898,7 +933,7 @@ function App() {
         const updatedIssue = {
             ...issues.find(i => i.id === id),
             status: newStatus,
-            ...(adminName && { assignedAdmin: adminName }),
+            ...(adminName && { assignedAdmin: persistedAssignedAdmin || adminName }),
             ...(operationStartedAt && { operationStartedAt }),
             ...(updateData.user_close_name && { userCloseName: updateData.user_close_name }),
             ...(updateData.user_close_note && { userCloseNote: updateData.user_close_note }),
