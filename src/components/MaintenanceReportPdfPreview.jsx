@@ -24,9 +24,19 @@ const MaintenanceReportPdfPreview = ({ isOpen, onClose, formData }) => {
 
             const pdf = new jsPDF('p', 'mm', 'a4');
             const pdfWidth = pdf.internal.pageSize.getWidth();
-            const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+            const pageHeight = pdf.internal.pageSize.getHeight();
+            let imageWidth = pdfWidth;
+            let imageHeight = (canvas.height * imageWidth) / canvas.width;
 
-            pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+            if (imageHeight > pageHeight) {
+                imageHeight = pageHeight;
+                imageWidth = (canvas.width * imageHeight) / canvas.height;
+            }
+
+            const imageX = (pdfWidth - imageWidth) / 2;
+            const imageY = (pageHeight - imageHeight) / 2;
+
+            pdf.addImage(imgData, 'JPEG', imageX, imageY, imageWidth, imageHeight);
             pdf.save(`Maintenance_Report_${formData.id || Date.now()}.pdf`);
         } catch (error) {
             console.error("Error generating PDF", error);
@@ -107,10 +117,15 @@ const MaintenanceReportPdfPreview = ({ isOpen, onClose, formData }) => {
             printReport.id = 'print-report';
             const availableWidth = printPage.clientWidth;
             const availableHeight = printPage.clientHeight - 4;
+            const printFooter = printReport.querySelector('[data-fmit01-footer="true"]');
+            const contentHeight = Math.max(
+                printReport.scrollHeight,
+                printFooter ? printFooter.offsetTop + printFooter.offsetHeight + 8 : 0
+            );
             const printScale = Math.min(
                 1,
                 availableWidth / printReport.scrollWidth,
-                availableHeight / printReport.scrollHeight
+                availableHeight / contentHeight
             );
             printReport.style.transform = `scale(${printScale})`;
 
@@ -430,16 +445,21 @@ const MaintenanceReportPdfPreview = ({ isOpen, onClose, formData }) => {
                         </div>
 
                         {/* Footer */}
-                        <div style={{ 
-                            marginTop: 'auto',
+                        <div
+                            data-fmit01-footer="true"
+                            style={{
+                            marginTop: '20px',
                             paddingTop: '15px', 
                             borderTop: '2px solid #cbd5e1', 
                             display: 'flex',
+                            flexShrink: 0,
                             justifyContent: 'space-between',
                             alignItems: 'flex-end',
                             gap: '24px',
                             fontSize: '11px', 
-                            color: '#64748b' 
+                            color: '#64748b',
+                            breakInside: 'avoid',
+                            pageBreakInside: 'avoid'
                         }}>
                             <div style={{ textAlign: 'left', color: '#0f172a' }}>
                                 <div>Revision No : 04</div>
