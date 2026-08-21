@@ -458,13 +458,14 @@ const MaintenanceReportPdfPreview = ({ isOpen, onClose, formData }) => {
                             gap: '24px',
                             fontSize: '11px', 
                             color: '#64748b',
-                            paddingBottom: '8px',
+                            minHeight: '54px',
+                            paddingBottom: '18px',
                             breakInside: 'avoid',
                             pageBreakInside: 'avoid'
                         }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '28px', color: '#0f172a', lineHeight: 1.5, whiteSpace: 'nowrap' }}>
-                                <span>Revision No : 04</span>
-                                <span>Date of Issue : 08.06.26</span>
+                            <div style={{ color: '#0f172a', lineHeight: 1.6, whiteSpace: 'nowrap' }}>
+                                <div>Revision No : 04</div>
+                                <div>Date of Issue : 08.06.26</div>
                             </div>
                         </div>
                     </div>
