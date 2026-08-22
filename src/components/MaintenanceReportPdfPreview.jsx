@@ -1,9 +1,10 @@
-import React, { useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import html2canvas from 'html2canvas-pro';
 import jsPDF from 'jspdf';
 import { X, Download, Printer } from 'lucide-react';
 import Swal from 'sweetalert2';
+import { trimSignatureImage } from '../utils/signatureImage';
 
 const AUTO_CLOSE_NOTE = 'Auto closed after requester did not sign within 3 days.';
 const A4_ASPECT_RATIO = 297 / 210;
@@ -25,8 +26,34 @@ const preserveSignatureOutputSize = (report, pageScale) => {
     });
 };
 
+const useTrimmedSignature = (source) => {
+    const [trimmedSignature, setTrimmedSignature] = useState({ source: '', value: '' });
+
+    useEffect(() => {
+        let active = true;
+        if (!source) {
+            setTrimmedSignature({ source: '', value: '' });
+            return () => {
+                active = false;
+            };
+        }
+
+        trimSignatureImage(source).then((value) => {
+            if (active) setTrimmedSignature({ source, value });
+        });
+        return () => {
+            active = false;
+        };
+    }, [source]);
+
+    return trimmedSignature.source === source ? trimmedSignature.value : source;
+};
+
 const MaintenanceReportPdfPreview = ({ isOpen, onClose, formData }) => {
     const previewRef = useRef(null);
+    const rawRequesterSignature = formData?.userCloseSign || formData?.waitingPartsUserSign || '';
+    const requesterSignature = useTrimmedSignature(rawRequesterSignature);
+    const inspectorSignature = useTrimmedSignature(formData?.inspectorSign || '');
 
     const handleDownloadPdf = async () => {
         if (!previewRef.current) return;
@@ -183,7 +210,6 @@ const MaintenanceReportPdfPreview = ({ isOpen, onClose, formData }) => {
     const autoCloseSignatureName = formData.userCloseName || formData.name || '-';
     const isCancelled = ['cancelled', 'canceled'].includes(String(formData.status || '').trim().toLowerCase());
     const completedAt = formData.inspectorSignedAt || formData.userClosedAt || null;
-    const requesterSignature = formData.userCloseSign || formData.waitingPartsUserSign || '';
     const requesterName = formData.userCloseName || formData.waitingPartsUserName || formData.name || '-';
     const requesterPosition = formData.userClosePosition || formData.waitingPartsUserPosition || '-';
     const requesterSignedAt = formData.userClosedAt || formData.waitingPartsSignedAt || null;
@@ -458,7 +484,7 @@ const MaintenanceReportPdfPreview = ({ isOpen, onClose, formData }) => {
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', width: '42%' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', borderBottom: '1px dotted #000', height: '78px', margin: '0 auto 8px', width: '90%' }}>
-                                    {formData.inspectorSign && <img src={formData.inspectorSign} alt="ลายเซ็นผู้ตรวจสอบ/ดำเนินการ" data-fmit01-signature="true" data-signature-scale="1.32" style={{ display: 'block', maxHeight: '78px', maxWidth: '120%', objectFit: 'contain', margin: '0 auto', transform: 'scale(1.32)', transformOrigin: 'center' }} />}
+                                    {inspectorSignature && <img src={inspectorSignature} alt="ลายเซ็นผู้ตรวจสอบ/ดำเนินการ" data-fmit01-signature="true" data-signature-scale="1.32" style={{ display: 'block', maxHeight: '78px', maxWidth: '120%', objectFit: 'contain', margin: '0 auto', transform: 'scale(1.32)', transformOrigin: 'center' }} />}
                                 </div>
                                 <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '5px' }}>ผู้ตรวจสอบ/ดำเนินการ</div>
                                 <div style={{ fontSize: '13px', marginBottom: '3px' }}>({formData.inspectorName || '-'})</div>

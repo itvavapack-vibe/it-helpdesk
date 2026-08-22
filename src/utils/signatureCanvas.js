@@ -1,3 +1,5 @@
+import { getSignatureContentBounds } from './signatureImage';
+
 export const loadSignatureIntoCanvas = (signatureRef, signature, delay = 50, attempt = 0) => {
     window.setTimeout(() => {
         const signaturePad = signatureRef.current;
@@ -32,8 +34,11 @@ export const loadSignatureIntoCanvas = (signatureRef, signature, delay = 50, att
 
         const image = new Image();
         image.onload = () => {
-            const sourceWidth = image.naturalWidth || image.width;
-            const sourceHeight = image.naturalHeight || image.height;
+            const sourceBounds = getSignatureContentBounds(image);
+            const sourceX = sourceBounds?.x || 0;
+            const sourceY = sourceBounds?.y || 0;
+            const sourceWidth = sourceBounds?.width || image.naturalWidth || image.width;
+            const sourceHeight = sourceBounds?.height || image.naturalHeight || image.height;
             if (!sourceWidth || !sourceHeight) {
                 signaturePad.fromDataURL(signature);
                 return;
@@ -53,7 +58,17 @@ export const loadSignatureIntoCanvas = (signatureRef, signature, delay = 50, att
             normalizedCanvas.height = targetHeight;
             const context = normalizedCanvas.getContext('2d');
             context.clearRect(0, 0, targetWidth, targetHeight);
-            context.drawImage(image, drawX, drawY, drawWidth, drawHeight);
+            context.drawImage(
+                image,
+                sourceX,
+                sourceY,
+                sourceWidth,
+                sourceHeight,
+                drawX,
+                drawY,
+                drawWidth,
+                drawHeight
+            );
 
             signaturePad.fromDataURL(normalizedCanvas.toDataURL('image/png'), {
                 ratio: 1,
