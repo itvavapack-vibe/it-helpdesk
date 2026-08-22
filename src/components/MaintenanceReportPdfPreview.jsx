@@ -6,6 +6,24 @@ import { X, Download, Printer } from 'lucide-react';
 import Swal from 'sweetalert2';
 
 const AUTO_CLOSE_NOTE = 'Auto closed after requester did not sign within 3 days.';
+const A4_ASPECT_RATIO = 297 / 210;
+
+const getReportContentHeight = (report) => {
+    const footer = report?.querySelector('[data-fmit01-footer="true"]');
+    return Math.max(
+        report?.scrollHeight || 0,
+        footer ? footer.offsetTop + footer.offsetHeight + 8 : 0
+    );
+};
+
+const preserveSignatureOutputSize = (report, pageScale) => {
+    if (!report || !pageScale || pageScale >= 1) return;
+
+    report.querySelectorAll('[data-fmit01-signature="true"]').forEach((signature) => {
+        const baseScale = Number(signature.dataset.signatureScale || 1);
+        signature.style.transform = `scale(${baseScale / pageScale})`;
+    });
+};
 
 const MaintenanceReportPdfPreview = ({ isOpen, onClose, formData }) => {
     const previewRef = useRef(null);
@@ -15,10 +33,17 @@ const MaintenanceReportPdfPreview = ({ isOpen, onClose, formData }) => {
 
         try {
             await document.fonts?.ready;
+            const reportWidth = previewRef.current.scrollWidth;
+            const reportHeight = getReportContentHeight(previewRef.current);
+            const pageScale = Math.min(1, A4_ASPECT_RATIO / (reportHeight / reportWidth));
             const canvas = await html2canvas(previewRef.current, {
                 scale: 2,
                 useCORS: true,
-                backgroundColor: '#ffffff'
+                backgroundColor: '#ffffff',
+                onclone: (clonedDocument) => {
+                    const clonedReport = clonedDocument.querySelector('[data-fmit01-report="true"]');
+                    preserveSignatureOutputSize(clonedReport, pageScale);
+                }
             });
             const imgData = canvas.toDataURL('image/jpeg', 1.0);
 
@@ -117,16 +142,13 @@ const MaintenanceReportPdfPreview = ({ isOpen, onClose, formData }) => {
             printReport.id = 'print-report';
             const availableWidth = printPage.clientWidth;
             const availableHeight = printPage.clientHeight - 4;
-            const printFooter = printReport.querySelector('[data-fmit01-footer="true"]');
-            const contentHeight = Math.max(
-                printReport.scrollHeight,
-                printFooter ? printFooter.offsetTop + printFooter.offsetHeight + 8 : 0
-            );
+            const contentHeight = getReportContentHeight(printReport);
             const printScale = Math.min(
                 1,
                 availableWidth / printReport.scrollWidth,
                 availableHeight / contentHeight
             );
+            preserveSignatureOutputSize(printReport, printScale);
             printReport.style.transform = `scale(${printScale})`;
 
             const printWindow = printFrame.contentWindow;
@@ -220,6 +242,7 @@ const MaintenanceReportPdfPreview = ({ isOpen, onClose, formData }) => {
                     {/* A4 Paper */}
                     <div
                         ref={previewRef}
+                        data-fmit01-report="true"
                         style={{
                             display: 'flex',
                             flexDirection: 'column',
@@ -420,7 +443,7 @@ const MaintenanceReportPdfPreview = ({ isOpen, onClose, formData }) => {
                         <div style={{ display: 'flex', justifyContent: 'center', gap: '44px', marginTop: '20px', minHeight: '155px' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', width: '42%' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', borderBottom: '1px dotted #000', height: '78px', margin: '0 auto 8px', width: '90%' }}>
-                                    {requesterSignature && <img src={requesterSignature} alt="ลายเซ็นผู้แจ้ง" style={{ display: 'block', maxHeight: '68px', maxWidth: '112%', objectFit: 'contain', margin: '0 auto', transform: 'scale(1.18)', transformOrigin: 'center' }} />}
+                                    {requesterSignature && <img src={requesterSignature} alt="ลายเซ็นผู้แจ้ง" data-fmit01-signature="true" data-signature-scale="1.18" style={{ display: 'block', maxHeight: '68px', maxWidth: '112%', objectFit: 'contain', margin: '0 auto', transform: 'scale(1.18)', transformOrigin: 'center' }} />}
                                     {isAutoClosed && (
                                         <div style={{ fontSize: '13px', lineHeight: 1.35 }}>
                                             <div style={{ fontWeight: 600 }}>{autoCloseSignatureName}</div>
@@ -435,7 +458,7 @@ const MaintenanceReportPdfPreview = ({ isOpen, onClose, formData }) => {
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', width: '42%' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', borderBottom: '1px dotted #000', height: '78px', margin: '0 auto 8px', width: '90%' }}>
-                                    {formData.inspectorSign && <img src={formData.inspectorSign} alt="ลายเซ็นผู้ตรวจสอบ/ดำเนินการ" style={{ display: 'block', maxHeight: '78px', maxWidth: '120%', objectFit: 'contain', margin: '0 auto', transform: 'scale(1.32)', transformOrigin: 'center' }} />}
+                                    {formData.inspectorSign && <img src={formData.inspectorSign} alt="ลายเซ็นผู้ตรวจสอบ/ดำเนินการ" data-fmit01-signature="true" data-signature-scale="1.32" style={{ display: 'block', maxHeight: '78px', maxWidth: '120%', objectFit: 'contain', margin: '0 auto', transform: 'scale(1.32)', transformOrigin: 'center' }} />}
                                 </div>
                                 <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '5px' }}>ผู้ตรวจสอบ/ดำเนินการ</div>
                                 <div style={{ fontSize: '13px', marginBottom: '3px' }}>({formData.inspectorName || '-'})</div>
