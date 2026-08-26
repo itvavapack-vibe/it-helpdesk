@@ -206,6 +206,16 @@ try {
   if (!departmentOverview.issues.some((row) => Number(row.id) === Number(testIssueId))) {
     throw new Error('Department overview did not return the selected department issues')
   }
+  const branchOverview = await request(`/department-overview?department=${encodeURIComponent('Test Department')}&branch=${encodeURIComponent(testBranch)}`, {
+    token: receiverAuth.token,
+  })
+  if (!branchOverview.issues.some((row) => Number(row.id) === Number(testIssueId))) {
+    throw new Error('Department overview branch filter excluded a matching issue')
+  }
+  await request('/department-overview?branch=Invalid%20Branch', {
+    token: receiverAuth.token,
+    expectedStatus: 400,
+  })
   const departmentReport = await request('/department-overview?include_issues=1', { token: receiverAuth.token })
   if (!departmentReport.issues.some((row) => Number(row.id) === Number(testIssueId))
       || !departmentReport.issues.some((row) => Number(row.id) === Number(otherIssueId))) {

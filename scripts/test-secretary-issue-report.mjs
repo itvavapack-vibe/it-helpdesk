@@ -36,32 +36,34 @@ const reporterUsername = `secretary.report.${suffix}`
 const relatedUsername = `secretary.related.${suffix}`
 const superAdminUsername = `secretary.super.${suffix}`
 const password = 'Secretary@Test123'
+const reporterBranch = 'บริษัท วาวา แพค จำกัด สาขา 2'
 let reporterId = null
 let relatedId = null
 let superAdminId = null
 let issueId = null
+let optionalRelatedIssueId = null
 let uploadedPath = null
 
 try {
   const passwordHash = await hashPassword(password)
   const [reporterResult] = await pool.query(
-    `INSERT INTO secretary_users (username, password, name, department, role, active)
-     VALUES (?, ?, ?, ?, 'reporter', 1)`,
-    [reporterUsername, passwordHash, 'Issue Report Test User', 'เทคโนโลยีสารสนเทศ และ ERP'],
+    `INSERT INTO secretary_users (username, password, name, department, branch, role, active)
+     VALUES (?, ?, ?, ?, ?, 'reporter', 1)`,
+    [reporterUsername, passwordHash, 'Issue Report Test User', 'เทคโนโลยีสารสนเทศ และ ERP', reporterBranch],
   )
   reporterId = Number(reporterResult.insertId)
 
   const [relatedResult] = await pool.query(
-    `INSERT INTO secretary_users (username, password, name, department, role, active)
-     VALUES (?, ?, ?, ?, 'reporter', 1)`,
-    [relatedUsername, passwordHash, 'Related Department Test User', 'ฝ่ายผลิต'],
+    `INSERT INTO secretary_users (username, password, name, department, branch, role, active)
+     VALUES (?, ?, ?, ?, ?, 'reporter', 1)`,
+    [relatedUsername, passwordHash, 'Related Department Test User', 'ฝ่ายผลิต', 'บริษัท วาวา แพค จำกัด สาขา 1'],
   )
   relatedId = Number(relatedResult.insertId)
 
   const [superAdminResult] = await pool.query(
-    `INSERT INTO secretary_users (username, password, name, department, role, active)
-     VALUES (?, ?, ?, ?, 'super_admin', 1)`,
-    [superAdminUsername, passwordHash, 'Hidden Super Admin Test User', 'แอดมิน'],
+    `INSERT INTO secretary_users (username, password, name, department, branch, role, active)
+     VALUES (?, ?, ?, ?, ?, 'super_admin', 1)`,
+    [superAdminUsername, passwordHash, 'Hidden Super Admin Test User', 'แอดมิน', 'บริษัท วาวา แพค จำกัด สาขา 3'],
   )
   superAdminId = Number(superAdminResult.insertId)
 
@@ -107,6 +109,7 @@ try {
   })
   issueId = Number(issue.id)
 
+  if (issue.branch !== reporterBranch) throw new Error('Reporter branch snapshot was not stored')
   if (Number(issue.damage_value) !== 12345.67) throw new Error('Damage value was not stored')
   if (issue.related_users?.[0]?.name !== 'Related Department Test User') throw new Error('Related user snapshot was not stored')
   if (issue.attachments?.[0]?.url !== uploadedFile.url || issue.attachments?.[0]?.source !== 'secretary_issue') {
@@ -115,9 +118,25 @@ try {
 
   const issues = await request('/api/secretary/issues', { token: auth.token })
   const savedIssue = issues.find((item) => Number(item.id) === issueId)
-  if (!savedIssue || Number(savedIssue.damage_value) !== 12345.67 || savedIssue.related_users?.length !== 1 || savedIssue.attachments?.length !== 1) {
+  if (!savedIssue || savedIssue.branch !== reporterBranch || Number(savedIssue.damage_value) !== 12345.67 || savedIssue.related_users?.length !== 1 || savedIssue.attachments?.length !== 1) {
     throw new Error('Saved issue cannot be read back with all new fields')
   }
+
+  const optionalRelatedIssue = await request('/api/secretary/issues', {
+    method: 'POST',
+    token: auth.token,
+    expectedStatus: 201,
+    body: {
+      title: 'Optional related department test',
+      category: 'ปัญหาด้านคุณภาพงาน',
+      description: 'Issue without a related department',
+      damage_value: '0',
+      related_user_ids: [],
+      occurred_at: new Date().toISOString().slice(0, 10),
+    },
+  })
+  optionalRelatedIssueId = Number(optionalRelatedIssue.id)
+  if (optionalRelatedIssue.related_users?.length !== 0) throw new Error('Empty related users were not stored correctly')
 
   const relatedIssues = await request('/api/secretary/issues?mine=1', { token: relatedAuth.token })
   if (!relatedIssues.some((item) => Number(item.id) === issueId)) {
@@ -214,6 +233,10 @@ try {
     if (issueId) {
       await pool.query('DELETE FROM secretary_issue_status_history WHERE issue_id = ?', [issueId])
       await pool.query('DELETE FROM secretary_issues WHERE id = ?', [issueId])
+    }
+    if (optionalRelatedIssueId) {
+      await pool.query('DELETE FROM secretary_issue_status_history WHERE issue_id = ?', [optionalRelatedIssueId])
+      await pool.query('DELETE FROM secretary_issues WHERE id = ?', [optionalRelatedIssueId])
     }
     if (reporterId || relatedId || superAdminId) {
       await pool.query(

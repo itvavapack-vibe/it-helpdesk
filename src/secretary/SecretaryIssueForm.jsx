@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   AlertCircle,
   CalendarDays,
@@ -9,6 +9,7 @@ import {
   Image as ImageIcon,
   Loader2,
   Paperclip,
+  Search,
   Send,
   X,
 } from 'lucide-react'
@@ -41,6 +42,7 @@ const SecretaryIssueForm = ({ auth, onCreated }) => {
   const [form, setForm] = useState(initialForm)
   const [userOptions, setUserOptions] = useState([])
   const [isLoadingOptions, setIsLoadingOptions] = useState(true)
+  const [relatedSearch, setRelatedSearch] = useState('')
   const [attachmentFiles, setAttachmentFiles] = useState([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [message, setMessage] = useState(null)
@@ -63,6 +65,13 @@ const SecretaryIssueForm = ({ auth, onCreated }) => {
   }, [])
 
   const updateField = (field, value) => setForm((current) => ({ ...current, [field]: value }))
+
+  const filteredUserOptions = useMemo(() => {
+    const keyword = relatedSearch.trim().toLocaleLowerCase('th-TH')
+    if (!keyword) return userOptions
+    return userOptions.filter((user) => [user.name, user.department]
+      .some((value) => String(value || '').toLocaleLowerCase('th-TH').includes(keyword)))
+  }, [relatedSearch, userOptions])
 
   const toggleRelatedUser = (userId) => {
     setForm((current) => ({
@@ -96,10 +105,6 @@ const SecretaryIssueForm = ({ auth, onCreated }) => {
   const handleSubmit = async (event) => {
     event.preventDefault()
     setMessage(null)
-    if (!form.related_user_ids.length) {
-      setMessage({ type: 'error', text: 'กรุณาเลือกแผนกที่เกี่ยวข้องอย่างน้อย 1 รายการ' })
-      return
-    }
     setIsSubmitting(true)
     try {
       const attachments = attachmentFiles.length
@@ -134,7 +139,7 @@ const SecretaryIssueForm = ({ auth, onCreated }) => {
       </div>
 
       <form onSubmit={handleSubmit} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900/80 sm:p-7">
-        <div className="mb-6 grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/60 sm:grid-cols-2">
+        <div className="mb-6 grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/60 sm:grid-cols-3">
           <div>
             <span className="text-xs font-medium text-slate-500 dark:text-slate-400">ผู้แจ้ง</span>
             <strong className="mt-1 block text-sm text-slate-800 dark:text-slate-100">{auth.name}</strong>
@@ -142,6 +147,10 @@ const SecretaryIssueForm = ({ auth, onCreated }) => {
           <div>
             <span className="text-xs font-medium text-slate-500 dark:text-slate-400">แผนก</span>
             <strong className="mt-1 block text-sm text-slate-800 dark:text-slate-100">{auth.department}</strong>
+          </div>
+          <div>
+            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">สาขา</span>
+            <strong className="mt-1 block text-sm text-slate-800 dark:text-slate-100">{auth.branch || 'ยังไม่ได้กำหนดสาขา'}</strong>
           </div>
         </div>
 
@@ -200,7 +209,7 @@ const SecretaryIssueForm = ({ auth, onCreated }) => {
           </label>
 
           <div className="sm:col-span-2">
-            <span className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-200">แผนกที่เกี่ยวข้อง <span className="text-rose-500">*</span></span>
+            <span className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-200">แผนกที่เกี่ยวข้อง <span className="font-normal text-slate-400">(ไม่บังคับ)</span></span>
             <Popover>
               <PopoverTrigger asChild>
                 <button type="button" disabled={isLoadingOptions} className="flex min-h-11 w-full items-center justify-between gap-3 rounded-xl border border-slate-300 bg-white px-3 text-left text-sm outline-none hover:border-indigo-400 focus:ring-4 focus:ring-indigo-100 disabled:opacity-60 dark:border-slate-600 dark:bg-slate-950 dark:text-white dark:focus:ring-indigo-950/60">
@@ -211,8 +220,20 @@ const SecretaryIssueForm = ({ auth, onCreated }) => {
                 </button>
               </PopoverTrigger>
               <PopoverContent align="start" className="w-[min(32rem,calc(100vw-2rem))] p-2">
+                <div className="relative mb-2">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="search"
+                    value={relatedSearch}
+                    onChange={(event) => setRelatedSearch(event.target.value)}
+                    className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-9 text-sm outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:ring-indigo-950/60"
+                    placeholder="ค้นหาชื่อ-สกุล หรือแผนก"
+                    autoComplete="off"
+                  />
+                  {relatedSearch && <button type="button" onClick={() => setRelatedSearch('')} className="absolute right-1 top-1 grid h-8 w-8 place-items-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200" title="ล้างคำค้น" aria-label="ล้างคำค้น"><X className="h-4 w-4" /></button>}
+                </div>
                 <div className="max-h-72 space-y-1 overflow-y-auto">
-                  {userOptions.map((user) => {
+                  {filteredUserOptions.map((user) => {
                     const selected = form.related_user_ids.includes(user.id)
                     return (
                       <button key={user.id} type="button" onClick={() => toggleRelatedUser(user.id)} className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm ${selected ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-200' : 'hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
@@ -221,7 +242,7 @@ const SecretaryIssueForm = ({ auth, onCreated }) => {
                       </button>
                     )
                   })}
-                  {!isLoadingOptions && !userOptions.length && <p className="p-3 text-sm text-slate-500">ไม่พบรายชื่อผู้ใช้งาน</p>}
+                  {!isLoadingOptions && !filteredUserOptions.length && <p className="p-3 text-center text-sm text-slate-500">ไม่พบชื่อหรือแผนกตามคำค้น</p>}
                 </div>
               </PopoverContent>
             </Popover>

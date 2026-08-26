@@ -52,6 +52,7 @@ try {
       reporter_user_id BIGINT UNSIGNED NULL,
       reporter_name VARCHAR(255) NOT NULL,
       department VARCHAR(255) NOT NULL,
+      branch VARCHAR(255) NULL,
       title VARCHAR(255) NOT NULL,
       category VARCHAR(120) NOT NULL,
       description TEXT NOT NULL,
@@ -70,6 +71,7 @@ try {
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       INDEX idx_secretary_issues_reporter (reporter_user_id),
       INDEX idx_secretary_issues_department (department),
+      INDEX idx_secretary_issues_branch (branch),
       INDEX idx_secretary_issues_status (status),
       INDEX idx_secretary_issues_category (category),
       INDEX idx_secretary_issues_created_at (created_at),
@@ -96,6 +98,7 @@ try {
   `)
 
   const issueColumns = [
+    ['branch', 'VARCHAR(255) NULL AFTER department'],
     ['damage_value', 'DECIMAL(15,2) NULL AFTER impact_level'],
     ['related_users_json', 'LONGTEXT NULL AFTER damage_value'],
     ['attachments_json', 'LONGTEXT NULL AFTER related_users_json'],
@@ -105,6 +108,15 @@ try {
     const [columns] = await pool.query(`SHOW COLUMNS FROM secretary_issues LIKE ?`, [column])
     if (!columns.length) await pool.query(`ALTER TABLE secretary_issues ADD COLUMN ${column} ${definition}`)
   }
+
+  await pool.query(`
+    UPDATE secretary_issues AS issue
+    INNER JOIN secretary_users AS user ON user.id = issue.reporter_user_id
+    SET issue.branch = user.branch
+    WHERE (issue.branch IS NULL OR TRIM(issue.branch) = '')
+      AND user.branch IS NOT NULL
+      AND TRIM(user.branch) <> ''
+  `)
 
   const [attachmentColumns] = await pool.query(
     "SHOW COLUMNS FROM secretary_issue_status_history LIKE 'attachments_json'",

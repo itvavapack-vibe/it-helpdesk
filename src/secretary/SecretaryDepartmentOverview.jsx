@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AlertCircle, Building2, CalendarDays, ChevronRight, Clock3, Download, Loader2, RotateCcw, Search } from 'lucide-react'
 import { secretaryGetDepartmentOverview } from './secretaryApi'
-import { formatSecretaryDate, SECRETARY_DEPARTMENT_OPTIONS, SECRETARY_IMPACTS, SECRETARY_STATUS } from './secretaryConstants'
+import { formatSecretaryDate, SECRETARY_BRANCH_OPTIONS, SECRETARY_DEPARTMENT_OPTIONS, SECRETARY_IMPACTS, SECRETARY_STATUS } from './secretaryConstants'
 import SecretaryIssueReadOnlyModal from './SecretaryIssueReadOnlyModal'
 import SecretaryStatusBadge from './SecretaryStatusBadge'
 
@@ -18,6 +18,7 @@ const SecretaryDepartmentOverview = () => {
   const [search, setSearch] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
+  const [branchFilter, setBranchFilter] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [isDetailLoading, setIsDetailLoading] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
@@ -36,7 +37,7 @@ const SecretaryDepartmentOverview = () => {
     }
     setSelectedDepartment('')
     setIssues([])
-    secretaryGetDepartmentOverview('', { from: dateFrom, to: dateTo })
+    secretaryGetDepartmentOverview('', { from: dateFrom, to: dateTo, branch: branchFilter })
       .then((data) => {
         if (active) setOverview(data)
       })
@@ -47,7 +48,7 @@ const SecretaryDepartmentOverview = () => {
         if (active) setIsLoading(false)
       })
     return () => { active = false }
-  }, [dateFrom, dateTo])
+  }, [branchFilter, dateFrom, dateTo])
 
   useEffect(() => {
     if (!selectedDepartment) return undefined
@@ -88,7 +89,7 @@ const SecretaryDepartmentOverview = () => {
     setIsDetailLoading(true)
     setError('')
     try {
-      const data = await secretaryGetDepartmentOverview(department, { from: dateFrom, to: dateTo })
+      const data = await secretaryGetDepartmentOverview(department, { from: dateFrom, to: dateTo, branch: branchFilter })
       if (detailRequestIdRef.current === requestId) setIssues(data.issues || [])
     } catch (requestError) {
       if (detailRequestIdRef.current === requestId) setError(requestError.message)
@@ -103,7 +104,7 @@ const SecretaryDepartmentOverview = () => {
     try {
       const xlsxModule = await import('xlsx-js-style')
       const XLSX = xlsxModule.default || xlsxModule
-      const data = await secretaryGetDepartmentOverview('', { includeIssues: true, from: dateFrom, to: dateTo })
+      const data = await secretaryGetDepartmentOverview('', { includeIssues: true, from: dateFrom, to: dateTo, branch: branchFilter })
       const openIssues = data.issues || []
       const issuesByDepartment = openIssues.reduce((groups, issue) => {
         const department = issue.department || 'ไม่ระบุแผนก'
@@ -112,7 +113,7 @@ const SecretaryDepartmentOverview = () => {
         return groups
       }, new Map())
       const rows = [
-        ['รายงานรายการที่ยังไม่เสร็จสิ้น แยกตามแผนก'],
+        [`รายงานรายการที่ยังไม่เสร็จสิ้น แยกตามแผนก${branchFilter ? ` - ${branchFilter}` : ''}`],
         [`ช่วงวันที่ ${dateFrom ? formatSecretaryDate(dateFrom) : 'เริ่มต้น'} ถึง ${dateTo ? formatSecretaryDate(dateTo) : 'ปัจจุบัน'}`],
         [`วันที่ออกรายงาน ${formatSecretaryDate(new Date(), { hour: '2-digit', minute: '2-digit' })}`],
         [],
@@ -234,6 +235,13 @@ const SecretaryDepartmentOverview = () => {
             <span className="mb-1.5 block text-xs font-semibold text-slate-500">วันที่สิ้นสุด</span>
             <input type="date" value={dateTo} min={dateFrom || undefined} onChange={(event) => setDateTo(event.target.value)} className="h-10 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:focus:ring-indigo-950/60" />
           </label>
+          <label className="w-full min-w-0 sm:w-64 sm:flex-none">
+            <span className="mb-1.5 block text-xs font-semibold text-slate-500">สาขา</span>
+            <select value={branchFilter} onChange={(event) => setBranchFilter(event.target.value)} className="h-10 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:focus:ring-indigo-950/60">
+              <option value="">ทุกสาขา</option>
+              {SECRETARY_BRANCH_OPTIONS.map((branch) => <option key={branch} value={branch}>{branch}</option>)}
+            </select>
+          </label>
           {(dateFrom || dateTo) && <button type="button" onClick={() => { setDateFrom(''); setDateTo('') }} className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-300 bg-white text-slate-500 shadow-sm hover:border-indigo-300 hover:text-indigo-600 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300" title="ล้างช่วงวันที่" aria-label="ล้างช่วงวันที่"><RotateCcw className="h-4 w-4" /></button>}
           <label className="relative block min-w-40 flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -299,10 +307,10 @@ const SecretaryDepartmentOverview = () => {
           ) : issues.length ? (
             <>
               <div className="hidden overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900/80 md:block">
-                <table className="w-full min-w-[1180px] text-left text-sm">
-                  <thead className="bg-slate-50 text-xs text-slate-500 dark:bg-slate-800/70 dark:text-slate-400"><tr><th className="px-4 py-3">เลขที่</th><th className="px-4 py-3">แผนก</th><th className="px-4 py-3">รายการปัญหา</th><th className="px-4 py-3">ผู้แจ้ง</th><th className="px-4 py-3">ผลกระทบ</th><th className="px-4 py-3">มูลค่าความเสียหาย</th><th className="px-4 py-3">สถานะ</th><th className="px-4 py-3">วันที่คาดว่าจะแล้วเสร็จ</th><th className="px-4 py-3">วันที่แจ้ง</th><th className="w-12 px-3 py-3" /></tr></thead>
+                <table className="w-full min-w-[1050px] text-left text-sm">
+                  <thead className="bg-slate-50 text-xs text-slate-500 dark:bg-slate-800/70 dark:text-slate-400"><tr><th className="px-4 py-3">เลขที่</th><th className="px-4 py-3">รายการปัญหา</th><th className="px-4 py-3">ผู้แจ้ง</th><th className="px-4 py-3">ผลกระทบ</th><th className="px-4 py-3">มูลค่าความเสียหาย</th><th className="px-4 py-3">สถานะ</th><th className="px-4 py-3">วันที่คาดว่าจะแล้วเสร็จ</th><th className="px-4 py-3">วันที่แจ้ง</th><th className="w-12 px-3 py-3" /></tr></thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {issues.map((issue) => <tr key={issue.id} role="button" tabIndex={0} onClick={() => setSelectedIssue(issue)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelectedIssue(issue) } }} className="cursor-pointer hover:bg-indigo-50/60 focus:bg-indigo-50/60 focus:outline-none dark:hover:bg-indigo-950/20 dark:focus:bg-indigo-950/20"><td className="whitespace-nowrap px-4 py-3 font-semibold text-indigo-600 dark:text-indigo-300">{issue.issue_number}</td><td className="max-w-48 px-4 py-3 text-slate-600 dark:text-slate-300">{issue.department || '-'}</td><td className="max-w-md px-4 py-3"><strong className="block text-slate-800 dark:text-slate-100">{issue.title}</strong><span className="mt-1 block truncate text-xs text-slate-500">{issue.category}</span></td><td className="px-4 py-3 text-slate-600 dark:text-slate-300">{issue.reporter_name}</td><td className={`whitespace-nowrap px-4 py-3 font-semibold ${SECRETARY_IMPACTS[issue.impact_level]?.className || ''}`}>{SECRETARY_IMPACTS[issue.impact_level]?.label || issue.impact_level}</td><td className="whitespace-nowrap px-4 py-3 text-slate-600 dark:text-slate-300">{formatDamageValue(issue.damage_value)}</td><td className="px-4 py-3"><SecretaryStatusBadge status={issue.status} /></td><td className="whitespace-nowrap px-4 py-3 text-slate-600 dark:text-slate-300">{issue.expected_completion_date ? formatSecretaryDate(issue.expected_completion_date) : '-'}</td><td className="whitespace-nowrap px-4 py-3 text-slate-500">{formatSecretaryDate(issue.created_at)}</td><td className="px-3 py-3"><ChevronRight className="h-4 w-4 text-slate-400" /></td></tr>)}
+                    {issues.map((issue) => <tr key={issue.id} role="button" tabIndex={0} onClick={() => setSelectedIssue(issue)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelectedIssue(issue) } }} className="cursor-pointer hover:bg-indigo-50/60 focus:bg-indigo-50/60 focus:outline-none dark:hover:bg-indigo-950/20 dark:focus:bg-indigo-950/20"><td className="whitespace-nowrap px-4 py-3 font-semibold text-indigo-600 dark:text-indigo-300">{issue.issue_number}</td><td className="max-w-md px-4 py-3"><strong className="block text-slate-800 dark:text-slate-100">{issue.title}</strong><span className="mt-1 block truncate text-xs text-slate-500">{issue.category}</span></td><td className="px-4 py-3 text-slate-600 dark:text-slate-300">{issue.reporter_name}</td><td className={`whitespace-nowrap px-4 py-3 font-semibold ${SECRETARY_IMPACTS[issue.impact_level]?.className || ''}`}>{SECRETARY_IMPACTS[issue.impact_level]?.label || issue.impact_level}</td><td className="whitespace-nowrap px-4 py-3 text-slate-600 dark:text-slate-300">{formatDamageValue(issue.damage_value)}</td><td className="px-4 py-3"><SecretaryStatusBadge status={issue.status} /></td><td className="whitespace-nowrap px-4 py-3 text-slate-600 dark:text-slate-300">{issue.expected_completion_date ? formatSecretaryDate(issue.expected_completion_date) : '-'}</td><td className="whitespace-nowrap px-4 py-3 text-slate-500">{formatSecretaryDate(issue.created_at)}</td><td className="px-3 py-3"><ChevronRight className="h-4 w-4 text-slate-400" /></td></tr>)}
                   </tbody>
                 </table>
               </div>

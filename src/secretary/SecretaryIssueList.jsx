@@ -68,6 +68,7 @@ const emptyFilters = (status = '') => ({
   search: '',
   status,
   department: '',
+  branch: '',
   category: '',
   impact: '',
   from: '',
@@ -114,6 +115,7 @@ const SecretaryIssueList = ({ auth, initialStatus = '', mineOnly = false }) => {
   }, [initialStatus])
 
   const departments = useMemo(() => [...new Set(issues.map((issue) => issue.department).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'th')), [issues])
+  const branches = useMemo(() => [...new Set(issues.map((issue) => issue.branch).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'th')), [issues])
   const categories = useMemo(() => [...new Set(issues.map((issue) => issue.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'th')), [issues])
   const statusCounts = useMemo(() => issues.reduce((counts, issue) => ({ ...counts, [issue.status]: (counts[issue.status] || 0) + 1 }), {}), [issues])
 
@@ -122,6 +124,7 @@ const SecretaryIssueList = ({ auth, initialStatus = '', mineOnly = false }) => {
     return issues.filter((issue) => {
       if (filters.status && issue.status !== filters.status) return false
       if (filters.department && issue.department !== filters.department) return false
+      if (filters.branch && issue.branch !== filters.branch) return false
       if (filters.category && issue.category !== filters.category) return false
       if (filters.impact && issue.impact_level !== filters.impact) return false
       const occurredDate = String(issue.occurred_at || '').slice(0, 10)
@@ -129,7 +132,7 @@ const SecretaryIssueList = ({ auth, initialStatus = '', mineOnly = false }) => {
       if (filters.to && occurredDate > filters.to) return false
       if (!query) return true
       const relatedUsers = (issue.related_users || []).map((user) => `${user.name || user.username} ${user.department}`).join(' ')
-      return [issue.issue_number, issue.title, issue.description, issue.department, issue.reporter_name, issue.category, issue.assigned_name, relatedUsers]
+      return [issue.issue_number, issue.title, issue.description, issue.department, issue.branch, issue.reporter_name, issue.category, issue.assigned_name, relatedUsers]
         .some((value) => String(value || '').toLocaleLowerCase('th').includes(query))
     })
   }, [deferredSearch, filters, issues])
@@ -212,6 +215,7 @@ const SecretaryIssueList = ({ auth, initialStatus = '', mineOnly = false }) => {
       'วันที่พบปัญหา': formatSecretaryDate(issue.occurred_at),
       'ผู้แจ้ง': issue.reporter_name,
       'แผนก': issue.department,
+      'สาขา': issue.branch || '',
       'หัวข้อ': issue.title,
       'หมวดหมู่': issue.category,
       'รายละเอียด': issue.description,
@@ -225,7 +229,7 @@ const SecretaryIssueList = ({ auth, initialStatus = '', mineOnly = false }) => {
       'ผลการดำเนินการ': issue.resolution_note || '',
     }))
     const worksheet = XLSX.utils.json_to_sheet(rows)
-    worksheet['!cols'] = [14, 14, 14, 24, 22, 36, 28, 52, 14, 18, 22, 48, 34, 18, 24, 45].map((wch) => ({ wch }))
+    worksheet['!cols'] = [14, 14, 14, 24, 22, 38, 36, 28, 52, 14, 18, 22, 48, 34, 18, 24, 45].map((wch) => ({ wch }))
     const workbook = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Issues')
     XLSX.writeFile(workbook, `Secretary_Issues_${new Date().toISOString().slice(0, 10)}.xlsx`)
@@ -261,9 +265,10 @@ const SecretaryIssueList = ({ auth, initialStatus = '', mineOnly = false }) => {
 
       <div className="mb-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/80">
         <div className="mb-3 flex items-center justify-between gap-3"><span className="flex items-center gap-2 text-sm font-bold text-slate-800 dark:text-slate-100"><Filter className="h-4 w-4 text-indigo-500" />ตัวกรอง</span><button type="button" onClick={() => setFilters(emptyFilters())} className="text-xs font-semibold text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-300">ล้างตัวกรอง</button></div>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-          <label className="relative sm:col-span-2 xl:col-span-2"><Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" /><input value={filters.search} onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))} className="h-10 w-full rounded-xl border border-slate-300 bg-white pl-9 pr-3 text-sm outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 dark:border-slate-600 dark:bg-slate-950 dark:text-white dark:focus:ring-indigo-950/50" placeholder="ค้นหาเลขที่ หัวข้อ ผู้แจ้ง แผนก..." /></label>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-8">
+          <label className="relative sm:col-span-2 xl:col-span-2"><Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" /><input value={filters.search} onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))} className="h-10 w-full rounded-xl border border-slate-300 bg-white pl-9 pr-3 text-sm outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 dark:border-slate-600 dark:bg-slate-950 dark:text-white dark:focus:ring-indigo-950/50" placeholder="ค้นหาเลขที่ หัวข้อ ผู้แจ้ง แผนก สาขา..." /></label>
           {isReceiver && <select value={filters.department} onChange={(event) => setFilters((current) => ({ ...current, department: event.target.value }))} className="h-10 rounded-xl border border-slate-300 bg-white px-3 text-sm dark:border-slate-600 dark:bg-slate-950 dark:text-white"><option value="">ทุกแผนก</option>{departments.map((department) => <option key={department}>{department}</option>)}</select>}
+          {isReceiver && <select value={filters.branch} onChange={(event) => setFilters((current) => ({ ...current, branch: event.target.value }))} className="h-10 rounded-xl border border-slate-300 bg-white px-3 text-sm dark:border-slate-600 dark:bg-slate-950 dark:text-white"><option value="">ทุกสาขา</option>{branches.map((branch) => <option key={branch}>{branch}</option>)}</select>}
           <select value={filters.category} onChange={(event) => setFilters((current) => ({ ...current, category: event.target.value }))} className="h-10 rounded-xl border border-slate-300 bg-white px-3 text-sm dark:border-slate-600 dark:bg-slate-950 dark:text-white"><option value="">ทุกหมวดหมู่</option>{categories.map((category) => <option key={category}>{category}</option>)}</select>
           <select value={filters.impact} onChange={(event) => setFilters((current) => ({ ...current, impact: event.target.value }))} className="h-10 rounded-xl border border-slate-300 bg-white px-3 text-sm dark:border-slate-600 dark:bg-slate-950 dark:text-white"><option value="">ทุกระดับผลกระทบ</option>{Object.entries(SECRETARY_IMPACTS).map(([value, config]) => <option key={value} value={value}>{config.label}</option>)}</select>
           <label className="relative"><CalendarDays className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" /><input type="date" value={filters.from} onChange={(event) => setFilters((current) => ({ ...current, from: event.target.value }))} className="h-10 w-full rounded-xl border border-slate-300 bg-white pl-9 pr-2 text-sm dark:border-slate-600 dark:bg-slate-950 dark:text-white" title="ตั้งแต่วันที่" /></label>
@@ -279,13 +284,14 @@ const SecretaryIssueList = ({ auth, initialStatus = '', mineOnly = false }) => {
         <>
           <div className="hidden overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900/80 md:block">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[960px] text-left text-sm">
-                <thead className="bg-slate-50 text-xs font-bold text-slate-500 dark:bg-slate-800/80 dark:text-slate-400"><tr><th className="px-4 py-3">เลขที่ / วันที่</th>{isReceiver && <th className="px-4 py-3">ผู้แจ้ง / แผนก</th>}<th className="px-4 py-3">ปัญหา</th><th className="px-4 py-3">ผลกระทบ</th><th className="px-4 py-3">สถานะ</th><th className="w-12 px-3 py-3" /></tr></thead>
+              <table className="w-full min-w-[1080px] text-left text-sm">
+                <thead className="bg-slate-50 text-xs font-bold text-slate-500 dark:bg-slate-800/80 dark:text-slate-400"><tr><th className="px-4 py-3">เลขที่ / วันที่</th>{isReceiver && <th className="px-4 py-3">ผู้แจ้ง / แผนก</th>}<th className="px-4 py-3">สาขา</th><th className="px-4 py-3">ปัญหา</th><th className="px-4 py-3">ผลกระทบ</th><th className="px-4 py-3">สถานะ</th><th className="w-12 px-3 py-3" /></tr></thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {filteredIssues.map((issue) => (
                     <tr key={issue.id} onClick={() => openIssue(issue)} className="cursor-pointer hover:bg-indigo-50/60 dark:hover:bg-indigo-950/20">
                       <td className="whitespace-nowrap px-4 py-4"><strong className="block text-slate-800 dark:text-slate-100">{issue.issue_number}</strong><span className="mt-1 block text-xs text-slate-500">{formatSecretaryDate(issue.created_at)}</span></td>
                       {isReceiver && <td className="px-4 py-4"><strong className="block text-slate-700 dark:text-slate-200">{issue.reporter_name}</strong><span className="mt-1 block text-xs text-slate-500">{issue.department}</span></td>}
+                      <td className="max-w-52 px-4 py-4 text-slate-600 dark:text-slate-300">{issue.branch || '-'}</td>
                       <td className="max-w-sm px-4 py-4"><strong className="block truncate text-slate-800 dark:text-slate-100">{issue.title}</strong><span className="mt-1 block truncate text-xs text-slate-500">{issue.category}</span></td>
                       <td className={`px-4 py-4 font-semibold ${SECRETARY_IMPACTS[issue.impact_level]?.className || ''}`}>{SECRETARY_IMPACTS[issue.impact_level]?.label || issue.impact_level}</td>
                       <td className="px-4 py-4"><SecretaryStatusBadge status={issue.status} /></td>
@@ -301,7 +307,7 @@ const SecretaryIssueList = ({ auth, initialStatus = '', mineOnly = false }) => {
             {filteredIssues.map((issue) => (
               <button key={issue.id} type="button" onClick={() => openIssue(issue)} className="min-w-0 rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm dark:border-slate-700 dark:bg-slate-900/80">
                 <span className="flex items-start justify-between gap-3"><span className="min-w-0"><span className="block text-xs font-semibold text-slate-500">{issue.issue_number}</span><strong className="mt-1 block truncate text-slate-800 dark:text-slate-100">{issue.title}</strong></span><SecretaryStatusBadge status={issue.status} /></span>
-                <span className="mt-3 flex items-center gap-2 text-xs text-slate-500"><Building2 className="h-3.5 w-3.5" />{issue.department}<span>·</span>{formatSecretaryDate(issue.created_at)}</span>
+                <span className="mt-3 flex items-start gap-2 text-xs text-slate-500"><Building2 className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span>{issue.department}<span className="mx-1.5">·</span>{issue.branch || '-'}<span className="mx-1.5">·</span>{formatSecretaryDate(issue.created_at)}</span></span>
               </button>
             ))}
           </div>
@@ -323,6 +329,7 @@ const SecretaryIssueList = ({ auth, initialStatus = '', mineOnly = false }) => {
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800/60"><span className="flex items-center gap-2 text-xs text-slate-500"><UserRound className="h-3.5 w-3.5" />ผู้แจ้ง</span><strong className="mt-1 block text-sm text-slate-800 dark:text-slate-100">{selectedIssue.reporter_name}</strong></div>
                   <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800/60"><span className="flex items-center gap-2 text-xs text-slate-500"><Building2 className="h-3.5 w-3.5" />แผนก</span><strong className="mt-1 block text-sm text-slate-800 dark:text-slate-100">{selectedIssue.department}</strong></div>
+                  <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800/60"><span className="flex items-center gap-2 text-xs text-slate-500"><Building2 className="h-3.5 w-3.5" />สาขา</span><strong className="mt-1 block text-sm text-slate-800 dark:text-slate-100">{selectedIssue.branch || '-'}</strong></div>
                   <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800/60"><span className="flex items-center gap-2 text-xs text-slate-500"><Tag className="h-3.5 w-3.5" />หมวดหมู่</span><strong className="mt-1 block text-sm text-slate-800 dark:text-slate-100">{selectedIssue.category}</strong></div>
                   <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800/60"><span className="flex items-center gap-2 text-xs text-slate-500"><CalendarDays className="h-3.5 w-3.5" />วันที่พบปัญหา</span><strong className="mt-1 block text-sm text-slate-800 dark:text-slate-100">{formatSecretaryDate(selectedIssue.occurred_at)}</strong></div>
                   <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800/60"><span className="text-xs text-slate-500">มูลค่าความเสียหาย</span><strong className="mt-1 block text-sm text-slate-800 dark:text-slate-100">{formatDamageValue(selectedIssue.damage_value)} บาท</strong></div>

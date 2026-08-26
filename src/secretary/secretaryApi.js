@@ -73,6 +73,7 @@ export const secretaryGetDepartmentOverview = (department = '', options = {}) =>
   if (options.includeIssues) params.set('include_issues', '1')
   if (options.from) params.set('from', options.from)
   if (options.to) params.set('to', options.to)
+  if (options.branch) params.set('branch', options.branch)
   return secretaryRequest(`/department-overview${params.size ? `?${params}` : ''}`)
 }
 
