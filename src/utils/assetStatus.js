@@ -22,8 +22,14 @@ export const isGlpiNewAsset = (asset) => {
 }
 
 export const hasAssetAssignmentChanged = (previousAsset, nextAsset) => (
-  normalizeValue(previousAsset?.users_id) !== normalizeValue(nextAsset?.users_id)
-  || normalizeValue(previousAsset?.locations_id) !== normalizeValue(nextAsset?.locations_id)
+  (
+    Boolean(normalizeValue(previousAsset?.locations_id))
+    && normalizeValue(previousAsset?.locations_id) !== normalizeValue(nextAsset?.locations_id)
+  )
+  || (
+    Boolean(normalizeValue(previousAsset?.groups_id))
+    && normalizeValue(previousAsset?.groups_id) !== normalizeValue(nextAsset?.groups_id)
+  )
 )
 
 const hashEventParts = (parts) => {
@@ -60,6 +66,9 @@ export const createAssetStatusEvent = ({ asset, previousAsset = null, status, ev
     user_name: asset.users_id || null,
     previous_location_name: previousAsset?.locations_id || null,
     location_name: asset.locations_id || null,
+    previous_group_name: previousAsset?.groups_id || null,
+    group_name: asset.groups_id || null,
+    source_type: asset.autoupdatesystems_id || previousAsset?.autoupdatesystems_id || null,
     source_state: asset.states_id || null,
   }
   event.event_key = createAssetStatusEventKey({
@@ -71,6 +80,8 @@ export const createAssetStatusEvent = ({ asset, previousAsset = null, status, ev
       event.user_name,
       event.previous_location_name,
       event.location_name,
+      event.previous_group_name,
+      event.group_name,
       event.source_state,
     ],
   })

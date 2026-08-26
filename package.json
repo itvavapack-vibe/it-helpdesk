@@ -22,6 +22,7 @@
     "migrate:controlled-area-logs": "node scripts/run-migrate-controlled-area-logs.mjs",
     "migrate:asset-pm-records": "node scripts/run-migrate-asset-pm-records.mjs",
     "migrate:asset-status-history": "node scripts/run-migrate-asset-status-history.mjs",
+    "sync:asset-status-history": "node scripts/sync-asset-status-glpi-history.mjs",
     "migrate:it-chat": "node scripts/run-migrate-it-chat.mjs",
     "migrate:secretary": "node scripts/run-migrate-secretary.mjs",
     "test:secretary": "node scripts/test-secretary-api.mjs",

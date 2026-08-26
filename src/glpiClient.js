@@ -98,6 +98,22 @@ export const getComputerDetail = async (sessionToken, id) => {
     return res.json();
 };
 
+export const getComputerLogs = async (sessionToken, id, limit = 500) => {
+    const safeLimit = Math.min(Math.max(Number(limit) || 500, 1), 1000);
+    const res = await fetchWithTimeout(
+        `${BASE_URL}/Computer/${id}/Log?range=0-${safeLimit - 1}`,
+        {
+            headers: {
+                'Session-Token': sessionToken,
+            },
+        },
+        15000
+    );
+    if (!res.ok) throw new Error(`GLPI getComputerLogs failed: ${res.status}`);
+    const data = await res.json();
+    return Array.isArray(data) ? data : Object.values(data || {});
+};
+
 export const extractIpAddresses = (computerDetail) => {
     const ips = [];
     try {

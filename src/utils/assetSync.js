@@ -8,6 +8,7 @@ const toAssetRow = (computer) => ({
   otherserial: computer.otherserial || null,
   users_id: computer.users_id || null,
   locations_id: computer.locations_id || null,
+  groups_id: computer.groups_id || null,
   computermodels_id: computer.computermodels_id || null,
   computertypes_id: computer.computertypes_id || null,
   states_id: computer.states_id || null,
@@ -27,6 +28,7 @@ export const syncGlpiAssetsToMysql = async (glpiComputers) => {
   if (existingError) throw new Error(existingError)
 
   const { activeComputers, events, staleAssets } = buildGlpiAssetStatusChanges(glpiComputers, existingAssets || [])
+  const statusEvents = events.filter((event) => event.status !== ASSET_STATUS.TRANSFERRED)
   const currentAssets = activeComputers.map(toAssetRow)
   const existingIds = new Set((existingAssets || []).map((asset) => Number(asset.glpi_id)))
 
@@ -48,7 +50,7 @@ export const syncGlpiAssetsToMysql = async (glpiComputers) => {
       event_key: `seed-new-${Number(computer.id ?? computer.glpi_id)}`,
     }))
 
-  const historyRows = [...correctedSeedEvents, ...events]
+  const historyRows = [...correctedSeedEvents, ...statusEvents]
   if (historyRows.length > 0) {
     const { error: historyError } = await mysql
       .from('asset_status_history')
@@ -70,9 +72,9 @@ export const syncGlpiAssetsToMysql = async (glpiComputers) => {
     added: currentAssets.filter((asset) => !existingIds.has(asset.glpi_id)).length,
     updated: currentAssets.filter((asset) => existingIds.has(asset.glpi_id)).length,
     disposed: staleAssets.length,
-    statusEvents: events.length,
-    newEvents: events.filter((event) => event.status === ASSET_STATUS.NEW).length,
-    transferEvents: events.filter((event) => event.status === ASSET_STATUS.TRANSFERRED).length,
-    disposedEvents: events.filter((event) => event.status === ASSET_STATUS.DISPOSED).length,
+    statusEvents: statusEvents.length,
+    newEvents: statusEvents.filter((event) => event.status === ASSET_STATUS.NEW).length,
+    transferEvents: 0,
+    disposedEvents: statusEvents.filter((event) => event.status === ASSET_STATUS.DISPOSED).length,
   }
 }
