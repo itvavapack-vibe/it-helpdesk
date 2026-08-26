@@ -53,6 +53,31 @@ try {
     )
   `)
 
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS asset_pm_report_batches (
+      id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      report_year SMALLINT UNSIGNED NOT NULL,
+      records_json LONGTEXT NOT NULL,
+      record_count INT UNSIGNED NOT NULL DEFAULT 0,
+      branch_summary_json LONGTEXT NOT NULL,
+      inspector_admin_id BIGINT UNSIGNED NULL,
+      inspector_name VARCHAR(255) NOT NULL,
+      inspector_position VARCHAR(255) NULL,
+      inspector_signature LONGTEXT NOT NULL,
+      status VARCHAR(50) NOT NULL DEFAULT 'Pending_IT_Manager',
+      manager_admin_id BIGINT UNSIGNED NULL,
+      manager_name VARCHAR(255) NULL,
+      manager_position VARCHAR(255) NULL,
+      manager_signature LONGTEXT NULL,
+      manager_date DATETIME NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_asset_pm_report_year (report_year),
+      INDEX idx_asset_pm_report_status (status),
+      INDEX idx_asset_pm_report_created_at (created_at)
+    )
+  `)
+
   const [existingColumns] = await pool.query('SHOW COLUMNS FROM asset_pm_records')
   const existingColumnNames = new Set(existingColumns.map((column) => column.Field))
 
@@ -79,7 +104,7 @@ try {
     }
   }
 
-  console.log('Migration OK: asset PM records table is ready')
+  console.log('Migration OK: asset PM records and report batches are ready')
 } catch (error) {
   console.error('Migration failed:', error.message)
   process.exit(1)

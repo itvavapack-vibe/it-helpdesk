@@ -10,13 +10,14 @@ import {
   secretaryListUsers,
   secretaryUpdateUser,
 } from './secretaryApi'
-import { SECRETARY_DEPARTMENT_OPTIONS, SECRETARY_ROLE_LABELS } from './secretaryConstants'
+import { SECRETARY_BRANCH_OPTIONS, SECRETARY_DEPARTMENT_OPTIONS, SECRETARY_ROLE_LABELS } from './secretaryConstants'
 
 const emptyUserForm = () => ({
   username: '',
   password: '',
   name: '',
   department: '',
+  branch: '',
   role: 'reporter',
   active: true,
 })
@@ -61,7 +62,7 @@ const SecretaryUserManagement = ({ auth }) => {
   const filteredUsers = useMemo(() => {
     const query = searchTerm.trim().toLocaleLowerCase('th')
     if (!query) return users
-    return users.filter((user) => [user.username, user.name, user.department, SECRETARY_ROLE_LABELS[user.role]]
+    return users.filter((user) => [user.username, user.name, user.department, user.branch, SECRETARY_ROLE_LABELS[user.role]]
       .some((value) => String(value || '').toLocaleLowerCase('th').includes(query)))
   }, [searchTerm, users])
 
@@ -77,6 +78,7 @@ const SecretaryUserManagement = ({ auth }) => {
       password: '',
       name: user.name,
       department: user.department,
+      branch: user.branch || '',
       role: user.role,
       active: Boolean(user.active),
     })
@@ -129,15 +131,20 @@ const SecretaryUserManagement = ({ auth }) => {
       password: 'Manager@123',
       name: 'ตัวอย่าง ผู้จัดการ',
       department: 'การตลาดและขาย(ในประเทศ)',
+      branch: SECRETARY_BRANCH_OPTIONS[0],
       role: 'reporter',
       active: true,
     }]
     const worksheet = XLSX.utils.json_to_sheet(rows)
-    worksheet['!cols'] = [22, 22, 30, 28, 16, 12].map((wch) => ({ wch }))
+    worksheet['!cols'] = [22, 22, 30, 28, 34, 16, 12].map((wch) => ({ wch }))
     const departmentWorksheet = XLSX.utils.json_to_sheet(
       SECRETARY_DEPARTMENT_OPTIONS.map((department) => ({ department })),
     )
     departmentWorksheet['!cols'] = [{ wch: 36 }]
+    const branchWorksheet = XLSX.utils.json_to_sheet(
+      SECRETARY_BRANCH_OPTIONS.map((branch) => ({ branch })),
+    )
+    branchWorksheet['!cols'] = [{ wch: 38 }]
     const roleWorksheet = XLSX.utils.json_to_sheet([
       { role: 'reporter', description: 'ผู้แจ้งปัญหา' },
       { role: 'receiver', description: 'ผู้รับแจ้ง / เลขานุการ' },
@@ -147,6 +154,7 @@ const SecretaryUserManagement = ({ auth }) => {
     const workbook = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Users')
     XLSX.utils.book_append_sheet(workbook, departmentWorksheet, 'Departments')
+    XLSX.utils.book_append_sheet(workbook, branchWorksheet, 'Branches')
     XLSX.utils.book_append_sheet(workbook, roleWorksheet, 'Roles')
     XLSX.writeFile(workbook, 'Secretary_User_Import_Template.xlsx')
   }
@@ -170,6 +178,7 @@ const SecretaryUserManagement = ({ auth }) => {
           password: pickValue(row, ['password', 'รหัสผ่าน']),
           name: pickValue(row, ['name', 'ชื่อ-สกุล', 'ชื่อสกุล']),
           department: pickValue(row, ['department', 'แผนก']),
+          branch: pickValue(row, ['branch', 'สาขา']),
           role: normalizeImportedRole(roleValue),
           active: !['false', '0', 'no', 'ไม่ใช้งาน'].includes(String(activeValue).trim().toLowerCase()),
         }
@@ -210,20 +219,21 @@ const SecretaryUserManagement = ({ auth }) => {
 
       <div className="mb-4 flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900/80">
         <Search className="h-5 w-5 shrink-0 text-slate-400" />
-        <input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} className="h-9 min-w-0 flex-1 bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400 dark:text-white" placeholder="ค้นหาชื่อผู้ใช้ ชื่อ แผนก หรือสิทธิ์" />
+        <input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} className="h-9 min-w-0 flex-1 bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400 dark:text-white" placeholder="ค้นหาชื่อผู้ใช้ ชื่อ แผนก สาขา หรือสิทธิ์" />
         <span className="shrink-0 text-xs text-slate-500">{filteredUsers.length} คน</span>
       </div>
 
       {isLoading ? <div className="grid min-h-64 place-items-center"><Loader2 className="h-8 w-8 animate-spin text-indigo-500" /></div> : (
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900/80">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[820px] text-left text-sm">
-              <thead className="bg-slate-50 text-xs font-bold text-slate-500 dark:bg-slate-800/80 dark:text-slate-400"><tr><th className="px-4 py-3">ผู้ใช้งาน</th><th className="px-4 py-3">แผนก</th><th className="px-4 py-3">สิทธิ์</th><th className="px-4 py-3">สถานะ</th><th className="px-4 py-3 text-right">จัดการ</th></tr></thead>
+            <table className="w-full min-w-[1080px] text-left text-sm">
+              <thead className="bg-slate-50 text-xs font-bold text-slate-500 dark:bg-slate-800/80 dark:text-slate-400"><tr><th className="px-4 py-3">ผู้ใช้งาน</th><th className="px-4 py-3">แผนก</th><th className="px-4 py-3">สาขา</th><th className="px-4 py-3">สิทธิ์</th><th className="px-4 py-3">สถานะ</th><th className="px-4 py-3 text-right">จัดการ</th></tr></thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {filteredUsers.map((user) => (
                   <tr key={user.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/45">
                     <td className="px-4 py-4"><strong className="block text-slate-800 dark:text-slate-100">{user.name}</strong><span className="mt-1 block text-xs text-slate-500">{user.username}{Number(auth.id) === Number(user.id) ? ' · บัญชีปัจจุบัน' : ''}</span></td>
                     <td className="px-4 py-4 text-slate-600 dark:text-slate-300">{user.department}</td>
+                    <td className="px-4 py-4 text-slate-600 dark:text-slate-300">{user.branch || '-'}</td>
                     <td className="px-4 py-4"><span className="rounded-lg bg-indigo-50 px-2 py-1 text-xs font-bold text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300">{SECRETARY_ROLE_LABELS[user.role] || user.role}</span></td>
                     <td className="px-4 py-4"><span className={`inline-flex items-center gap-1.5 text-xs font-bold ${user.active ? 'text-emerald-600 dark:text-emerald-300' : 'text-slate-400'}`}><span className={`h-2 w-2 rounded-full ${user.active ? 'bg-emerald-500' : 'bg-slate-400'}`} />{user.active ? 'ใช้งาน' : 'ปิดใช้งาน'}{user.locked_at ? ' · ถูกล็อก' : ''}</span></td>
                     <td className="px-4 py-4"><div className="flex justify-end gap-1"><button type="button" onClick={() => openEdit(user)} className="grid h-9 w-9 place-items-center rounded-lg text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-indigo-950/40" title="แก้ไข"><Pencil className="h-4 w-4" /></button><button type="button" onClick={() => removeUser(user)} disabled={Number(auth.id) === Number(user.id)} className="grid h-9 w-9 place-items-center rounded-lg text-slate-500 hover:bg-rose-50 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-30 dark:hover:bg-rose-950/40" title="ลบ"><Trash2 className="h-4 w-4" /></button></div></td>
@@ -254,6 +264,13 @@ const SecretaryUserManagement = ({ auth }) => {
                   {SECRETARY_DEPARTMENT_OPTIONS.map((department) => (
                     <option key={department} value={department}>{department}</option>
                   ))}
+                </select>
+              </label>
+              <label>
+                <span className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-200">สาขา <span className="text-rose-500">*</span></span>
+                <select required value={form.branch} onChange={(event) => setForm((current) => ({ ...current, branch: event.target.value }))} className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm dark:border-slate-600 dark:bg-slate-950 dark:text-white">
+                  <option value="" disabled>เลือกสาขา</option>
+                  {SECRETARY_BRANCH_OPTIONS.map((branch) => <option key={branch} value={branch}>{branch}</option>)}
                 </select>
               </label>
               <label><span className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-200">สิทธิ์</span><select value={form.role} onChange={(event) => setForm((current) => ({ ...current, role: event.target.value }))} className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm dark:border-slate-600 dark:bg-slate-950 dark:text-white"><option value="reporter">ผู้แจ้งปัญหา</option><option value="receiver">ผู้รับแจ้ง / เลขานุการ</option><option value="super_admin">Super Admin</option></select></label>

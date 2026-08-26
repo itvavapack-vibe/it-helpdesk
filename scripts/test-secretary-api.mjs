@@ -7,6 +7,7 @@ dotenv.config()
 const baseUrl = String(process.env.SECRETARY_TEST_API_URL || 'http://127.0.0.1:4001').replace(/\/+$/, '')
 const suffix = Date.now()
 const testPassword = 'Secretary@Test123'
+const testBranch = 'บริษัท วาวา แพค จำกัด สาขา 2'
 const useBootstrapAdmin = !process.env.SECRETARY_TEST_ADMIN_PASSWORD
 const adminUsername = process.env.SECRETARY_TEST_ADMIN_USERNAME
   || (useBootstrapAdmin ? `secretary.audit.${suffix}` : 'secretary.admin')
@@ -70,6 +71,7 @@ try {
       password: testPassword,
       name: 'Secretary API Test Super Admin',
       department: 'แอดมิน',
+      branch: testBranch,
       role: 'super_admin',
       active: true,
     },
@@ -92,6 +94,7 @@ try {
       password: testPassword,
       name: 'Secretary API Test Receiver',
       department: 'สำนักกรรมการ',
+      branch: testBranch,
       role: 'receiver',
       active: true,
     },
@@ -112,6 +115,7 @@ try {
       password: testPassword,
       name: 'Secretary API Test Reporter',
       department: 'Test Department',
+      branch: testBranch,
       role: 'reporter',
       active: true,
     },
@@ -126,6 +130,7 @@ try {
         password: testPassword,
         name: 'Secretary API Imported User',
         department: 'Test Department',
+        branch: testBranch,
         role: 'reporter',
         active: true,
       }],
@@ -190,6 +195,44 @@ try {
   if (issue.related_users?.[0]?.name !== 'Secretary API Imported User') throw new Error('Related user snapshot was not saved')
   if (issue.attachments?.[0]?.source !== 'secretary_issue') throw new Error('Issue attachment was not saved')
 
+  await request('/department-overview', { token: reporterAuth.token, expectedStatus: 403 })
+  const departmentOverview = await request(`/department-overview?department=${encodeURIComponent('Test Department')}`, {
+    token: receiverAuth.token,
+  })
+  const testDepartment = departmentOverview.departments.find((row) => row.department === 'Test Department')
+  if (!testDepartment || testDepartment.open_count < 2 || testDepartment.pending_count < 2) {
+    throw new Error('Department overview badge counts are invalid')
+  }
+  if (!departmentOverview.issues.some((row) => Number(row.id) === Number(testIssueId))) {
+    throw new Error('Department overview did not return the selected department issues')
+  }
+  const departmentReport = await request('/department-overview?include_issues=1', { token: receiverAuth.token })
+  if (!departmentReport.issues.some((row) => Number(row.id) === Number(testIssueId))
+      || !departmentReport.issues.some((row) => Number(row.id) === Number(otherIssueId))) {
+    throw new Error('Department overview report did not return all open issues')
+  }
+  if (departmentReport.issues.some((row) => !['Pending', 'In_Progress'].includes(row.status))) {
+    throw new Error('Department overview report included a completed or cancelled issue')
+  }
+  const today = new Date().toISOString().slice(0, 10)
+  const rangedOverview = await request(`/department-overview?department=${encodeURIComponent('Test Department')}&from=${today}&to=${today}`, {
+    token: receiverAuth.token,
+  })
+  if (!rangedOverview.issues.some((row) => Number(row.id) === Number(testIssueId))) {
+    throw new Error('Department overview date range excluded a matching issue')
+  }
+  const tomorrow = new Date(Date.now() + (24 * 60 * 60 * 1000)).toISOString().slice(0, 10)
+  const futureOverview = await request(`/department-overview?department=${encodeURIComponent('Test Department')}&from=${tomorrow}&to=${tomorrow}`, {
+    token: receiverAuth.token,
+  })
+  if (futureOverview.issues.some((row) => Number(row.id) === Number(testIssueId))) {
+    throw new Error('Department overview date range included an issue outside the range')
+  }
+  await request(`/department-overview?from=${tomorrow}&to=${today}`, {
+    token: receiverAuth.token,
+    expectedStatus: 400,
+  })
+
   const reporterIssues = await request('/issues', { token: reporterAuth.token })
   if (!reporterIssues.some((row) => Number(row.id) === Number(testIssueId))) throw new Error('Reporter cannot see own issue')
   if (reporterIssues.some((row) => Number(row.id) === Number(otherIssueId))) throw new Error('Reporter can see another reporter issue')
@@ -238,6 +281,7 @@ try {
   const users = await request('/users', { token: admin.token })
   const importedUser = users.find((user) => user.username === importedUsername)
   if (!importedUser) throw new Error('Imported user was not found')
+  if (importedUser.branch !== testBranch) throw new Error('Imported user branch was not saved')
 
   await request(`/users/${reporter.id}`, { method: 'DELETE', token: admin.token })
   await request(`/users/${importedUser.id}`, { method: 'DELETE', token: admin.token })

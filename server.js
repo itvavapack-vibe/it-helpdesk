@@ -32,6 +32,7 @@ import {
   createSecretaryUser,
   deleteSecretaryUser,
   getSecretaryDashboard,
+  getSecretaryDepartmentOverview,
   getSecretaryIssueHistory,
   getSecretaryProfile,
   importSecretaryUsers,
@@ -284,6 +285,14 @@ app.patch('/api/secretary/issues/:id/status', async (req, res) => {
 app.get('/api/secretary/dashboard', async (req, res) => {
   try {
     return res.json({ data: await getSecretaryDashboard(req) })
+  } catch (error) {
+    return res.status(error.status || 500).json({ error: error.message, code: error.code })
+  }
+})
+
+app.get('/api/secretary/department-overview', async (req, res) => {
+  try {
+    return res.json({ data: await getSecretaryDepartmentOverview(req) })
   } catch (error) {
     return res.status(error.status || 500).json({ error: error.message, code: error.code })
   }

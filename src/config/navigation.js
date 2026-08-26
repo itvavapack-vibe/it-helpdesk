@@ -7,6 +7,7 @@ import {
     Bot,
     MessageCircle,
     Monitor,
+    MonitorCheck,
     MonitorCog,
     Server,
     Settings,
@@ -45,6 +46,16 @@ const ASSET_PM_SUB_TAB = {
     icon: ClipboardCheck,
     iconColor: 'text-teal-600 dark:text-teal-300',
     iconAura: '20, 184, 166',
+    roles: ALL_IT_ROLES,
+};
+
+const ASSET_STATUS_SUB_TAB = {
+    id: 'asset_status',
+    parentId: 'computer_management',
+    label: 'สถานะ',
+    icon: MonitorCheck,
+    iconColor: 'text-emerald-600 dark:text-emerald-300',
+    iconAura: '16, 185, 129',
     roles: ALL_IT_ROLES,
 };
 
@@ -92,5 +103,5 @@ const BASE_ADMIN_SUB_TABS = [
 ];
 
 export const ADMIN_SUB_TABS = BASE_ADMIN_SUB_TABS.flatMap((item) =>
-    item.id === 'assets' ? [item, ASSET_PM_SUB_TAB] : [item],
+    item.id === 'assets' ? [item, ASSET_STATUS_SUB_TAB, ASSET_PM_SUB_TAB] : [item],
 );

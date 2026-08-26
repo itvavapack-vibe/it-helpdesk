@@ -1,5 +1,5 @@
 import React, { Suspense, lazy, useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Monitor, RefreshCw, AlertCircle, Search, X, Tag, FileSpreadsheet, QrCode, Clock, Upload, Copy, Check, ClipboardCheck, BarChart3, Save, Printer, Download } from 'lucide-react';
+import { Monitor, RefreshCw, AlertCircle, Search, X, Tag, FileSpreadsheet, QrCode, Clock, Upload, Copy, Check, ClipboardCheck, BarChart3, Save, Printer, Download, Send } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import html2canvas from 'html2canvas-pro';
 import jsPDF from 'jspdf';
@@ -8,6 +8,8 @@ import * as XLSX from 'xlsx';
 import { withGlpiSession, getComputers, getUsers, getComputerDetail, extractIpAddresses } from '../glpiClient';
 import { mysql } from '../mysqlClient';
 import { MAX_ATTACHMENT_FILES, resolveAttachmentUrl, uploadAttachmentFiles } from '../utils/fileUpload';
+import { getAllAssetBranches, getAssetBranchKey, getAssetBranchLabel, isAssetReportBranch } from '../utils/assetBranch';
+import { syncGlpiAssetsToMysql } from '../utils/assetSync';
 import { toItHelpdeskPath } from '../config/appPaths';
 
 const AssetPmDashboardCharts = lazy(() => import('./AssetPmDashboardCharts'));
@@ -117,6 +119,7 @@ async function batchDeleteIn(table, column, ids) {
 
 const AssetInventory = ({ issues = [], view = 'inventory', currentAdmin = null }) => {
     const [computers, setComputers] = useState([]);
+    const [glpiComputers, setGlpiComputers] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
@@ -128,13 +131,16 @@ const AssetInventory = ({ issues = [], view = 'inventory', currentAdmin = null }
     const [ipLoading, setIpLoading] = useState(false);
     const [copiedIp, setCopiedIp] = useState(null);
     const [pmRecords, setPmRecords] = useState([]);
+    const [pmReportBatches, setPmReportBatches] = useState([]);
     const [pmWarning, setPmWarning] = useState('');
     const [pmComputer, setPmComputer] = useState(null);
     const [pmReportRecord, setPmReportRecord] = useState(null);
     const [pmYear, setPmYear] = useState(() => String(new Date().getFullYear()));
+    const [pmReportBranch, setPmReportBranch] = useState('VAVA1');
     const [isPmYearReportOpen, setIsPmYearReportOpen] = useState(false);
     const [pmAttachmentFiles, setPmAttachmentFiles] = useState([]);
     const [isSavingPm, setIsSavingPm] = useState(false);
+    const [isSubmittingPmReport, setIsSubmittingPmReport] = useState(false);
     const [pmForm, setPmForm] = useState(() => ({
         pmDate: new Date().toISOString().slice(0, 10),
         inspectorName: '',
@@ -177,6 +183,20 @@ const AssetInventory = ({ issues = [], view = 'inventory', currentAdmin = null }
         }
     }, []);
 
+    const loadPmReportBatches = useCallback(async () => {
+        const { data, error } = await mysql
+            .from('asset_pm_report_batches')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(100);
+        if (error) {
+            console.warn('Load PM report batches failed:', error);
+            setPmReportBatches([]);
+            return;
+        }
+        setPmReportBatches(data || []);
+    }, []);
+
     const fetchComputers = useCallback(async () => {
         setIsLoading(true);
         setError(null);
@@ -196,6 +216,7 @@ const AssetInventory = ({ issues = [], view = 'inventory', currentAdmin = null }
             const data = await withGlpiSession(getComputers);
             const all = Array.isArray(data) ? data : [];
             const active = all.filter(isActiveComputer);
+            setGlpiComputers(all);
             console.log('GLPI active computers:', active.length, '/', all.length);
             setComputers(active);
             setWarning(null);
@@ -213,6 +234,15 @@ const AssetInventory = ({ issues = [], view = 'inventory', currentAdmin = null }
 
     useEffect(() => { fetchComputers(); }, [fetchComputers]);
     useEffect(() => { loadPmRecords(); }, [loadPmRecords]);
+    useEffect(() => { loadPmReportBatches(); }, [loadPmReportBatches]);
+    useEffect(() => {
+        const refreshPm = () => {
+            loadPmRecords({ silent: true });
+            loadPmReportBatches();
+        };
+        window.addEventListener('asset-pm:refresh', refreshPm);
+        return () => window.removeEventListener('asset-pm:refresh', refreshPm);
+    }, [loadPmRecords, loadPmReportBatches]);
 
     // Core sync logic
     const performSync = useCallback(async (showSuccessAlert = false) => {
@@ -228,47 +258,11 @@ const AssetInventory = ({ issues = [], view = 'inventory', currentAdmin = null }
                 usersAdded: 0, usersUpdated: 0, usersDeleted: 0
             };
 
-            // 1. Sync Assets (Computers)
-            const rows = computers.map(c => ({
-                glpi_id: c.id,
-                name: c.name || '',
-                serial: c.serial || null,
-                otherserial: c.otherserial || null,
-                users_id: c.users_id || null,
-                locations_id: c.locations_id || null,
-                computermodels_id: c.computermodels_id || null,
-                computertypes_id: c.computertypes_id || null,
-                states_id: c.states_id || null,
-                autoupdatesystems_id: c.autoupdatesystems_id || null,
-            }));
-            
-            // Fetch existing assets to calculate added/updated stats
-            const { data: existingAssets } = await mysql.from('assets').select('glpi_id, updated_at');
-            const existingAssetIds = new Set(existingAssets?.map(a => a.glpi_id) || []);
-            
-            let currentAssetsAdded = 0;
-            let currentAssetsUpdated = 0;
-            
-            rows.forEach(r => {
-                if (existingAssetIds.has(r.glpi_id)) currentAssetsUpdated++;
-                else currentAssetsAdded++;
-            });
-            
-            stats.assetsAdded = currentAssetsAdded;
-            stats.assetsUpdated = currentAssetsUpdated;
-
-            const { error: assetUpsertError } = await mysql.from('assets').upsert(rows, { onConflict: 'glpi_id' });
-            if (assetUpsertError) throw new Error(assetUpsertError);
-
-            // --- ลบข้อมูลเครื่องเก่าที่ถูกลบออกจาก GLPI ไปแล้ว ---
-            if (existingAssets) {
-                const currentGlpiIds = new Set(rows.map(r => r.glpi_id));
-                const staleAssetIds = existingAssets.filter(a => !currentGlpiIds.has(a.glpi_id)).map(a => a.glpi_id);
-                if (staleAssetIds.length > 0) {
-                    await batchDeleteIn('assets', 'glpi_id', staleAssetIds);
-                    stats.assetsDeleted = staleAssetIds.length;
-                }
-            }
+            // 1. Sync Assets (Computers) and keep GLPI lifecycle history.
+            const assetSync = await syncGlpiAssetsToMysql(glpiComputers.length ? glpiComputers : computers);
+            stats.assetsAdded = assetSync.added;
+            stats.assetsUpdated = assetSync.updated;
+            stats.assetsDeleted = assetSync.disposed;
 
             // 2. Sync Users
             const usersData = await withGlpiSession(getUsers);
@@ -354,7 +348,7 @@ const AssetInventory = ({ issues = [], view = 'inventory', currentAdmin = null }
                 setSyncResult({ type: 'info', stats, time: new Date() });
                 setTimeout(() => setSyncResult(null), 10000);
             }
-            console.log(`Sync → MySQL: ${rows.length} assets, ${allSyncUsers.length} users`);
+            console.log(`Sync → MySQL: ${assetSync.total} assets, ${allSyncUsers.length} users`);
         } catch (err) {
             console.error('Sync to MySQL failed:', err);
             if (showSuccessAlert) {
@@ -364,7 +358,7 @@ const AssetInventory = ({ issues = [], view = 'inventory', currentAdmin = null }
         } finally {
             setIsSyncing(false);
         }
-    }, [computers, isSyncing]);
+    }, [computers, glpiComputers, isSyncing]);
 
     // Auto-sync effect
     useEffect(() => {
@@ -521,12 +515,125 @@ const AssetInventory = ({ issues = [], view = 'inventory', currentAdmin = null }
         pmRecords.filter((record) => String(new Date(record.pm_date).getFullYear()) === pmYear)
     ), [pmRecords, pmYear]);
 
+    const reportablePmRecords = useMemo(() => (
+        selectedYearRecords.filter((record) => isAssetReportBranch(getAssetBranchKey(record.location_name)))
+    ), [selectedYearRecords]);
+
+    const pmBranchSummaries = useMemo(() => getAllAssetBranches().map((branch) => ({
+        ...branch,
+        records: selectedYearRecords
+            .filter((record) => getAssetBranchKey(record.location_name) === branch.key)
+            .sort((left, right) => new Date(right.pm_date) - new Date(left.pm_date)),
+    })), [selectedYearRecords]);
+
+    const selectedBranchRecords = useMemo(() => (
+        pmBranchSummaries.find((branch) => branch.key === pmReportBranch)?.records || []
+    ), [pmBranchSummaries, pmReportBranch]);
+
+    const currentPmRecordKey = useMemo(() => reportablePmRecords
+        .map((record) => Number(record.id))
+        .filter(Number.isFinite)
+        .sort((left, right) => left - right)
+        .join(','), [reportablePmRecords]);
+
+    const matchingPmReportBatch = useMemo(() => pmReportBatches.find((batch) => {
+        if (String(batch.report_year) !== pmYear) return false;
+        const batchRecordKey = parseJsonArray(batch.records_json)
+            .map((record) => Number(record.id))
+            .filter(Number.isFinite)
+            .sort((left, right) => left - right)
+            .join(',');
+        return batchRecordKey === currentPmRecordKey;
+    }) || null, [currentPmRecordKey, pmReportBatches, pmYear]);
+
+    const savePmApprovalBatch = async (records, reportYear) => {
+        const reportRecords = records.filter((record) => isAssetReportBranch(getAssetBranchKey(record.location_name)));
+        if (!reportRecords.length) throw new Error('ไม่มีรายการ PM ของสาขา 1, 2 หรือ 3 สำหรับส่งอนุมัติ');
+        if (!currentAdmin?.signature) throw new Error('ไม่พบลายเซ็นผู้ทำ PM');
+
+        const reportBranches = getAllAssetBranches().map((branch) => {
+            const branchRecords = reportRecords.filter((record) => getAssetBranchKey(record.location_name) === branch.key);
+            return {
+                key: branch.key,
+                label: branch.label,
+                count: branchRecords.length,
+                pm_dates: [...new Set(branchRecords.map((record) => String(record.pm_date || '').slice(0, 10)).filter(Boolean))].sort(),
+            };
+        });
+        const payload = {
+            report_year: Number(reportYear),
+            records_json: JSON.stringify(reportRecords),
+            record_count: reportRecords.length,
+            branch_summary_json: JSON.stringify(reportBranches),
+            inspector_admin_id: currentAdmin?.id || null,
+            inspector_name: currentAdmin?.name || currentAdmin?.username || '',
+            inspector_position: currentAdmin?.position || '',
+            inspector_signature: currentAdmin.signature,
+            status: 'Pending_IT_Manager',
+            manager_admin_id: null,
+            manager_name: null,
+            manager_position: null,
+            manager_signature: null,
+            manager_date: null,
+        };
+        const { data: pendingBatches, error: pendingError } = await mysql
+            .from('asset_pm_report_batches')
+            .select('id')
+            .eq('report_year', Number(reportYear))
+            .eq('status', 'Pending_IT_Manager')
+            .order('created_at', { ascending: false })
+            .limit(1);
+        if (pendingError) throw new Error(pendingError);
+        const pendingBatch = pendingBatches?.[0];
+        const result = pendingBatch
+            ? await mysql.from('asset_pm_report_batches').update(payload).eq('id', pendingBatch.id)
+            : await mysql.from('asset_pm_report_batches').insert([payload]);
+        if (result.error) throw new Error(result.error);
+        await loadPmReportBatches();
+        window.dispatchEvent(new Event('approval-queues:refresh'));
+    };
+
+    const submitPmReportForApproval = async () => {
+        if (isSubmittingPmReport) return;
+        if (!reportablePmRecords.length) {
+            Swal.fire('ไม่มีรายการ PM', 'ยังไม่มีข้อมูล PM ในปีที่เลือก', 'info');
+            return;
+        }
+        if (!currentAdmin?.signature) {
+            Swal.fire('ยังไม่มีลายเซ็นผู้ทำ PM', 'กรุณาบันทึกลายเซ็นในโปรไฟล์ผู้ดูแลก่อนส่งรายงาน', 'warning');
+            return;
+        }
+        setIsSubmittingPmReport(true);
+        try {
+            await savePmApprovalBatch(reportablePmRecords, pmYear);
+            Swal.fire('ส่งอนุมัติแล้ว', 'ส่งชุดรายงาน PM ทุกสาขาเข้ากล่องอนุมัติของผู้จัดการแล้ว', 'success');
+        } catch (submitError) {
+            console.error('Submit PM report failed:', submitError);
+            Swal.fire('ส่งอนุมัติไม่สำเร็จ', submitError.message || 'กรุณาลองใหม่อีกครั้ง', 'error');
+        } finally {
+            setIsSubmittingPmReport(false);
+        }
+    };
+
+    useEffect(() => {
+        if (selectedBranchRecords.length) return;
+        const firstBranchWithRecords = pmBranchSummaries.find((branch) => branch.records.length);
+        if (firstBranchWithRecords && firstBranchWithRecords.key !== pmReportBranch) {
+            setPmReportBranch(firstBranchWithRecords.key);
+        }
+    }, [pmBranchSummaries, pmReportBranch, selectedBranchRecords.length]);
+
+    const openPmBranchReport = useCallback((branchKey) => {
+        setPmReportBranch(branchKey);
+        setIsPmYearReportOpen(true);
+    }, []);
+
     const pmPeriodSummary = useMemo(() => {
         return {
-            total: selectedYearRecords.length,
+            total: reportablePmRecords.length,
             yearLabel: pmYear,
         };
-    }, [pmYear, selectedYearRecords]);
+    }, [pmYear, reportablePmRecords]);
 
     const filtered = computers.filter(c => {
         const matchesSearch = (c.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -573,6 +680,10 @@ const AssetInventory = ({ issues = [], view = 'inventory', currentAdmin = null }
 
     const savePmRecord = async () => {
         if (!pmComputer || isSavingPm) return;
+        if (!currentAdmin?.signature) {
+            Swal.fire('ยังไม่มีลายเซ็นผู้ทำ PM', 'กรุณาบันทึกลายเซ็นในโปรไฟล์ผู้ดูแลก่อนบันทึกผล PM ระบบจะใช้ลายเซ็นนี้กับรายงานทุกสาขา', 'warning');
+            return;
+        }
         if (!pmForm.inspectorName.trim()) {
             Swal.fire('ข้อมูลไม่ครบ', 'กรุณาระบุชื่อผู้ตรวจเช็ค', 'warning');
             return;
@@ -628,10 +739,30 @@ const AssetInventory = ({ issues = [], view = 'inventory', currentAdmin = null }
             if (error) throw new Error(error);
             const savedRecord = Array.isArray(data) ? data[0] : null;
             await loadPmRecords({ silent: true });
+            let approvalQueued = false;
+            if (savedRecord) {
+                const savedYear = String(new Date(savedRecord.pm_date).getFullYear());
+                const recordsForApproval = [
+                    savedRecord,
+                    ...pmRecords.filter((record) => Number(record.id) !== Number(savedRecord.id)),
+                ].filter((record) => String(new Date(record.pm_date).getFullYear()) === savedYear);
+                try {
+                    await savePmApprovalBatch(recordsForApproval, savedYear);
+                    approvalQueued = true;
+                } catch (approvalError) {
+                    console.error('Queue PM approval failed:', approvalError);
+                }
+            }
             setPmComputer(null);
             setPmAttachmentFiles([]);
             if (savedRecord) setPmReportRecord(savedRecord);
-            Swal.fire('บันทึกแล้ว', 'บันทึกผลตรวจ PM และสร้างรายงาน FMIT08 แล้ว', 'success');
+            Swal.fire(
+                approvalQueued ? 'บันทึกและส่งอนุมัติแล้ว' : 'บันทึกผล PM แล้ว',
+                approvalQueued
+                    ? 'บันทึกผลตรวจ PM และอัปเดตชุดรายงานในกล่องอนุมัติของผู้จัดการแล้ว'
+                    : 'บันทึกผลตรวจ PM สำเร็จ แต่ยังส่งกล่องอนุมัติไม่สำเร็จ กรุณากดส่งรายงานอีกครั้งจาก Dashboard',
+                approvalQueued ? 'success' : 'warning',
+            );
         } catch (error) {
             console.error('Save PM record failed:', error);
             Swal.fire('บันทึกไม่สำเร็จ', 'กรุณาตรวจสอบว่ารัน migration asset_pm_records แล้ว', 'error');
@@ -849,8 +980,11 @@ const AssetInventory = ({ issues = [], view = 'inventory', currentAdmin = null }
                         </select>
                         <button
                             type="button"
-                            onClick={() => setIsPmYearReportOpen(true)}
-                            disabled={selectedYearRecords.length === 0}
+                            onClick={() => {
+                                const firstBranchWithRecords = pmBranchSummaries.find((branch) => branch.records.length);
+                                if (firstBranchWithRecords) openPmBranchReport(firstBranchWithRecords.key);
+                            }}
+                            disabled={reportablePmRecords.length === 0}
                             className="inline-flex items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-white px-3 py-2 text-sm font-bold text-indigo-700 transition-colors hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-indigo-800/70 dark:bg-indigo-950/35 dark:text-indigo-200 dark:hover:bg-indigo-950/55"
                         >
                             <Printer className="h-4 w-4" />
@@ -858,7 +992,23 @@ const AssetInventory = ({ issues = [], view = 'inventory', currentAdmin = null }
                         </button>
                         <button
                             type="button"
-                            onClick={() => loadPmRecords()}
+                            onClick={submitPmReportForApproval}
+                            disabled={reportablePmRecords.length === 0 || isSubmittingPmReport || matchingPmReportBatch?.status === 'Pending_IT_Manager' || matchingPmReportBatch?.status === 'Approved'}
+                            className="inline-flex items-center justify-center gap-2 rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm font-bold text-amber-700 transition-colors hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-amber-800/70 dark:bg-amber-950/35 dark:text-amber-200 dark:hover:bg-amber-950/55"
+                        >
+                            <Send className={`h-4 w-4 ${isSubmittingPmReport ? 'animate-pulse' : ''}`} />
+                            {matchingPmReportBatch?.status === 'Approved'
+                                ? 'ผู้จัดการอนุมัติแล้ว'
+                                : matchingPmReportBatch?.status === 'Pending_IT_Manager'
+                                    ? 'รอผู้จัดการอนุมัติ'
+                                    : isSubmittingPmReport ? 'กำลังส่ง...' : 'ส่งรายงานอนุมัติ'}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                loadPmRecords();
+                                loadPmReportBatches();
+                            }}
                             className="inline-flex items-center justify-center gap-2 rounded-xl border border-sky-200 bg-white px-3 py-2 text-sm font-bold text-sky-700 transition-colors hover:bg-sky-50 dark:border-sky-800/70 dark:bg-sky-950/35 dark:text-sky-200 dark:hover:bg-sky-950/55"
                         >
                             <RefreshCw className="h-4 w-4" />
@@ -890,9 +1040,11 @@ const AssetInventory = ({ issues = [], view = 'inventory', currentAdmin = null }
                 <Suspense fallback={<div className="rounded-3xl border border-slate-200 bg-white p-8 text-center text-sm font-semibold text-slate-400 shadow-sm dark:border-slate-700 dark:bg-slate-800">กำลังโหลดรายการ PM...</div>}>
                     <AssetPmDashboardCharts
                         pmPeriodSummary={pmPeriodSummary}
-                        selectedYearRecords={selectedYearRecords}
+                        selectedYearRecords={reportablePmRecords}
+                        branchSummaries={pmBranchSummaries}
                         getPmStatusBadge={getPmStatusBadge}
                         onOpenReport={setPmReportRecord}
+                        onOpenBranchReport={openPmBranchReport}
                     />
                 </Suspense>
             </div>}
@@ -1431,6 +1583,19 @@ const AssetInventory = ({ issues = [], view = 'inventory', currentAdmin = null }
                                 <textarea value={pmForm.note} onChange={(event) => setPmForm((current) => ({ ...current, note: event.target.value }))} className="input-modern min-h-24 w-full text-sm" placeholder="ระบุการดำเนินการหลังตรวจเช็ค PM" />
                             </label>
 
+                            <div className="mt-4 grid gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4 dark:border-emerald-800/70 dark:bg-emerald-950/20 sm:grid-cols-[minmax(0,1fr)_180px] sm:items-center">
+                                <div>
+                                    <div className="text-xs font-bold text-emerald-800 dark:text-emerald-200">ลายเซ็นผู้ทำ PM</div>
+                                    <div className="mt-1 text-sm font-semibold text-slate-700 dark:text-slate-200">{currentAdmin?.name || currentAdmin?.username || '-'}</div>
+                                    <div className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{currentAdmin?.position || '-'}</div>
+                                </div>
+                                <div className="flex h-20 items-center justify-center rounded-xl border border-emerald-200 bg-white px-3 dark:border-emerald-800/70 dark:bg-slate-900/60">
+                                    {currentAdmin?.signature
+                                        ? <img src={currentAdmin.signature} alt="ลายเซ็นผู้ทำ PM" className="max-h-16 max-w-full object-contain" />
+                                        : <span className="text-xs font-semibold text-rose-600 dark:text-rose-300">ยังไม่มีลายเซ็นในโปรไฟล์</span>}
+                                </div>
+                            </div>
+
                             <div className="mt-4 rounded-2xl border border-dashed border-sky-200 bg-sky-50/50 p-4 dark:border-sky-800/70 dark:bg-sky-950/20">
                                 <label className="block space-y-2">
                                     <span className="text-xs font-bold text-slate-600 dark:text-slate-300">รูปหลังทำ PM</span>
@@ -1476,8 +1641,8 @@ const AssetInventory = ({ issues = [], view = 'inventory', currentAdmin = null }
                     <div className="w-full max-w-7xl overflow-hidden rounded-2xl border border-white/20 bg-slate-100 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
                         <div className="flex flex-col gap-3 border-b border-slate-200 bg-white px-5 py-4 dark:border-slate-700 dark:bg-slate-800 sm:flex-row sm:items-center sm:justify-between">
                             <div>
-                                <h3 className="text-lg font-bold text-slate-900 dark:text-white">รายงานการตรวจเช็คคอมพิวเตอร์ PM ประจำปี {Number(pmYear).toLocaleString('th-TH', { useGrouping: false })}</h3>
-                                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">รวม {selectedYearRecords.length} รายการ · แสดงรายการตรวจเช็คตามผล PM แต่ละเครื่อง</p>
+                                <h3 className="text-lg font-bold text-slate-900 dark:text-white">รายงาน PM {getAssetBranchLabel(pmReportBranch)} ประจำปี {Number(pmYear).toLocaleString('th-TH', { useGrouping: false })}</h3>
+                                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">รวม {selectedBranchRecords.length} รายการ · แสดงรายการตรวจเช็คตามผล PM แต่ละเครื่อง</p>
                             </div>
                             <div className="flex flex-wrap gap-2">
                                 <button type="button" onClick={handleDownloadPmYearReport} className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-3 py-2 text-sm font-bold text-white transition hover:bg-indigo-700">
@@ -1494,6 +1659,11 @@ const AssetInventory = ({ issues = [], view = 'inventory', currentAdmin = null }
                             </div>
                         </div>
                         <div className="max-h-[calc(100dvh-8rem)] overflow-auto p-4">
+                            <div className="mx-auto mb-3 flex w-[297mm] flex-wrap gap-2">
+                                {pmBranchSummaries.map((branch) => (
+                                    <button key={branch.key} type="button" onClick={() => setPmReportBranch(branch.key)} disabled={!branch.records.length} className={`rounded-lg border px-3 py-2 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-35 ${pmReportBranch === branch.key ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-300 bg-white text-slate-600 hover:border-indigo-300 hover:text-indigo-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'}`}>{branch.label} ({branch.records.length})</button>
+                                ))}
+                            </div>
                             <div ref={pmYearReportRef} className="mx-auto w-[297mm] bg-white text-black shadow-xl">
                                 <div className="min-h-[210mm] p-[5mm]">
                                     <div className="mb-3 text-center">
@@ -1502,7 +1672,7 @@ const AssetInventory = ({ issues = [], view = 'inventory', currentAdmin = null }
                                             <div className="text-[18px] font-bold">บริษัท วาวา แพค จำกัด</div>
                                         </div>
                                         <div className="mt-1 text-[18px] font-bold">ใบบันทึกผลการตรวจเช็คคอมพิวเตอร์ (FMIT 08)</div>
-                                        <div className="mt-2 text-[13px]">ประจำปี {Number(pmYear).toLocaleString('th-TH', { useGrouping: false })}</div>
+                                        <div className="mt-2 text-[13px]">{getAssetBranchLabel(pmReportBranch)} · ประจำปี {Number(pmYear).toLocaleString('th-TH', { useGrouping: false })}</div>
                                     </div>
 
                                     <table className="w-full border-collapse text-[9px] leading-tight">
@@ -1525,7 +1695,7 @@ const AssetInventory = ({ issues = [], view = 'inventory', currentAdmin = null }
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {selectedYearRecords.map((record, index) => {
+                                            {selectedBranchRecords.map((record, index) => {
                                                 const checklist = getPmReportChecklist(record);
                                                 const failedItems = getPmFailedItems(record);
                                                 return (
@@ -1562,14 +1732,20 @@ const AssetInventory = ({ issues = [], view = 'inventory', currentAdmin = null }
 
                                     <div className="mt-12 grid grid-cols-2 gap-20 text-center text-[12px]">
                                         <div>
-                                            <div>ลงชื่อ ........................................................ ผู้ตรวจสอบ</div>
-                                            <div className="mt-3">เจ้าหน้าที่ Hardware</div>
-                                            <div className="mt-5">วันที่ ............/............/............</div>
+                                            <div className="flex h-[18mm] items-end justify-center border-b border-dotted border-black">
+                                                {(matchingPmReportBatch?.inspector_signature || currentAdmin?.signature) && <img src={matchingPmReportBatch?.inspector_signature || currentAdmin?.signature} alt="ลายเซ็นผู้ทำ PM" className="h-[17mm] max-w-[58mm] object-contain" />}
+                                            </div>
+                                            <div className="mt-2">ผู้ตรวจสอบ: {matchingPmReportBatch?.inspector_name || currentAdmin?.name || currentAdmin?.username || '-'}</div>
+                                            <div className="mt-2">{matchingPmReportBatch?.inspector_position || currentAdmin?.position || 'เจ้าหน้าที่ Hardware'}</div>
+                                            <div className="mt-2">วันที่ {matchingPmReportBatch?.created_at ? new Date(matchingPmReportBatch.created_at).toLocaleDateString('th-TH') : '-'}</div>
                                         </div>
                                         <div>
-                                            <div>ลงชื่อ ........................................................ ผู้อนุมัติ</div>
-                                            <div className="mt-3">หัวหน้าส่วนแผนกเทคโนโลยีสารสนเทศและ ERP</div>
-                                            <div className="mt-5">วันที่ ............/............/............</div>
+                                            <div className="flex h-[18mm] items-end justify-center border-b border-dotted border-black">
+                                                {matchingPmReportBatch?.manager_signature && <img src={matchingPmReportBatch.manager_signature} alt="ลายเซ็นผู้จัดการ" className="h-[17mm] max-w-[58mm] object-contain" />}
+                                            </div>
+                                            <div className="mt-2">ผู้อนุมัติ: {matchingPmReportBatch?.manager_name || '-'}</div>
+                                            <div className="mt-2">{matchingPmReportBatch?.manager_position || 'ผู้จัดการแผนกเทคโนโลยีสารสนเทศและ ERP'}</div>
+                                            <div className="mt-2">วันที่ {matchingPmReportBatch?.manager_date ? new Date(matchingPmReportBatch.manager_date).toLocaleDateString('th-TH') : '-'}</div>
                                         </div>
                                     </div>
 

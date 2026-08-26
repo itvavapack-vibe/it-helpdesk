@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ClipboardPenLine, Edit, Eye, FileCheck2, FileText, Key, Search, Server, X, XCircle } from 'lucide-react';
+import { ClipboardCheck, ClipboardPenLine, Edit, Eye, FileCheck2, FileText, Key, Search, Server, X, XCircle } from 'lucide-react';
 import SignatureCanvas from 'react-signature-canvas';
 import Swal from 'sweetalert2';
 import { mysql } from '../mysqlClient';
@@ -9,6 +9,7 @@ import { loadSignatureIntoCanvas } from '../utils/signatureCanvas';
 import { getStatusBadgeClass } from '../utils/statusStyles';
 import Fmit12PdfPreview from './Fmit12PdfPreview';
 import Fmit15PdfPreview from './Fmit15PdfPreview';
+import AssetPmApprovalReport from './AssetPmApprovalReport';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
 const STATUS_LABELS = {
@@ -56,6 +57,22 @@ const SERVER_ROOM_DOCUMENT_LIST_COLUMNS = [
     'status',
     'created_at',
 ].join(',');
+const PM_REPORT_DOCUMENT_LIST_COLUMNS = [
+    'id',
+    'report_year',
+    'record_count',
+    'records_json',
+    'branch_summary_json',
+    'inspector_name',
+    'inspector_position',
+    'inspector_signature',
+    'status',
+    'manager_name',
+    'manager_position',
+    'manager_signature',
+    'manager_date',
+    'created_at',
+].join(',');
 const DOCUMENT_REFRESH_INTERVAL_MS = 30 * 1000;
 
 const normalizeSystems = (systems) => {
@@ -98,6 +115,7 @@ const ApprovedDocuments = ({ currentAdmin }) => {
     const [detailDocument, setDetailDocument] = useState(null);
     const [accessReportData, setAccessReportData] = useState(null);
     const [changeReportData, setChangeReportData] = useState(null);
+    const [pmReportData, setPmReportData] = useState(null);
     const [selectedApprovalStatus, setSelectedApprovalStatus] = useState('');
     const signatureRef = useRef(null);
     const currentRole = normalizeRoleValue(currentAdmin?.role);
@@ -116,15 +134,20 @@ const ApprovedDocuments = ({ currentAdmin }) => {
             const serverRoomQuery = canApproveServerRoomDocuments
                 ? mysql.from('controlled_area_logs').select(SERVER_ROOM_DOCUMENT_LIST_COLUMNS).eq('status', 'Pending_Approval').order('entry_time', { ascending: false })
                 : Promise.resolve({ data: [], error: null });
-            const [accessResult, changeResult, serverRoomResult] = await Promise.all([
+            const pmReportQuery = approvalStatuses.includes('Pending_IT_Manager')
+                ? mysql.from('asset_pm_report_batches').select(PM_REPORT_DOCUMENT_LIST_COLUMNS).eq('status', 'Pending_IT_Manager').order('created_at', { ascending: false })
+                : Promise.resolve({ data: [], error: null });
+            const [accessResult, changeResult, serverRoomResult, pmReportResult] = await Promise.all([
                 accessQuery,
                 changeQuery,
                 serverRoomQuery,
+                pmReportQuery,
             ]);
 
             if (accessResult.error) throw accessResult.error;
             if (changeResult.error) throw changeResult.error;
             if (serverRoomResult.error) throw serverRoomResult.error;
+            if (pmReportResult.error) throw pmReportResult.error;
 
             const accessDocs = (accessResult.data || [])
                 .map((req) => ({
@@ -170,7 +193,21 @@ const ApprovedDocuments = ({ currentAdmin }) => {
                     raw: log,
                 }));
 
-            setDocuments([...accessDocs, ...changeDocs, ...serverRoomDocs].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
+            const pmReportDocs = (pmReportResult.data || []).map((report) => ({
+                id: `asset_pm-${report.id}`,
+                rawId: report.id,
+                type: 'asset_pm',
+                typeLabel: 'รายงาน PM',
+                ticketNumber: `PM-${report.report_year}-${String(report.id).padStart(4, '0')}`,
+                requester: report.inspector_name,
+                department: 'ทุกสาขา',
+                details: `รายงาน PM ประจำปี ${report.report_year} จำนวน ${report.record_count || 0} เครื่อง`,
+                status: report.status || '',
+                createdAt: report.created_at,
+                raw: report,
+            }));
+
+            setDocuments([...accessDocs, ...changeDocs, ...serverRoomDocs, ...pmReportDocs].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
         } catch (error) {
             console.error('Error loading approved documents:', error);
             if (!silent) Swal.fire('Error', 'ไม่สามารถโหลดเอกสารอนุมัติได้', 'error');
@@ -214,6 +251,8 @@ const ApprovedDocuments = ({ currentAdmin }) => {
 
     const canApprove = (doc) => doc.type === 'server_room'
         ? canApproveServerRoomDocuments && doc.status === 'Pending_Approval'
+        : doc.type === 'asset_pm'
+            ? approvalStatuses.includes('Pending_IT_Manager') && doc.status === 'Pending_IT_Manager'
         : approvalStatuses.includes(doc.status);
 
     const getApprovalActionOptions = (doc) => {
@@ -227,6 +266,9 @@ const ApprovedDocuments = ({ currentAdmin }) => {
         if (doc.type === 'server_room') {
             return [{ value: 'Approved', label: 'อนุมัติเข้าห้องเซิร์ฟเวอร์' }];
         }
+        if (doc.type === 'asset_pm') {
+            return [{ value: 'Approved', label: 'อนุมัติรายงาน PM' }];
+        }
         return [{ value: 'In_Progress', label: 'อนุมัติและส่งดำเนินการ' }];
     };
 
@@ -236,7 +278,9 @@ const ApprovedDocuments = ({ currentAdmin }) => {
     };
 
     const fetchFullDocument = async (doc) => {
-        const table = doc.type === 'server_room'
+        const table = doc.type === 'asset_pm'
+            ? 'asset_pm_report_batches'
+            : doc.type === 'server_room'
             ? 'controlled_area_logs'
             : doc.type === 'access'
                 ? 'access_requests'
@@ -361,7 +405,9 @@ const ApprovedDocuments = ({ currentAdmin }) => {
             showDocumentLoading();
             const fullDocument = await fetchFullDocument(doc);
             Swal.close();
-            if (fullDocument.type === 'access') {
+            if (fullDocument.type === 'asset_pm') {
+                setPmReportData(fullDocument.raw);
+            } else if (fullDocument.type === 'access') {
                 setAccessReportData(buildAccessReportData(fullDocument));
             } else {
                 setChangeReportData(buildChangeReportData(fullDocument));
@@ -375,6 +421,25 @@ const ApprovedDocuments = ({ currentAdmin }) => {
     const detailRows = useMemo(() => {
         if (!detailDocument) return [];
         const raw = detailDocument.raw || {};
+        if (detailDocument.type === 'asset_pm') {
+            let branchSummary = [];
+            try {
+                const parsed = JSON.parse(raw.branch_summary_json || '[]');
+                branchSummary = Array.isArray(parsed) ? parsed : [];
+            } catch {
+                branchSummary = [];
+            }
+            return [
+                ['เลขที่เอกสาร', detailDocument.ticketNumber || '-'],
+                ['ปีรายงาน', Number(raw.report_year || 0).toLocaleString('th-TH', { useGrouping: false })],
+                ['ผู้ทำ PM', raw.inspector_name || '-'],
+                ['ตำแหน่ง', raw.inspector_position || '-'],
+                ['จำนวนเครื่อง', `${raw.record_count || 0} เครื่อง`],
+                ['สรุปตามสาขา', branchSummary.filter((branch) => Number(branch.count) > 0).map((branch) => `${branch.label}: ${branch.count} เครื่อง`).join('\n') || '-'],
+                ['สถานะ', STATUS_LABELS[raw.status] || raw.status || '-'],
+                ['วันที่ส่งอนุมัติ', formatDateTime(raw.created_at)],
+            ];
+        }
         if (detailDocument.type === 'access') {
             const systemNames = Object.entries(normalizeSystems(raw.systems))
                 .filter(([, enabled]) => enabled)
@@ -439,7 +504,16 @@ const ApprovedDocuments = ({ currentAdmin }) => {
 
         const isSupervisorStep = approvalDocument.status === 'Pending_IT_Supervisor';
         const signature = requiresSignature ? signatureRef.current.getCanvas().toDataURL('image/png') : '';
-        const updateData = approvalDocument.type === 'server_room'
+        const updateData = approvalDocument.type === 'asset_pm'
+            ? {
+                status: selectedApprovalStatus,
+                manager_admin_id: currentAdmin?.id || null,
+                manager_name: currentAdmin?.name || currentAdmin?.username || '',
+                manager_position: currentAdmin?.position || '',
+                manager_signature: signature,
+                manager_date: toMysqlDateTime(),
+            }
+            : approvalDocument.type === 'server_room'
             ? {
                 status: selectedApprovalStatus,
                 approved_by: currentAdmin?.name || currentAdmin?.username || '',
@@ -480,7 +554,9 @@ const ApprovedDocuments = ({ currentAdmin }) => {
                     };
 
         try {
-            const table = approvalDocument.type === 'server_room'
+            const table = approvalDocument.type === 'asset_pm'
+                ? 'asset_pm_report_batches'
+                : approvalDocument.type === 'server_room'
                 ? 'controlled_area_logs'
                 : approvalDocument.type === 'access'
                     ? 'access_requests'
@@ -491,11 +567,14 @@ const ApprovedDocuments = ({ currentAdmin }) => {
             setApprovalDocument(null);
             setSelectedApprovalStatus('');
             window.dispatchEvent(new Event('approval-queues:refresh'));
+            if (approvalDocument.type === 'asset_pm') {
+                window.dispatchEvent(new Event('asset-pm:refresh'));
+            }
             if (approvalDocument.type === 'server_room') {
                 window.dispatchEvent(new Event('server-room:refresh'));
             }
             fetchDocuments({ silent: true });
-            Swal.fire('อัปเดตแล้ว', approvalDocument.type === 'server_room' ? 'อนุมัติรายการเข้าห้องเซิร์ฟเวอร์แล้ว' : isSupervisorStep ? 'เซ็นและส่งต่อ IT Manager แล้ว' : 'เซ็นอนุมัติเรียบร้อยแล้ว', 'success');
+            Swal.fire('อัปเดตแล้ว', approvalDocument.type === 'asset_pm' ? 'ลงนามอนุมัติรายงาน PM เรียบร้อยแล้ว' : approvalDocument.type === 'server_room' ? 'อนุมัติรายการเข้าห้องเซิร์ฟเวอร์แล้ว' : isSupervisorStep ? 'เซ็นและส่งต่อ IT Manager แล้ว' : 'เซ็นอนุมัติเรียบร้อยแล้ว', 'success');
         } catch (error) {
             console.error('Error approving document:', error);
             Swal.fire('Error', 'ไม่สามารถบันทึกลายเซ็นได้', 'error');
@@ -527,11 +606,12 @@ const ApprovedDocuments = ({ currentAdmin }) => {
                                 className="input-modern !pl-9 !py-2 !text-sm w-full"
                             />
                         </div>
-                        <div className="flex rounded-xl bg-slate-100 dark:bg-slate-900/60 p-1">
+                        <div className="flex flex-wrap rounded-xl bg-slate-100 p-1 dark:bg-slate-900/60">
                             {[
                                 ['all', 'ทั้งหมด'],
                                 ['access', 'ขอสิทธิ์'],
                                 ['change', 'ขอพัฒนา'],
+                                ['asset_pm', 'รายงาน PM'],
                                 ['server_room', 'เข้าห้องเซิร์ฟเวอร์'],
                             ].map(([value, label]) => (
                                 <button
@@ -576,7 +656,7 @@ const ApprovedDocuments = ({ currentAdmin }) => {
                                     <tr key={doc.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/40 transition-colors">
                                         <td className="p-4 align-top">
                                             <div className="flex items-center gap-2">
-                                                {doc.type === 'access' ? <Key className="w-4 h-4 text-indigo-500" /> : doc.type === 'server_room' ? <Server className="w-4 h-4 text-cyan-500" /> : <ClipboardPenLine className="w-4 h-4 text-emerald-500" />}
+                                                {doc.type === 'access' ? <Key className="w-4 h-4 text-indigo-500" /> : doc.type === 'server_room' ? <Server className="w-4 h-4 text-cyan-500" /> : doc.type === 'asset_pm' ? <ClipboardCheck className="w-4 h-4 text-sky-500" /> : <ClipboardPenLine className="w-4 h-4 text-emerald-500" />}
                                                 <span className="text-sm font-bold text-slate-800 dark:text-slate-100">{doc.typeLabel}</span>
                                             </div>
                                             <div className="text-xs font-mono text-slate-500 mt-1">{doc.ticketNumber || '-'}</div>
@@ -683,7 +763,7 @@ const ApprovedDocuments = ({ currentAdmin }) => {
                         <div className="flex items-start justify-between gap-4 border-b border-slate-100 p-5 dark:border-slate-700 sm:p-6">
                             <div>
                                 <div className="flex items-center gap-2">
-                                    {detailDocument.type === 'access' ? <Key className="h-5 w-5 text-indigo-500" /> : detailDocument.type === 'server_room' ? <Server className="h-5 w-5 text-cyan-500" /> : <ClipboardPenLine className="h-5 w-5 text-emerald-500" />}
+                                    {detailDocument.type === 'access' ? <Key className="h-5 w-5 text-indigo-500" /> : detailDocument.type === 'server_room' ? <Server className="h-5 w-5 text-cyan-500" /> : detailDocument.type === 'asset_pm' ? <ClipboardCheck className="h-5 w-5 text-sky-500" /> : <ClipboardPenLine className="h-5 w-5 text-emerald-500" />}
                                     <h3 className="text-lg font-bold text-slate-800 dark:text-white">รายละเอียดเอกสาร</h3>
                                 </div>
                                 <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{detailDocument.typeLabel} • {detailDocument.ticketNumber || '-'}</p>
@@ -715,6 +795,8 @@ const ApprovedDocuments = ({ currentAdmin }) => {
                     </div>
                 </div>
             )}
+
+            {pmReportData && <AssetPmApprovalReport batch={pmReportData} onClose={() => setPmReportData(null)} />}
 
             <Fmit12PdfPreview
                 isOpen={Boolean(accessReportData)}

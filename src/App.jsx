@@ -27,6 +27,7 @@ const AIHelpdesk = lazy(() => import('./components/AIHelpdesk'));
 const ContactITChat = lazy(() => import('./components/ContactITChat'));
 const AdminITChat = lazy(() => import('./components/AdminITChat'));
 const AssetInventory = lazy(() => import('./components/AssetInventory'));
+const AssetStatusManagement = lazy(() => import('./components/AssetStatusManagement'));
 const IssueStatistics = lazy(() => import('./components/IssueStatistics'));
 const UserAccessRequestForm = lazy(() => import('./components/UserAccessRequestForm'));
 const ControlledAreaEntryForm = lazy(() => import('./components/ControlledAreaEntryForm'));
@@ -82,6 +83,7 @@ const ADMIN_SUB_TAB_PATHS = {
     issues: 'issues',
     it_chat: 'it-chat',
     assets: 'assets',
+    asset_status: 'assets/status',
     asset_pm: 'assets/pm',
     access_requests: 'access-requests',
     change_requests: 'change-requests',
@@ -240,7 +242,7 @@ function App() {
     });
     const [isSavingProfile, setIsSavingProfile] = useState(false);
     const [profileForm, setProfileForm] = useState({ username: '', name: '', position: '', signature: '', password: '' });
-    const [approvalQueues, setApprovalQueues] = useState({ access: [], change: [], serverRoom: [] });
+    const [approvalQueues, setApprovalQueues] = useState({ access: [], change: [], serverRoom: [], pm: [] });
     const [itChatMessages, setItChatMessages] = useState([]);
     const profileSignatureRef = useRef(null);
     const sessionRefreshRef = useRef({ inFlight: false, lastAt: 0 });
@@ -368,7 +370,7 @@ function App() {
 
     useEffect(() => {
         if (!isAdminAuth) {
-            setApprovalQueues({ access: [], change: [], serverRoom: [] });
+            setApprovalQueues({ access: [], change: [], serverRoom: [], pm: [] });
             setItChatMessages([]);
             setIsProfileMenuOpen(false);
             setIsProfileModalOpen(false);
@@ -379,16 +381,18 @@ function App() {
         }
 
         const fetchApprovalQueues = async () => {
-            const [accessResult, changeResult, serverRoomResult, itChatResult] = await Promise.all([
+            const [accessResult, changeResult, serverRoomResult, pmResult, itChatResult] = await Promise.all([
                 mysql.from('access_requests').select('id, status').in('status', ACCESS_QUEUE_FETCH_STATUSES),
                 mysql.from('change_requests').select('id, status, request_category').in('status', CHANGE_QUEUE_FETCH_STATUSES),
                 mysql.from('controlled_area_logs').select('id, status').in('status', SERVER_ROOM_QUEUE_FETCH_STATUSES),
+                mysql.from('asset_pm_report_batches').select('id, status').eq('status', 'Pending_IT_Manager'),
                 mysql.from('it_chat_messages').select('id, session_id, sender_type, status, assignee_key, created_at').order('created_at', { ascending: false }).limit(300)
             ]);
             setApprovalQueues({
                 access: accessResult.error ? [] : accessResult.data || [],
                 change: changeResult.error ? [] : changeResult.data || [],
-                serverRoom: serverRoomResult.error ? [] : serverRoomResult.data || []
+                serverRoom: serverRoomResult.error ? [] : serverRoomResult.data || [],
+                pm: pmResult.error ? [] : pmResult.data || []
             });
             setItChatMessages(itChatResult.error ? [] : itChatResult.data || []);
         };
@@ -1292,6 +1296,8 @@ function App() {
                             <AdminITChat currentAdmin={isAdminAuth} />
                         ) : selectedAdminSubTab === 'assets' ? (
                             <AssetInventory issues={issues} currentAdmin={isAdminAuth} />
+                        ) : selectedAdminSubTab === 'asset_status' ? (
+                            <AssetStatusManagement />
                         ) : selectedAdminSubTab === 'asset_pm' ? (
                             <AssetInventory issues={issues} view="pm" currentAdmin={isAdminAuth} />
                         ) : selectedAdminSubTab === 'access_requests' ? (
@@ -1377,6 +1383,7 @@ function App() {
                 : 0;
             return countVisibleQueue(approvalQueues.access, currentRole, APPROVAL_QUEUE_STATUS_BY_ROLE)
                 + countVisibleQueue(approvalQueues.change, currentRole, APPROVAL_QUEUE_STATUS_BY_ROLE, (_role, item) => item.status !== 'Pending_IT_Supervisor')
+                + countVisibleQueue(approvalQueues.pm, currentRole, APPROVAL_QUEUE_STATUS_BY_ROLE)
                 + serverRoomApprovalCount;
         }
         if (itemId === 'server_room') {

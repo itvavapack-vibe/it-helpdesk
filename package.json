@@ -21,11 +21,14 @@
     "migrate:employee-transfer-history": "node scripts/run-migrate-employee-transfer-history.mjs",
     "migrate:controlled-area-logs": "node scripts/run-migrate-controlled-area-logs.mjs",
     "migrate:asset-pm-records": "node scripts/run-migrate-asset-pm-records.mjs",
+    "migrate:asset-status-history": "node scripts/run-migrate-asset-status-history.mjs",
     "migrate:it-chat": "node scripts/run-migrate-it-chat.mjs",
     "migrate:secretary": "node scripts/run-migrate-secretary.mjs",
     "test:secretary": "node scripts/test-secretary-api.mjs",
     "test:secretary:issue-report": "node scripts/test-secretary-issue-report.mjs",
     "test:issue-assignee": "node scripts/test-first-issue-assignee.mjs",
+    "test:asset-pm-approval": "node scripts/test-asset-pm-approval.mjs",
+    "test:asset-status-history": "node scripts/test-asset-status-history.mjs",
     "migrate:employee-name-en": "node scripts/run-migrate-employee-name-en.mjs",
     "import:employees": "node scripts/import-employees-xlsx.mjs",
     "import:access-requests": "node scripts/import-access-requests-xlsx.mjs",
@@ -64,7 +67,8 @@
     "recharts": "^3.8.0",
     "sweetalert2": "^11.26.21",
     "tailwind-merge": "^3.6.0",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "xlsx-js-style": "^1.2.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.2.1",

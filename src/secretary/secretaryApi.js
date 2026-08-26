@@ -67,6 +67,15 @@ export const secretaryUpdateIssueStatus = (issueId, data) => secretaryRequest(`/
 
 export const secretaryGetDashboard = (days = '') => secretaryRequest(`/dashboard${days ? `?days=${days}` : ''}`)
 
+export const secretaryGetDepartmentOverview = (department = '', options = {}) => {
+  const params = new URLSearchParams()
+  if (department) params.set('department', department)
+  if (options.includeIssues) params.set('include_issues', '1')
+  if (options.from) params.set('from', options.from)
+  if (options.to) params.set('to', options.to)
+  return secretaryRequest(`/department-overview${params.size ? `?${params}` : ''}`)
+}
+
 export const secretaryListUserOptions = () => secretaryRequest('/user-options')
 
 export const secretaryListUsers = () => secretaryRequest('/users')

@@ -10,6 +10,7 @@ import {
   LockKeyhole,
   LogOut,
   Menu,
+  Network,
   PanelLeftClose,
   PanelLeftOpen,
   UserRound,
@@ -19,6 +20,7 @@ import {
 import ThemePicker from '../components/ThemePicker'
 import { CENTER_PATH } from '../config/appPaths'
 import SecretaryDashboard from './SecretaryDashboard'
+import SecretaryDepartmentOverview from './SecretaryDepartmentOverview'
 import SecretaryIssueForm from './SecretaryIssueForm'
 import SecretaryIssueList from './SecretaryIssueList'
 import SecretaryUserManagement from './SecretaryUserManagement'
@@ -156,9 +158,9 @@ const SecretaryApp = () => {
   useEffect(() => {
     if (!auth?.role) return
     const allowedTabs = isSecretarySuperAdmin(auth.role)
-      ? ['dashboard', 'issues', 'users', 'report', 'tracking']
+      ? ['dashboard', 'department-overview', 'issues', 'users', 'report', 'tracking']
       : isSecretaryReceiverRole(auth.role)
-        ? ['dashboard', 'issues', 'report', 'tracking']
+        ? ['dashboard', 'department-overview', 'issues', 'report', 'tracking']
         : ['report', 'tracking']
     setActiveTab((current) => allowedTabs.includes(current) ? current : allowedTabs[0])
   }, [auth?.role])
@@ -175,6 +177,7 @@ const SecretaryApp = () => {
         label: 'ฝั่งผู้รับแจ้ง',
         items: [
           { id: 'dashboard', label: 'แดชบอร์ด', icon: LayoutDashboard },
+          { id: 'department-overview', label: 'แผนผังภาพรวม', icon: Network, isChild: true },
           { id: 'issues', label: 'รายการปัญหา', icon: ClipboardList },
           ...(isSecretarySuperAdmin(auth?.role) ? [{ id: 'users', label: 'จัดการผู้ใช้', icon: Users }] : []),
         ],
@@ -237,8 +240,8 @@ const SecretaryApp = () => {
                   const Icon = item.icon
                   const isSelected = activeTab === item.id
                   return (
-                    <button key={item.id} type="button" onClick={() => selectTab(item.id)} title={isSidebarCollapsed ? item.label : undefined} className={`flex w-full min-w-0 items-center rounded-xl py-2.5 text-left transition-colors ${isSidebarCollapsed ? 'xl:justify-center xl:px-2' : 'gap-3 px-3'} ${isSelected ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200 dark:bg-indigo-500 dark:shadow-indigo-950/40' : 'text-slate-600 hover:bg-slate-100 hover:text-indigo-600 dark:text-slate-300 dark:hover:bg-slate-900 dark:hover:text-indigo-300'}`}>
-                      <Icon className="h-5 w-5 shrink-0" />
+                    <button key={item.id} type="button" onClick={() => selectTab(item.id)} title={isSidebarCollapsed ? item.label : undefined} className={`flex w-full min-w-0 items-center rounded-xl py-2.5 text-left transition-colors ${isSidebarCollapsed ? `${item.isChild ? 'gap-3 px-3 pl-10' : 'gap-3 px-3'} xl:justify-center xl:px-2` : item.isChild ? 'gap-3 px-3 pl-10' : 'gap-3 px-3'} ${isSelected ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200 dark:bg-indigo-500 dark:shadow-indigo-950/40' : 'text-slate-600 hover:bg-slate-100 hover:text-indigo-600 dark:text-slate-300 dark:hover:bg-slate-900 dark:hover:text-indigo-300'}`}>
+                      <Icon className={`${item.isChild ? 'h-4 w-4' : 'h-5 w-5'} shrink-0`} />
                       <span className={`truncate text-sm font-semibold ${isSidebarCollapsed ? 'xl:hidden' : ''}`}>{item.label}</span>
                     </button>
                   )
@@ -273,6 +276,7 @@ const SecretaryApp = () => {
       <main className={`min-h-screen w-full px-4 pb-8 pt-24 transition-[margin,width] duration-300 sm:px-6 xl:pt-8 ${isSidebarCollapsed ? 'xl:ml-20 xl:w-[calc(100%-5rem)]' : 'xl:ml-72 xl:w-[calc(100%-18rem)]'}`}>
         <div className="mx-auto w-full max-w-[1450px]">
           {activeTab === 'dashboard' && <SecretaryDashboard onOpenIssues={openIssues} />}
+          {activeTab === 'department-overview' && <SecretaryDepartmentOverview />}
           {activeTab === 'report' && <SecretaryIssueForm auth={auth} onCreated={() => openReporterTracking('Pending')} />}
           {activeTab === 'issues' && <SecretaryIssueList key="receiver-issues" auth={auth} initialStatus={issueStatusPreset} />}
           {activeTab === 'tracking' && <SecretaryIssueList key="reporter-tracking" auth={auth} initialStatus={issueStatusPreset} mineOnly />}

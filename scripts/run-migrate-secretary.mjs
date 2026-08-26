@@ -23,6 +23,7 @@ try {
       password VARCHAR(255) NOT NULL,
       name VARCHAR(255) NOT NULL,
       department VARCHAR(255) NOT NULL,
+      branch VARCHAR(255) NULL,
       role VARCHAR(32) NOT NULL DEFAULT 'reporter',
       active TINYINT(1) NOT NULL DEFAULT 1,
       failed_login_attempts TINYINT UNSIGNED NOT NULL DEFAULT 0,
@@ -34,6 +35,15 @@ try {
       INDEX idx_secretary_users_active (active)
     )
   `)
+
+  const [userBranchColumns] = await pool.query(
+    "SHOW COLUMNS FROM secretary_users LIKE 'branch'",
+  )
+  if (!userBranchColumns.length) {
+    await pool.query(
+      'ALTER TABLE secretary_users ADD COLUMN branch VARCHAR(255) NULL AFTER department',
+    )
+  }
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS secretary_issues (

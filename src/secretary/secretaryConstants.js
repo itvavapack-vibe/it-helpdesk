@@ -57,6 +57,12 @@ export const SECRETARY_ROLE_LABELS = {
 export const isSecretaryReceiverRole = (role) => role === 'receiver' || role === 'super_admin'
 export const isSecretarySuperAdmin = (role) => role === 'super_admin'
 
+export const SECRETARY_BRANCH_OPTIONS = [
+  'บริษัท วาวา แพค จำกัด สาขา 1',
+  'บริษัท วาวา แพค จำกัด สาขา 2',
+  'บริษัท วาวา แพค จำกัด สาขา 3',
+]
+
 export const SECRETARY_DEPARTMENT_OPTIONS = [
   'แอดมิน',
   'บุคคลและธุรการ',
