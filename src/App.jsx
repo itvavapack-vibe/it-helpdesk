@@ -1411,9 +1411,13 @@ function App() {
         }));
     };
 
+    const currentPageTitle = activeTab === 'admin'
+        ? (visibleAdminSubTabs.find((item) => item.id === selectedAdminSubTab)?.label || 'จัดการระบบ')
+        : (visibleMainNavItems.find((item) => item.tab === activeTab)?.label || 'หน้าแรก');
+
     return (
-        <div className="min-h-screen font-sans text-slate-800 dark:text-slate-200 flex flex-col relative w-full overflow-x-hidden">
-            {!isStandaloneSignaturePage && <aside className={`hidden xl:flex fixed inset-y-0 left-0 z-[60] flex-col border-r border-slate-200/80 bg-white/95 py-5 shadow-xl shadow-slate-200/50 backdrop-blur-xl transition-[width,padding] duration-300 dark:border-slate-800 dark:bg-slate-950/95 dark:shadow-slate-950/40 ${isSidebarCollapsed ? 'w-20 px-2' : 'w-80 px-5'}`}>
+        <div className={`${isStandaloneSignaturePage ? '' : 'ta-shell'} min-h-screen font-sans text-slate-800 dark:text-slate-200 flex flex-col relative w-full overflow-x-hidden`}>
+            {!isStandaloneSignaturePage && <aside className={`ta-sidebar hidden xl:flex fixed inset-y-0 left-0 z-[60] flex-col border-r py-5 transition-[width,padding] duration-300 ${isSidebarCollapsed ? 'w-20 px-2' : 'w-72 px-4'}`}>
                 <div className={`flex items-center border-b border-slate-100 pb-5 dark:border-slate-800 ${isSidebarCollapsed ? 'justify-center' : 'gap-3 px-2'}`}>
                     <div className="bg-indigo-600 dark:bg-indigo-500 text-white p-2 rounded-xl shadow-lg shadow-indigo-200 dark:shadow-indigo-900/30">
                         <Monitor className="w-6 h-6" />
@@ -1614,7 +1618,39 @@ function App() {
                 </button>
             </aside>}
 
-            {!isStandaloneSignaturePage && <header className="fixed left-0 right-0 z-50 top-0 transition-all duration-300 glass-panel border-b border-white/40 dark:border-slate-700/50 xl:hidden">
+            {!isStandaloneSignaturePage && <header className={`ta-topbar fixed right-0 top-0 z-50 hidden items-center justify-between border-b px-6 transition-[left] duration-300 xl:flex ${isSidebarCollapsed ? 'left-20' : 'left-72'}`}>
+                <div className="min-w-0">
+                    <p className="ta-page-kicker">IT HELPDESK</p>
+                    <h1 className="ta-page-title truncate">{currentPageTitle}</h1>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                    <button
+                        type="button"
+                        onClick={() => window.location.assign(CENTER_PATH)}
+                        className="ta-toolbar-button px-3 text-sm font-semibold"
+                        title="App Center"
+                    >
+                        <LayoutGrid className="h-5 w-5" />
+                        <span>App Center</span>
+                    </button>
+                    <ThemePicker />
+                    {isAdminAuth && (
+                        <div className="ml-1 flex min-w-0 items-center gap-2 border-l border-slate-200 pl-3 dark:border-slate-700">
+                            <span className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full bg-indigo-50 text-sm font-bold text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-200">
+                                {isAdminAuth.profile_image_url || isAdminAuth.avatar_url ? (
+                                    <img src={isAdminAuth.profile_image_url || isAdminAuth.avatar_url} alt={isAdminAuth.name || 'Profile'} className="h-full w-full object-cover" />
+                                ) : ((isAdminAuth.name || isAdminAuth.username || 'U').charAt(0).toUpperCase())}
+                            </span>
+                            <span className="hidden min-w-0 2xl:block">
+                                <strong className="block max-w-40 truncate text-sm text-slate-800 dark:text-slate-100">{isAdminAuth.name}</strong>
+                                <span className="block max-w-40 truncate text-xs text-slate-500 dark:text-slate-400">{ROLE_LABELS[currentRole] || ROLE_LABELS[isAdminAuth.role] || 'IT Support'}</span>
+                            </span>
+                        </div>
+                    )}
+                </div>
+            </header>}
+
+            {!isStandaloneSignaturePage && <header className="ta-topbar fixed left-0 right-0 z-50 top-0 transition-all duration-300 border-b xl:hidden">
                 <div className="container mx-auto px-3 sm:px-4 xl:px-8 py-3 flex flex-row justify-between items-center gap-2 sm:gap-3 max-w-full 2xl:max-w-[1500px]">
                     <div className="flex min-w-0 items-center gap-2 sm:gap-3 xl:hidden">
                         <div className="shrink-0 bg-indigo-600 dark:bg-indigo-500 text-white p-1.5 min-[360px]:p-2 rounded-xl shadow-lg shadow-indigo-200 dark:shadow-indigo-900/30">
@@ -1718,7 +1754,7 @@ function App() {
                 </div>
             </header>}
 
-            <main className={`flex-grow relative w-full transition-[margin,width] duration-300 ${isStandaloneSignaturePage ? 'flex min-h-screen items-stretch justify-stretch p-0' : `mx-auto max-w-full px-3 py-4 sm:px-4 xl:p-8 mt-24 xl:mt-0 2xl:max-w-none mb-24 xl:mb-0 xl:mr-0 ${isSidebarCollapsed ? 'xl:ml-20 xl:w-[calc(100%-5rem)]' : 'xl:ml-80 xl:w-[calc(100%-20rem)]'}`}`}>
+            <main className={`ta-main flex-grow relative w-full transition-[margin,width] duration-300 ${isStandaloneSignaturePage ? 'flex min-h-screen items-stretch justify-stretch p-0' : `mx-auto max-w-full px-3 py-4 sm:px-4 xl:px-8 xl:pb-8 mt-24 xl:mt-0 2xl:max-w-none mb-24 xl:mb-0 xl:mr-0 ${isSidebarCollapsed ? 'xl:ml-20 xl:w-[calc(100%-5rem)]' : 'xl:ml-72 xl:w-[calc(100%-18rem)]'}`}`}>
                 <div className="animate-fade-in w-full">
                     <Suspense fallback={<PageLoadingFallback />}>
                         {renderContent()}

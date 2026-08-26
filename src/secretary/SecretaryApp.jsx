@@ -58,8 +58,8 @@ const SecretaryLogin = ({ onLogin }) => {
   }
 
   return (
-    <div className="min-h-screen text-slate-800 dark:text-slate-100">
-      <header className="glass-panel border-b border-white/50 dark:border-slate-700/60">
+    <div className="ta-shell min-h-screen text-slate-800 dark:text-slate-100">
+      <header className="ta-topbar border-b">
         <div className="mx-auto flex min-h-18 w-full max-w-7xl items-center justify-between gap-3 px-4 py-2 sm:px-6 lg:px-8">
           <button type="button" onClick={() => window.location.assign(CENTER_PATH)} className="flex min-w-0 items-center gap-3 text-left">
             <img src="/vava-pack-logo.png" width="469" height="346" alt="VAVA PACK" className="h-12 w-16 shrink-0 object-contain sm:h-14 sm:w-20" />
@@ -75,7 +75,7 @@ const SecretaryLogin = ({ onLogin }) => {
         </div>
       </header>
       <main className="mx-auto grid min-h-[calc(100vh-4.5rem)] w-full max-w-7xl place-items-center px-4 py-10 sm:px-6">
-        <form onSubmit={submit} className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-700 dark:bg-slate-900/90 sm:p-8">
+        <form onSubmit={submit} className="ta-card w-full max-w-md rounded-lg border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-700 dark:bg-slate-900 sm:p-8">
           <span className="mx-auto grid h-14 w-14 place-items-center rounded-xl bg-indigo-100 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-300"><LockKeyhole className="h-7 w-7" /></span>
           <h1 className="mt-5 text-center text-2xl font-bold text-slate-900 dark:text-white">เข้าสู่ระบบ Secretary</h1>
           <p className="mt-1 text-center text-sm text-slate-500 dark:text-slate-400">ระบบติดตามปัญหาของแต่ละแผนก</p>
@@ -214,14 +214,18 @@ const SecretaryApp = () => {
     setActiveTab('tracking')
   }
 
+  const activePageTitle = navGroups
+    .flatMap((group) => group.items)
+    .find((item) => item.id === activeTab)?.label || 'Secretary Center'
+
   if (isValidating) return <div className="grid min-h-screen place-items-center"><Loader2 className="h-9 w-9 animate-spin text-indigo-500" /></div>
   if (!auth) return <SecretaryLogin onLogin={login} />
 
   return (
-    <div className="min-h-screen text-slate-800 dark:text-slate-100">
+    <div className="ta-shell min-h-screen text-slate-800 dark:text-slate-100">
       {isMobileSidebarOpen && <button type="button" className="fixed inset-0 z-[65] bg-slate-950/45 backdrop-blur-sm xl:hidden" onClick={() => setIsMobileSidebarOpen(false)} aria-label="ปิดเมนู" />}
 
-      <aside className={`fixed inset-y-0 left-0 z-[70] flex w-72 flex-col border-r border-slate-200/80 bg-white/95 px-4 py-5 shadow-xl shadow-slate-200/50 backdrop-blur-xl transition-[width,transform] duration-300 dark:border-slate-800 dark:bg-slate-950/95 dark:shadow-slate-950/40 ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'} xl:translate-x-0 ${isSidebarCollapsed ? 'xl:w-20 xl:px-2' : 'xl:w-72 xl:px-4'}`}>
+      <aside className={`ta-sidebar fixed inset-y-0 left-0 z-[70] flex w-72 flex-col border-r px-4 py-5 transition-[width,transform] duration-300 ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'} xl:translate-x-0 ${isSidebarCollapsed ? 'xl:w-20 xl:px-2' : 'xl:w-72 xl:px-4'}`}>
         <div className={`flex items-center border-b border-slate-100 pb-5 dark:border-slate-800 ${isSidebarCollapsed ? 'xl:justify-center' : 'gap-3 px-2'}`}>
           <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-indigo-600 text-white shadow-md"><ClipboardList className="h-5 w-5" /></span>
           <div className={`min-w-0 ${isSidebarCollapsed ? 'xl:hidden' : ''}`}>
@@ -240,7 +244,7 @@ const SecretaryApp = () => {
                   const Icon = item.icon
                   const isSelected = activeTab === item.id
                   return (
-                    <button key={item.id} type="button" onClick={() => selectTab(item.id)} title={isSidebarCollapsed ? item.label : undefined} className={`flex w-full min-w-0 items-center rounded-xl py-2.5 text-left transition-colors ${isSidebarCollapsed ? `${item.isChild ? 'gap-3 px-3 pl-10' : 'gap-3 px-3'} xl:justify-center xl:px-2` : item.isChild ? 'gap-3 px-3 pl-10' : 'gap-3 px-3'} ${isSelected ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200 dark:bg-indigo-500 dark:shadow-indigo-950/40' : 'text-slate-600 hover:bg-slate-100 hover:text-indigo-600 dark:text-slate-300 dark:hover:bg-slate-900 dark:hover:text-indigo-300'}`}>
+                    <button key={item.id} type="button" onClick={() => selectTab(item.id)} title={isSidebarCollapsed ? item.label : undefined} className={`sidebar-nav-button ${isSelected ? 'is-active' : ''} flex w-full min-w-0 items-center rounded-lg py-2.5 text-left transition-colors ${isSidebarCollapsed ? `${item.isChild ? 'gap-3 px-3 pl-10' : 'gap-3 px-3'} xl:justify-center xl:px-2` : item.isChild ? 'gap-3 px-3 pl-10' : 'gap-3 px-3'} ${isSelected ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-indigo-600 dark:text-slate-300 dark:hover:bg-slate-900 dark:hover:text-indigo-300'}`}>
                       <Icon className={`${item.isChild ? 'h-4 w-4' : 'h-5 w-5'} shrink-0`} />
                       <span className={`truncate text-sm font-semibold ${isSidebarCollapsed ? 'xl:hidden' : ''}`}>{item.label}</span>
                     </button>
@@ -267,13 +271,28 @@ const SecretaryApp = () => {
         </div>
       </aside>
 
-      <header className="glass-panel fixed inset-x-0 top-0 z-[60] flex min-h-16 items-center justify-between border-b border-white/50 px-4 dark:border-slate-700/60 xl:hidden">
+      <header className={`ta-topbar fixed right-0 top-0 z-[60] hidden items-center justify-between border-b px-6 transition-[left] duration-300 xl:flex ${isSidebarCollapsed ? 'left-20' : 'left-72'}`}>
+        <div className="min-w-0">
+          <p className="ta-page-kicker">SECRETARY CENTER</p>
+          <h1 className="ta-page-title truncate">{activePageTitle}</h1>
+        </div>
+        <div className="flex shrink-0 items-center gap-3">
+          <button type="button" onClick={() => window.location.assign(CENTER_PATH)} className="ta-toolbar-button px-3 text-sm font-semibold" title="App Center"><LayoutGrid className="h-5 w-5" /><span>App Center</span></button>
+          <ThemePicker />
+          <div className="flex min-w-0 items-center gap-2 border-l border-slate-200 pl-3 dark:border-slate-700">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-200"><UserRound className="h-5 w-5" /></span>
+            <span className="hidden min-w-0 2xl:block"><strong className="block max-w-40 truncate text-sm text-slate-800 dark:text-slate-100">{auth.name}</strong><span className="block max-w-40 truncate text-xs text-slate-500 dark:text-slate-400">{SECRETARY_ROLE_LABELS[auth.role]}</span></span>
+          </div>
+        </div>
+      </header>
+
+      <header className="ta-topbar fixed inset-x-0 top-0 z-[60] flex min-h-16 items-center justify-between border-b px-4 xl:hidden">
         <button type="button" onClick={() => setIsMobileSidebarOpen(true)} className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300" aria-label="เปิดเมนู"><Menu className="h-5 w-5" /></button>
         <strong className="truncate px-3 text-sm font-bold text-slate-900 dark:text-white">Secretary Center</strong>
         <ThemePicker />
       </header>
 
-      <main className={`min-h-screen w-full px-4 pb-8 pt-24 transition-[margin,width] duration-300 sm:px-6 xl:pt-8 ${isSidebarCollapsed ? 'xl:ml-20 xl:w-[calc(100%-5rem)]' : 'xl:ml-72 xl:w-[calc(100%-18rem)]'}`}>
+      <main className={`ta-main min-h-screen w-full px-4 pb-8 pt-24 transition-[margin,width] duration-300 sm:px-6 xl:px-8 ${isSidebarCollapsed ? 'xl:ml-20 xl:w-[calc(100%-5rem)]' : 'xl:ml-72 xl:w-[calc(100%-18rem)]'}`}>
         <div className="mx-auto w-full max-w-[1450px]">
           {activeTab === 'dashboard' && <SecretaryDashboard onOpenIssues={openIssues} />}
           {activeTab === 'department-overview' && <SecretaryDepartmentOverview />}

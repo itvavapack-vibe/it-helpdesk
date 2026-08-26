@@ -47,17 +47,17 @@ const HomePage = ({ onNavigateTo, currentRole = 'public' }) => {
     );
 
     return (
-        <div className="space-y-10 animate-fade-in">
-            <section className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800 sm:p-8 xl:p-14">
-                <div className="relative z-10 grid grid-cols-1 xl:grid-cols-12 gap-8 xl:gap-12 items-center">
-                    <div className="xl:col-span-7 text-center xl:text-left space-y-6 flex flex-col items-center xl:items-start justify-center">
+        <div className="min-w-0 max-w-full space-y-8 animate-fade-in">
+            <section className="relative min-w-0 max-w-full overflow-hidden rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800 sm:p-8 xl:p-10">
+                <div className="relative z-10 grid min-w-0 grid-cols-1 items-center gap-8 xl:grid-cols-12 xl:gap-12">
+                    <div className="flex min-w-0 flex-col items-center justify-center space-y-5 text-center xl:col-span-7 xl:items-start xl:text-left">
                         <h1 className="text-3xl xl:text-4xl font-extrabold tracking-tight text-slate-800 dark:text-white leading-tight fit-text">
                             ระบบแจ้งซ่อม<br />
                             <span className="text-indigo-700 dark:text-indigo-300">
                                 IT Helpdesk
                             </span>
                         </h1>
-                        <p className="text-base xl:text-lg text-slate-500 dark:text-slate-400 max-w-xl mx-auto xl:mx-0 leading-relaxed fit-text">
+                        <p className="mx-auto w-full max-w-xl text-base leading-relaxed text-slate-500 dark:text-slate-400 xl:mx-0 xl:text-lg fit-text">
                             แจ้งปัญหาคอมพิวเตอร์และอุปกรณ์ IT ได้ง่าย ทีม IT พร้อมช่วยเหลือ ตรวจสอบ และอัปเดตสถานะงานให้ติดตามได้ในระบบเดียว
                         </p>
                         <div className="flex flex-col sm:flex-row flex-wrap justify-center xl:justify-start gap-3 pt-2 w-full sm:w-auto">
@@ -80,9 +80,9 @@ const HomePage = ({ onNavigateTo, currentRole = 'public' }) => {
                         </div>
                     </div>
 
-                    <div className="xl:col-span-5 flex justify-center items-center">
-                        <div className="relative w-full max-w-[280px] sm:max-w-[340px] xl:max-w-full">
-                            <div className="relative z-10 rounded-3xl border border-slate-200 bg-slate-50 p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900/40 sm:p-4">
+                    <div className="flex min-w-0 items-center justify-center xl:col-span-5">
+                        <div className="relative w-full min-w-0 max-w-[280px] sm:max-w-[340px] xl:max-w-full">
+                            <div className="relative z-10 rounded-lg border border-slate-200 bg-slate-50 p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900/40 sm:p-4">
                                 <img
                                     src="/it-helpdesk-hero.jpg"
                                     alt="VAVA PACK IT Helpdesk"
@@ -98,7 +98,7 @@ const HomePage = ({ onNavigateTo, currentRole = 'public' }) => {
                 </div>
             </section>
 
-            <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800 sm:p-6">
+            <section className="min-w-0 max-w-full rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800 sm:p-6">
                 <div className="mb-5">
                     <h2 className="text-2xl font-extrabold text-slate-800 dark:text-white mb-2">ติดตามสถานะงาน</h2>
                     <p className="text-slate-500 dark:text-slate-400 text-sm">เลือกประเภทงานที่ต้องการ เพื่อตรวจสอบสถานะและความคืบหน้าล่าสุด</p>

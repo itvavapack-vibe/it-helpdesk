@@ -80,8 +80,8 @@ const CenterPortal = () => {
     const openPath = (path) => window.location.assign(path)
 
     return (
-        <div className="min-h-screen text-slate-800 dark:text-slate-100">
-            <header className="glass-panel sticky top-0 z-50 border-b border-white/50 dark:border-slate-700/60">
+        <div className="ta-shell min-h-screen text-slate-800 dark:text-slate-100">
+            <header className="ta-center-header ta-topbar border-b">
                 <div className="mx-auto flex min-h-18 w-full max-w-7xl items-center justify-between gap-3 px-4 py-2 sm:px-6 lg:px-8">
                     <button type="button" onClick={() => window.scrollTo({ top: 0 })} className="flex min-w-0 items-center gap-3 text-left" aria-label="กลับด้านบน">
                         <img src="/vava-pack-logo.png" width="469" height="346" alt="VAVA PACK" className="h-12 w-16 shrink-0 object-contain sm:h-14 sm:w-20" />
@@ -95,7 +95,7 @@ const CenterPortal = () => {
                         <button
                             type="button"
                             onClick={() => openPath(toItHelpdeskPath('/contact-it'))}
-                            className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm hover:border-indigo-300 hover:text-indigo-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-indigo-600 dark:hover:text-indigo-300 min-[440px]:h-10 min-[440px]:w-auto min-[440px]:gap-2 min-[440px]:px-3"
+                            className="ta-toolbar-button min-[440px]:w-auto min-[440px]:px-3"
                             title="ติดต่อ IT"
                         >
                             <Headphones className="h-5 w-5" />
@@ -105,11 +105,11 @@ const CenterPortal = () => {
                 </div>
             </header>
 
-            <main className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8 lg:py-14">
+            <main className="ta-center-content px-4 py-7 sm:px-6 sm:py-9 lg:px-8 lg:py-10">
                 <section className="grid items-end gap-8 border-b border-slate-200 pb-8 dark:border-slate-700 lg:grid-cols-[minmax(0,1.2fr)_minmax(20rem,0.8fr)]">
                     <div className="min-w-0">
                         <p className="mb-2 text-xs font-bold uppercase text-indigo-600 dark:text-indigo-300">VAVA PACK INTERNAL SYSTEMS</p>
-                        <h1 className="text-3xl font-bold leading-tight text-slate-900 dark:text-white sm:text-4xl">ศูนย์รวมระบบงานบริษัท</h1>
+                        <h1 className="text-2xl font-bold leading-tight text-slate-900 dark:text-white sm:text-3xl">ศูนย์รวมระบบงานบริษัท</h1>
                         <p className="mt-3 max-w-2xl text-base leading-7 text-slate-600 dark:text-slate-300">เลือกเข้าสู่ระบบของแต่ละแผนกได้จากจุดเดียว ทุกระบบใช้ธีมหลักร่วมกันและแยกพื้นที่การทำงานอย่างชัดเจน</p>
                     </div>
                     <label className="block min-w-0">
@@ -159,9 +159,9 @@ const CenterPortal = () => {
                                 )
 
                                 return isActive ? (
-                                    <button key={system.id} type="button" onClick={() => openPath(system.path)} className="flex min-h-56 min-w-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white p-5 text-left shadow-sm hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-lg dark:border-slate-700 dark:bg-slate-900/80 dark:hover:border-indigo-600">{content}</button>
+                                    <button key={system.id} type="button" onClick={() => openPath(system.path)} className="ta-directory-card flex min-h-56 min-w-0 flex-col overflow-hidden border p-5 text-left">{content}</button>
                                 ) : (
-                                    <article key={system.id} className="flex min-h-56 min-w-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-slate-50/80 p-5 dark:border-slate-700 dark:bg-slate-900/45">{content}</article>
+                                    <article key={system.id} className="ta-directory-card flex min-h-56 min-w-0 flex-col overflow-hidden border p-5 opacity-75">{content}</article>
                                 )
                             })}
                         </div>
