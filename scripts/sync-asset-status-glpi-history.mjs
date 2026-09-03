@@ -1,7 +1,7 @@
 import dotenv from 'dotenv'
 import { getPool } from '../lib/db.js'
 import { deleteTable, getTable, upsertTable } from '../lib/handlers.js'
-import { ASSET_STATUS, buildGlpiAssetStatusChanges } from '../src/utils/assetStatus.js'
+import { ASSET_STATUS, buildGlpiAssetStatusChanges, reuseExistingNewEventKeys } from '../src/utils/assetStatus.js'
 import { buildTransferEventsFromGlpiLogs } from '../src/utils/glpiAssetLogs.js'
 
 dotenv.config()
@@ -23,12 +23,31 @@ const glpiFetch = async (path) => {
 
 try {
   sessionToken = (await glpiFetch('/initSession')).session_token
-  const computers = await glpiFetch('/Computer?range=0-999&expand_dropdowns=true&is_deleted=false')
+  const [computerRows, lastBootResult] = await Promise.all([
+    glpiFetch('/Computer?range=0-999&expand_dropdowns=true&is_deleted=false'),
+    glpiFetch('/search/Computer?range=0-999&forcedisplay[0]=2&forcedisplay[1]=5182'),
+  ])
+  const lastBootById = new Map(
+    (Array.isArray(lastBootResult?.data) ? lastBootResult.data : [])
+      .map((row) => [Number(row?.['2']), row?.['5182'] || null]),
+  )
+  const computers = (Array.isArray(computerRows) ? computerRows : []).map((computer) => ({
+    ...computer,
+    last_boot: lastBootById.get(Number(computer.id)) || null,
+  }))
   const existingAssets = (await getTable('assets', { select: '*' })).data || []
   const { activeComputers, events: statusEvents, staleAssets } = buildGlpiAssetStatusChanges(computers, existingAssets)
   const events = []
 
-  const baseStatusEvents = statusEvents.filter((event) => event.status !== ASSET_STATUS.TRANSFERRED)
+  const existingNewRows = (await getTable('asset_status_history', {
+    select: 'event_key,asset_glpi_id',
+    eq: { status: ASSET_STATUS.NEW },
+    limit: 5000,
+  })).data || []
+  const baseStatusEvents = [
+    ...reuseExistingNewEventKeys(statusEvents, existingNewRows)
+      .filter((event) => event.status !== ASSET_STATUS.TRANSFERRED),
+  ]
   for (let index = 0; index < baseStatusEvents.length; index += 100) {
     await upsertTable('asset_status_history', baseStatusEvents.slice(index, index + 100), { onConflict: 'event_key' })
   }
