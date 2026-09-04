@@ -350,6 +350,15 @@ export async function updateAdminProfile(profile) {
   })
 }
 
+export async function importGlpiAssetCodes(rows, dryRun = true) {
+  const base = API_URL.endsWith('/') ? API_URL.slice(0, -1) : API_URL
+  return request(new URL(`${base}/api/glpi/asset-codes/import`, window.location.origin).toString(), {
+    method: 'POST',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ rows, dryRun }),
+  })
+}
+
 export async function getAdminProfile() {
   const base = API_URL.endsWith('/') ? API_URL.slice(0, -1) : API_URL
   return request(new URL(`${base}/api/auth/profile`, window.location.origin).toString(), {

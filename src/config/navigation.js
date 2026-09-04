@@ -16,6 +16,7 @@ import {
     UserPlus,
     Users,
     ClipboardPenLine,
+    FileSpreadsheet,
 } from 'lucide-react';
 import { ROLES, normalizeRoleValue } from './roles';
 
@@ -56,6 +57,16 @@ const ASSET_STATUS_SUB_TAB = {
     icon: MonitorCheck,
     iconColor: 'text-emerald-600 dark:text-emerald-300',
     iconAura: '16, 185, 129',
+    roles: ALL_IT_ROLES,
+};
+
+const ASSET_CODE_IMPORT_SUB_TAB = {
+    id: 'asset_code_import',
+    parentId: 'computer_management',
+    label: 'นำเข้ารหัสทรัพย์สิน',
+    icon: FileSpreadsheet,
+    iconColor: 'text-cyan-600 dark:text-cyan-300',
+    iconAura: '8, 145, 178',
     roles: ALL_IT_ROLES,
 };
 
@@ -103,5 +114,5 @@ const BASE_ADMIN_SUB_TABS = [
 ];
 
 export const ADMIN_SUB_TABS = BASE_ADMIN_SUB_TABS.flatMap((item) =>
-    item.id === 'assets' ? [item, ASSET_STATUS_SUB_TAB, ASSET_PM_SUB_TAB] : [item],
+    item.id === 'assets' ? [item, ASSET_STATUS_SUB_TAB, ASSET_CODE_IMPORT_SUB_TAB, ASSET_PM_SUB_TAB] : [item],
 );

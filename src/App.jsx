@@ -28,6 +28,7 @@ const ContactITChat = lazy(() => import('./components/ContactITChat'));
 const AdminITChat = lazy(() => import('./components/AdminITChat'));
 const AssetInventory = lazy(() => import('./components/AssetInventory'));
 const AssetStatusManagement = lazy(() => import('./components/AssetStatusManagement'));
+const AssetCodeImport = lazy(() => import('./components/AssetCodeImport'));
 const IssueStatistics = lazy(() => import('./components/IssueStatistics'));
 const UserAccessRequestForm = lazy(() => import('./components/UserAccessRequestForm'));
 const ControlledAreaEntryForm = lazy(() => import('./components/ControlledAreaEntryForm'));
@@ -84,6 +85,7 @@ const ADMIN_SUB_TAB_PATHS = {
     it_chat: 'it-chat',
     assets: 'assets',
     asset_status: 'assets/status',
+    asset_code_import: 'assets/import-codes',
     asset_pm: 'assets/pm',
     access_requests: 'access-requests',
     change_requests: 'change-requests',
@@ -1298,6 +1300,8 @@ function App() {
                             <AssetInventory issues={issues} currentAdmin={isAdminAuth} />
                         ) : selectedAdminSubTab === 'asset_status' ? (
                             <AssetStatusManagement />
+                        ) : selectedAdminSubTab === 'asset_code_import' ? (
+                            <AssetCodeImport />
                         ) : selectedAdminSubTab === 'asset_pm' ? (
                             <AssetInventory issues={issues} view="pm" currentAdmin={isAdminAuth} />
                         ) : selectedAdminSubTab === 'access_requests' ? (
