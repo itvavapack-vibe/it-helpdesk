@@ -27,7 +27,9 @@ const ACTIVE_STATUS = 'Active'
 const formatDate = (value) => {
   if (!value) return '-'
   const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? '-' : date.toLocaleDateString('th-TH')
+  return Number.isNaN(date.getTime())
+    ? '-'
+    : date.toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' })
 }
 
 const eventTime = (event) => new Date(event?.event_date || event?.updated_at || event?.created_at || 0).getTime() || 0

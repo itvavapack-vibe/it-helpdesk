@@ -484,7 +484,7 @@ const MaintenanceReportPdfPreview = ({ isOpen, onClose, formData }) => {
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', width: '42%' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', borderBottom: '1px dotted #000', height: '78px', margin: '0 auto 8px', width: '90%' }}>
-                                    {inspectorSignature && <img src={inspectorSignature} alt="ลายเซ็นผู้ตรวจสอบ/ดำเนินการ" data-fmit01-signature="true" data-signature-scale="1.32" style={{ display: 'block', maxHeight: '78px', maxWidth: '120%', objectFit: 'contain', margin: '0 auto', transform: 'scale(1.32)', transformOrigin: 'center' }} />}
+                                    {inspectorSignature && <img src={inspectorSignature} alt="ลายเซ็นผู้ตรวจสอบ/ดำเนินการ" data-fmit01-signature="true" data-signature-scale="1" style={{ display: 'block', maxHeight: '68px', maxWidth: '100%', objectFit: 'contain', margin: '0 auto', transform: 'scale(1)', transformOrigin: 'center' }} />}
                                 </div>
                                 <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '5px' }}>ผู้ตรวจสอบ/ดำเนินการ</div>
                                 <div style={{ fontSize: '13px', marginBottom: '3px' }}>({formData.inspectorName || '-'})</div>

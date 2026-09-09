@@ -21,6 +21,8 @@ export const isGlpiNewAsset = (asset) => {
   return !state || state === '0' || state === 'new'
 }
 
+export const getGlpiNewAssetDate = (asset) => asset?.last_boot || asset?.date_creation
+
 export const hasAssetAssignmentChanged = (previousAsset, nextAsset) => (
   (
     Boolean(normalizeValue(previousAsset?.locations_id))
@@ -88,6 +90,20 @@ export const createAssetStatusEvent = ({ asset, previousAsset = null, status, ev
   return event
 }
 
+export const reuseExistingNewEventKeys = (events, existingNewRows) => {
+  const existingByAssetId = new Map()
+  ;(existingNewRows || []).forEach((row) => {
+    const assetId = Number(row.asset_glpi_id)
+    if (!existingByAssetId.has(assetId)) existingByAssetId.set(assetId, row)
+  })
+  return (events || []).map((event) => {
+    const existing = event.status === ASSET_STATUS.NEW
+      ? existingByAssetId.get(Number(event.asset_glpi_id))
+      : null
+    return existing ? { ...event, event_key: existing.event_key } : event
+  })
+}
+
 export const buildAssetStatusChanges = (activeComputers, existingAssets, now = new Date()) => {
   const existingById = new Map(existingAssets.map((asset) => [Number(asset.glpi_id), asset]))
   const currentIds = new Set(activeComputers.map((asset) => Number(asset.id ?? asset.glpi_id)))
@@ -98,7 +114,7 @@ export const buildAssetStatusChanges = (activeComputers, existingAssets, now = n
     const previousAsset = existingById.get(glpiId)
     const asset = { ...computer, glpi_id: glpiId }
     if (!previousAsset) {
-      events.push(createAssetStatusEvent({ asset, status: ASSET_STATUS.NEW, eventDate: computer.date_creation, now }))
+      events.push(createAssetStatusEvent({ asset, status: ASSET_STATUS.NEW, eventDate: getGlpiNewAssetDate(computer), now }))
     } else if (hasAssetAssignmentChanged(previousAsset, asset)) {
       events.push(createAssetStatusEvent({ asset, previousAsset, status: ASSET_STATUS.TRANSFERRED, eventDate: computer.date_mod, now }))
     }
@@ -124,9 +140,7 @@ export const buildGlpiAssetStatusChanges = (glpiComputers, existingAssets, now =
     const glpiId = Number(computer.id ?? computer.glpi_id)
     const previousAsset = existingById.get(glpiId) || null
     const status = isGlpiNewAsset(computer) ? ASSET_STATUS.NEW : ASSET_STATUS.DISPOSED
-    const eventDate = status === ASSET_STATUS.NEW
-      ? (previousAsset ? computer.date_mod : computer.date_creation)
-      : computer.date_mod
+    const eventDate = status === ASSET_STATUS.NEW ? getGlpiNewAssetDate(computer) : computer.date_mod
     events.push(createAssetStatusEvent({
       asset: { ...computer, glpi_id: glpiId },
       previousAsset,

@@ -94,7 +94,7 @@ const UserAccessRequestForm = ({ onCancel }) => {
     };
 
     const validateForm = () => {
-        if (!formData.employeeId || !formData.nameTh || !formData.department || !formData.position) {
+        if (!formData.employeeId || !formData.nameTh.trim() || !formData.nameEn.trim() || !formData.department || !formData.position.trim()) {
             Swal.fire('ข้อมูลไม่ครบถ้วน', 'กรุณากรอกข้อมูลที่มีเครื่องหมาย * ให้ครบทุกช่อง', 'warning');
             return false;
         }
@@ -137,8 +137,8 @@ const UserAccessRequestForm = ({ onCancel }) => {
                 prefix: 'ITU ',
                 buildRow: (ticketNumber) => ({
                     ticket_number: ticketNumber,
-                    name_th: formData.nameTh,
-                    name_en: formData.nameEn,
+                    name_th: formData.nameTh.trim(),
+                    name_en: formData.nameEn.trim(),
                     employee_id: formData.employeeId,
                     department: formData.department,
                     position: formData.position,
@@ -275,12 +275,13 @@ const UserAccessRequestForm = ({ onCancel }) => {
                             />
                         </Field>
 
-                        <Field label="ชื่อ-สกุล (ภาษาอังกฤษ)" icon={Globe}>
+                        <Field label="ชื่อ-สกุล (ภาษาอังกฤษ)" required icon={Globe}>
                             <input
                                 type="text"
                                 name="nameEn"
                                 value={formData.nameEn}
                                 onChange={handleChange}
+                                required
                                 className="input-modern !pl-10 w-full"
                                 placeholder="Mr./Ms..."
                             />

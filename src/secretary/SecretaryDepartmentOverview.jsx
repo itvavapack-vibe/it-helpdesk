@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { AlertCircle, Building2, CalendarDays, ChevronRight, Clock3, Download, Loader2, RotateCcw, Search } from 'lucide-react'
+import { Building2, CalendarDays, ChevronRight, ClipboardList, Download, Loader2, RotateCcw, Search } from 'lucide-react'
 import { secretaryGetDepartmentOverview } from './secretaryApi'
 import { formatSecretaryDate, SECRETARY_BRANCH_OPTIONS, SECRETARY_DEPARTMENT_OPTIONS, SECRETARY_IMPACTS, SECRETARY_STATUS } from './secretaryConstants'
 import SecretaryIssueReadOnlyModal from './SecretaryIssueReadOnlyModal'
@@ -19,6 +19,7 @@ const SecretaryDepartmentOverview = () => {
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [branchFilter, setBranchFilter] = useState('')
+  const [showAllDepartments, setShowAllDepartments] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isDetailLoading, setIsDetailLoading] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
@@ -77,9 +78,11 @@ const SecretaryDepartmentOverview = () => {
 
   const visibleDepartments = useMemo(() => {
     const keyword = search.trim().toLocaleLowerCase('th')
-    if (!keyword) return departments
-    return departments.filter((item) => item.department.toLocaleLowerCase('th').includes(keyword))
-  }, [departments, search])
+    return departments.filter((item) => (
+      (showAllDepartments || Number(item.open_count || 0) > 0)
+      && (!keyword || item.department.toLocaleLowerCase('th').includes(keyword))
+    ))
+  }, [departments, search, showAllDepartments])
 
   const selectDepartment = async (department) => {
     const requestId = detailRequestIdRef.current + 1
@@ -216,8 +219,6 @@ const SecretaryDepartmentOverview = () => {
     return <div className="grid min-h-80 place-items-center text-slate-500"><Loader2 className="h-8 w-8 animate-spin text-indigo-500" /></div>
   }
 
-  const summary = overview.summary || emptySummary
-
   return (
     <section>
       <div className="mb-6">
@@ -251,27 +252,13 @@ const SecretaryDepartmentOverview = () => {
             {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
             Export Report
           </button>
+          <button type="button" onClick={() => setShowAllDepartments((current) => !current)} className="flex h-10 shrink-0 items-center gap-2 rounded-xl bg-indigo-600 px-3 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-400"><ClipboardList className="h-4 w-4" />{showAllDepartments ? 'แสดงเฉพาะแผนกที่มีรายการค้าง' : 'ดูรายการทุกแผนก'}</button>
         </div>
       </div>
 
       {error && <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-300">{error}</div>}
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        <div className="flex min-h-24 items-center gap-4 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm dark:border-slate-700 dark:bg-slate-900/80">
-          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200"><Building2 className="h-5 w-5" /></span>
-          <span><span className="block text-xs font-semibold text-slate-500">ยังไม่เสร็จสิ้น</span><strong className="mt-1 block text-2xl text-slate-900 dark:text-white">{summary.open}</strong></span>
-        </div>
-        <div className="flex min-h-24 items-center gap-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 shadow-sm dark:border-rose-800 dark:bg-rose-950/40">
-          <AlertCircle className="h-7 w-7 shrink-0 text-rose-600 dark:text-rose-300" />
-          <span><span className="block text-xs font-semibold text-rose-700 dark:text-rose-300">รอดำเนินการ</span><strong className="mt-1 block text-2xl text-rose-800 dark:text-rose-200">{summary.pending}</strong></span>
-        </div>
-        <div className="flex min-h-24 items-center gap-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 shadow-sm dark:border-amber-800 dark:bg-amber-950/40">
-          <Clock3 className="h-7 w-7 shrink-0 text-amber-600 dark:text-amber-300" />
-          <span><span className="block text-xs font-semibold text-amber-700 dark:text-amber-300">กำลังดำเนินการ</span><strong className="mt-1 block text-2xl text-amber-800 dark:text-amber-200">{summary.in_progress}</strong></span>
-        </div>
-      </div>
-
-      <div className="mt-5 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-5">
+      <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-5">
         {visibleDepartments.map((item) => {
           const isSelected = selectedDepartment === item.department
           const hasOpenIssues = item.open_count > 0
@@ -290,9 +277,11 @@ const SecretaryDepartmentOverview = () => {
               <span className={`grid h-8 w-8 place-items-center rounded-lg ${hasOpenIssues ? 'bg-rose-100 text-rose-600 dark:bg-rose-900/60 dark:text-rose-300' : 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/60 dark:text-emerald-300'}`}><Building2 className="h-4 w-4" /></span>
               <strong className="mt-2 block pr-9 text-sm leading-5">{item.department}</strong>
               <span className={`mt-1.5 flex items-center gap-2.5 text-[11px] font-medium ${hasOpenIssues ? 'text-rose-700 dark:text-rose-300' : 'text-emerald-700 dark:text-emerald-300'}`}><span>รอ {item.pending_count}</span><span>กำลังทำ {item.in_progress_count}</span></span>
+              <span className="mt-2 flex items-center justify-end gap-1 border-t border-rose-200/70 pt-2 text-[11px] font-bold text-rose-700 dark:border-rose-700/40 dark:text-rose-200">ดูรายการทั้งหมด <ChevronRight className="h-3.5 w-3.5" /></span>
             </button>
           )
         })}
+        {!visibleDepartments.length && <div className="col-span-full rounded-xl border border-dashed border-slate-300 py-12 text-center text-sm text-slate-500 dark:border-slate-700">ไม่มีแผนกที่มีรายการยังไม่เสร็จสิ้นตามตัวกรองที่เลือก</div>}
       </div>
 
       {selectedDepartment && (

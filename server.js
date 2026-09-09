@@ -24,6 +24,7 @@ import {
   updateAdminSecuritySettings,
 } from './lib/auth.js'
 import { proxyGlpiRequest } from './lib/glpi-proxy.js'
+import { importGlpiAssetCodes } from './lib/glpi-asset-code-import.js'
 import { getLanAddresses } from './lib/network.js'
 import { sendTelegramNotification } from './lib/telegram.js'
 import { answerAiHelpdeskQuestion } from './lib/ai-helpdesk.js'
@@ -125,7 +126,12 @@ app.post('/api/upload', (req, res) => {
   })
 })
 
-app.use('/glpi-proxy', (req, res) => proxyGlpiRequest(req, res))
+app.use('/glpi-proxy', (req, res) => {
+  if (!['GET', 'HEAD'].includes(req.method)) {
+    return res.status(405).json({ error: 'GLPI write requests must use an authenticated API endpoint' })
+  }
+  return proxyGlpiRequest(req, res)
+})
 
 app.get('/api/health', async (req, res) => {
   try {
@@ -215,6 +221,32 @@ app.put('/api/auth/security-settings', async (req, res) => {
     return res.json({ data: await updateAdminSecuritySettings(req.body || {}) })
   } catch (error) {
     return res.status(error.status || 500).json({ error: error.message, code: error.code })
+  }
+})
+
+const GLPI_ASSET_IMPORT_ROLES = new Set([
+  'superadmin',
+  'it_support',
+  'it_supervisor',
+  'it_manager',
+  'it_software',
+  'it_media',
+])
+
+app.post('/api/glpi/asset-codes/import', async (req, res) => {
+  try {
+    const admin = getAdminFromRequest(req)
+    if (!admin) return res.status(401).json({ error: 'Authentication required' })
+    if (!GLPI_ASSET_IMPORT_ROLES.has(admin.role)) {
+      return res.status(403).json({ error: 'IT administrator permission required' })
+    }
+    const result = await importGlpiAssetCodes(req.body?.rows, {
+      dryRun: req.body?.dryRun !== false,
+      actor: admin,
+    })
+    return res.json({ data: result })
+  } catch (error) {
+    return res.status(error.status || 500).json({ error: error.message })
   }
 })
 

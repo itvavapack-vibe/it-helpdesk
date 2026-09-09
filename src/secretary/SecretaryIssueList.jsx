@@ -26,12 +26,37 @@ import {
 import {
   formatSecretaryDate,
   isSecretaryReceiverRole,
+  SECRETARY_BRANCH_OPTIONS,
+  SECRETARY_CATEGORIES,
   SECRETARY_IMPACTS,
   SECRETARY_STATUS,
 } from './secretaryConstants'
 import SecretaryStatusBadge from './SecretaryStatusBadge'
 
 const STATUS_ATTACHMENT_ACCEPT = '.jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.zip'
+const ISSUE_DEPARTMENT_FILTER_OPTIONS = [
+  'แอดมิน',
+  'บุคคลและธุรการ',
+  'วิศวกรรม',
+  'การตลาดและขาย(ในประเทศ)',
+  'การตลาดและขาย(ต่างประเทศ)',
+  'แอดมินการตลาด',
+  'บัญชี',
+  'การเงิน',
+  'จัดซื้อ',
+  'เทคโนโลยีสารสนเทศ และ ERP',
+  'วางแผน',
+  'ฝ่ายผลิต',
+  'ตรวจสอบคุณภาพ',
+  'ควบคุมคุณภาพ',
+  'บริหารระบบ และ จป.',
+  'ออกแบบ',
+  'วิจัยและพัฒนาผลิตภัณฑ์',
+  'คลังพัสดุและจัดส่ง',
+  'ตรวจสอบ',
+  'ซ่อมบำรุง',
+  'สำนักกรรมการ',
+]
 const formatFileSize = (size) => size >= 1024 * 1024
   ? `${(size / (1024 * 1024)).toFixed(1)} MB`
   : `${Math.max(1, Math.round(size / 1024))} KB`
@@ -114,9 +139,6 @@ const SecretaryIssueList = ({ auth, initialStatus = '', mineOnly = false }) => {
     setFilters((current) => ({ ...current, status: initialStatus || '' }))
   }, [initialStatus])
 
-  const departments = useMemo(() => [...new Set(issues.map((issue) => issue.department).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'th')), [issues])
-  const branches = useMemo(() => [...new Set(issues.map((issue) => issue.branch).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'th')), [issues])
-  const categories = useMemo(() => [...new Set(issues.map((issue) => issue.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'th')), [issues])
   const statusCounts = useMemo(() => issues.reduce((counts, issue) => ({ ...counts, [issue.status]: (counts[issue.status] || 0) + 1 }), {}), [issues])
 
   const filteredIssues = useMemo(() => {
@@ -267,9 +289,9 @@ const SecretaryIssueList = ({ auth, initialStatus = '', mineOnly = false }) => {
         <div className="mb-3 flex items-center justify-between gap-3"><span className="flex items-center gap-2 text-sm font-bold text-slate-800 dark:text-slate-100"><Filter className="h-4 w-4 text-indigo-500" />ตัวกรอง</span><button type="button" onClick={() => setFilters(emptyFilters())} className="text-xs font-semibold text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-300">ล้างตัวกรอง</button></div>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-8">
           <label className="relative sm:col-span-2 xl:col-span-2"><Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" /><input value={filters.search} onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))} className="h-10 w-full rounded-xl border border-slate-300 bg-white pl-9 pr-3 text-sm outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 dark:border-slate-600 dark:bg-slate-950 dark:text-white dark:focus:ring-indigo-950/50" placeholder="ค้นหาเลขที่ หัวข้อ ผู้แจ้ง แผนก สาขา..." /></label>
-          {isReceiver && <select value={filters.department} onChange={(event) => setFilters((current) => ({ ...current, department: event.target.value }))} className="h-10 rounded-xl border border-slate-300 bg-white px-3 text-sm dark:border-slate-600 dark:bg-slate-950 dark:text-white"><option value="">ทุกแผนก</option>{departments.map((department) => <option key={department}>{department}</option>)}</select>}
-          {isReceiver && <select value={filters.branch} onChange={(event) => setFilters((current) => ({ ...current, branch: event.target.value }))} className="h-10 rounded-xl border border-slate-300 bg-white px-3 text-sm dark:border-slate-600 dark:bg-slate-950 dark:text-white"><option value="">ทุกสาขา</option>{branches.map((branch) => <option key={branch}>{branch}</option>)}</select>}
-          <select value={filters.category} onChange={(event) => setFilters((current) => ({ ...current, category: event.target.value }))} className="h-10 rounded-xl border border-slate-300 bg-white px-3 text-sm dark:border-slate-600 dark:bg-slate-950 dark:text-white"><option value="">ทุกหมวดหมู่</option>{categories.map((category) => <option key={category}>{category}</option>)}</select>
+          {isReceiver && <select value={filters.department} onChange={(event) => setFilters((current) => ({ ...current, department: event.target.value }))} className="h-10 rounded-xl border border-slate-300 bg-white px-3 text-sm dark:border-slate-600 dark:bg-slate-950 dark:text-white"><option value="">ทุกแผนก</option>{ISSUE_DEPARTMENT_FILTER_OPTIONS.map((department) => <option key={department} value={department}>{department}</option>)}</select>}
+          {isReceiver && <select value={filters.branch} onChange={(event) => setFilters((current) => ({ ...current, branch: event.target.value }))} className="h-10 rounded-xl border border-slate-300 bg-white px-3 text-sm dark:border-slate-600 dark:bg-slate-950 dark:text-white"><option value="">ทุกสาขา</option>{SECRETARY_BRANCH_OPTIONS.map((branch) => <option key={branch} value={branch}>{branch}</option>)}</select>}
+          <select value={filters.category} onChange={(event) => setFilters((current) => ({ ...current, category: event.target.value }))} className="h-10 rounded-xl border border-slate-300 bg-white px-3 text-sm dark:border-slate-600 dark:bg-slate-950 dark:text-white"><option value="">ทุกหมวดหมู่</option>{SECRETARY_CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}</select>
           <select value={filters.impact} onChange={(event) => setFilters((current) => ({ ...current, impact: event.target.value }))} className="h-10 rounded-xl border border-slate-300 bg-white px-3 text-sm dark:border-slate-600 dark:bg-slate-950 dark:text-white"><option value="">ทุกระดับผลกระทบ</option>{Object.entries(SECRETARY_IMPACTS).map(([value, config]) => <option key={value} value={value}>{config.label}</option>)}</select>
           <label className="relative"><CalendarDays className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" /><input type="date" value={filters.from} onChange={(event) => setFilters((current) => ({ ...current, from: event.target.value }))} className="h-10 w-full rounded-xl border border-slate-300 bg-white pl-9 pr-2 text-sm dark:border-slate-600 dark:bg-slate-950 dark:text-white" title="ตั้งแต่วันที่" /></label>
           <label className="relative"><CalendarDays className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" /><input type="date" value={filters.to} onChange={(event) => setFilters((current) => ({ ...current, to: event.target.value }))} className="h-10 w-full rounded-xl border border-slate-300 bg-white pl-9 pr-2 text-sm dark:border-slate-600 dark:bg-slate-950 dark:text-white" title="ถึงวันที่" /></label>

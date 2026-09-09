@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import dotenv from 'dotenv'
 import { getPool } from '../lib/db.js'
 import { deleteTable, getTable, upsertTable } from '../lib/handlers.js'
-import { ASSET_STATUS, buildAssetStatusChanges, buildGlpiAssetStatusChanges, hasAssetAssignmentChanged } from '../src/utils/assetStatus.js'
+import { ASSET_STATUS, buildAssetStatusChanges, buildGlpiAssetStatusChanges, hasAssetAssignmentChanged, reuseExistingNewEventKeys } from '../src/utils/assetStatus.js'
 import { buildTransferEventsFromGlpiLogs, cleanGlpiLogValue } from '../src/utils/glpiAssetLogs.js'
 
 dotenv.config()
@@ -20,7 +20,7 @@ const existingAssets = [
 ]
 const activeComputers = [
   { id: firstId, name: 'Transfer Test', users_id: 'New User', locations_id: 'VAVA 3 > New', groups_id: 'Infrastructure', states_id: 'Active', date_mod: '2099-05-09 12:00:00' },
-  { id: newId, name: 'New Test', users_id: 'New Asset User', locations_id: 'VAVA 1 > New', groups_id: 'Support', states_id: 'Active', date_creation: '2099-05-08 09:00:00' },
+  { id: newId, name: 'New Test', users_id: 'New Asset User', locations_id: 'VAVA 1 > New', groups_id: 'Support', states_id: 'Active', date_creation: '2099-05-08 09:00:00', last_boot: '2099-05-09 07:45:30' },
 ]
 
 try {
@@ -52,6 +52,9 @@ try {
     ASSET_STATUS.DISPOSED,
   ]))
   assert.equal(new Set(events.map((event) => event.event_key)).size, 3)
+  assert.equal(events.find((event) => event.asset_glpi_id === newId)?.event_date, '2099-05-09 07:45:30')
+  const reusedNewEvents = reuseExistingNewEventKeys(events, [{ asset_glpi_id: newId, event_key: 'existing-new-key' }])
+  assert.equal(reusedNewEvents.find((event) => event.asset_glpi_id === newId)?.event_key, 'existing-new-key')
 
   const glpiChanges = buildGlpiAssetStatusChanges([
     activeComputers[0],

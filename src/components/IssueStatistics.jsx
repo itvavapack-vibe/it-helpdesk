@@ -3,6 +3,7 @@ import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Toolti
 import { AlertCircle, BarChart3, CalendarDays, CheckCircle2, ClipboardList, Clock3, Monitor, PieChart as PieChartIcon, RefreshCw, TrendingUp, UserCheck, Users } from 'lucide-react';
 import { mysql } from '../mysqlClient';
 import { ROLES, normalizeRoleValue } from '../config/roles';
+import { DashboardPageHeader, DashboardPanel, DashboardStatCard, DashboardTable } from './dashboard';
 
 const CATEGORIES = [
     'แก้ไขปัญหาด้าน Software D365',
@@ -109,30 +110,35 @@ const getIssueEffectiveStatus = (issue) => (
         : issue?.status || 'Pending'
 );
 
-const DASHBOARD_PANEL_CLASS = 'rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800';
+const DASHBOARD_PANEL_CLASS = 'rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800';
 
-const SummaryCard = ({ icon: Icon, title, value, detail, color, cardClassName = '', iconClassName = '' }) => (
-    <div className={`rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-800 ${cardClassName}`}>
-        <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-                <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">{title}</p>
-                <p className="mt-2 text-3xl font-black text-slate-800 dark:text-white">{value}</p>
-                <p className="mt-2 text-xs font-medium text-slate-500 dark:text-slate-400">{detail}</p>
-            </div>
-            <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border ${color}`}>
-                <Icon className={`h-5 w-5 ${iconClassName}`} />
-            </div>
-        </div>
-    </div>
-);
+const ISSUE_STATUS_META = {
+    Pending: { label: 'รอดำเนินการ', className: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-800' },
+    'In Progress': { label: 'กำลังแก้ไข', className: 'bg-indigo-50 text-indigo-700 ring-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:ring-indigo-800' },
+    Resolved: { label: 'เสร็จสิ้น', className: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-800' },
+    Closed: { label: 'ปิดจบ', className: 'bg-slate-100 text-slate-700 ring-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:ring-slate-600' },
+    'Waiting for Parts': { label: 'รออะไหล่', className: 'bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:ring-rose-800' },
+};
+
+const formatDashboardDate = (value) => {
+    const date = value ? new Date(value) : null;
+    if (!date || Number.isNaN(date.getTime())) return '-';
+    return new Intl.DateTimeFormat('th-TH', { day: '2-digit', month: 'short', year: '2-digit' }).format(date);
+};
+
+const DashboardIssueStatus = ({ issue }) => {
+    const status = getIssueEffectiveStatus(issue);
+    const meta = ISSUE_STATUS_META[status] || { label: status, className: 'bg-slate-100 text-slate-700 ring-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:ring-slate-600' };
+    return <span className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${meta.className}`}>{meta.label}</span>;
+};
 
 const MetricCard = ({ title, value, icon: Icon, iconColor = 'text-indigo-500' }) => (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-700 dark:bg-slate-900/35">
+    <div className="min-w-0 px-3 py-2.5 first:pl-0 last:pr-0">
         <div className="flex items-center justify-between gap-3">
-            <p className="text-[0.7rem] font-semibold text-slate-500 dark:text-slate-400">{title}</p>
+            <p className="truncate text-xs font-semibold text-slate-500 dark:text-slate-400">{title}</p>
             <Icon className={`h-4 w-4 ${iconColor}`} />
         </div>
-        <p className="mt-2 text-xs font-black text-slate-800 dark:text-white">{value}</p>
+        <p className="mt-2 text-xl font-bold text-slate-900 dark:text-white">{value}</p>
     </div>
 );
 
@@ -422,7 +428,6 @@ const IssueStatistics = ({ issues = [], currentAdmin }) => {
     const staffWorkloadChartData = useMemo(() => staffWorkloadData, [staffWorkloadData]);
     const staffWorkloadChartHeight = Math.max(320, Math.min(720, staffWorkloadChartData.length * 48));
 
-    const allRequests = useMemo(() => [...filteredAccessRequests, ...filteredChangeRequests], [filteredAccessRequests, filteredChangeRequests]);
 
     const accessRequestStatusData = useMemo(
         () => groupRequestStatusData(filteredAccessRequests, { excludeStatuses: ['Pending_User_Acknowledgement'] }),
@@ -510,73 +515,54 @@ const IssueStatistics = ({ issues = [], currentAdmin }) => {
     const closedChangeRequestCount = changeRequestStatusData.find(item => item.name === 'ปิดจบ')?.count || 0;
     const softwareChangeRequestCount = requestCategoryData.find(item => item.name === 'พัฒนาโปรแกรม')?.count || 0;
     const mediaChangeRequestCount = requestCategoryData.find(item => item.name === 'พัฒนาสื่อ')?.count || 0;
-    const pendingRequestCount = pendingAccessRequestCount + pendingChangeRequestCount;
     const periodLabel = getPeriodLabel(dateFilter);
+    const recentIssues = [...filteredIssues]
+        .sort((left, right) => (getItemDate(right)?.getTime() || 0) - (getItemDate(left)?.getTime() || 0))
+        .slice(0, 6);
 
     return (
-        <div className="space-y-6 animate-fade-in">
-            <div className={DASHBOARD_PANEL_CLASS}>
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex items-center gap-4">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-orange-200 bg-orange-50 text-orange-600 dark:border-orange-800/70 dark:bg-orange-950/35 dark:text-orange-300">
-                            <TrendingUp className="h-6 w-6" />
-                        </div>
-                        <div>
-                            <h2 className="text-xl font-bold text-slate-900 dark:text-white">Dashboard</h2>
-                            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">รายงานการแจ้งซ่อม คำร้องขอสิทธิ์ พัฒนา และทรัพย์สินแผนกเทคโนโลยีสารสนเทศ</p>
-                            <p className="mt-1 text-xs font-bold text-indigo-600 dark:text-indigo-300">{dashboardOwnerLabel}</p>
-                        </div>
-                    </div>
-                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-                        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-2 dark:border-slate-700 dark:bg-slate-900/35">
-                            <CalendarDays className="h-4 w-4 text-indigo-500" />
-                            <select
-                                value={dateFilter.type}
-                                onChange={(event) => setDateFilter((previous) => ({ ...previous, type: event.target.value }))}
-                                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-600 outline-none transition focus:border-indigo-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
-                            >
-                                <option value="month">รายเดือน</option>
-                                <option value="quarter">รายไตรมาส</option>
-                                <option value="year">รายปี</option>
+        <div className="it-dashboard-prototype min-w-0 space-y-6 animate-fade-in">
+            <DashboardPageHeader
+                eyebrow="IT OPERATIONS OVERVIEW"
+                eyebrowIcon={TrendingUp}
+                title="Dashboard"
+                description="ภาพรวมงานบริการ คำร้อง และทรัพย์สินของแผนกเทคโนโลยีสารสนเทศ"
+                meta={<span className="inline-flex rounded-md bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300">{dashboardOwnerLabel}</span>}
+                actions={<>
+                    <div className="flex min-w-0 flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-white p-1.5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+                        <CalendarDays className="ml-1 h-4 w-4 shrink-0 text-slate-400" />
+                        <select value={dateFilter.type} onChange={(event) => setDateFilter((previous) => ({ ...previous, type: event.target.value }))} className="h-9 rounded-md border-0 bg-slate-50 px-2.5 text-sm font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/20 dark:bg-slate-900 dark:text-slate-200">
+                            <option value="month">รายเดือน</option>
+                            <option value="quarter">รายไตรมาส</option>
+                            <option value="year">รายปี</option>
+                        </select>
+                        {dateFilter.type === 'month' && (
+                            <select value={dateFilter.month} onChange={(event) => setDateFilter((previous) => ({ ...previous, month: Number(event.target.value) }))} className="h-9 rounded-md border-0 bg-slate-50 px-2.5 text-sm font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/20 dark:bg-slate-900 dark:text-slate-200">
+                                {MONTH_OPTIONS.map((month, index) => <option key={month} value={index + 1}>{month}</option>)}
                             </select>
-                            {dateFilter.type === 'month' && (
-                                <select
-                                    value={dateFilter.month}
-                                    onChange={(event) => setDateFilter((previous) => ({ ...previous, month: Number(event.target.value) }))}
-                                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-600 outline-none transition focus:border-indigo-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
-                                >
-                                    {MONTH_OPTIONS.map((month, index) => <option key={month} value={index + 1}>{month}</option>)}
-                                </select>
-                            )}
-                            {dateFilter.type === 'quarter' && (
-                                <select
-                                    value={dateFilter.quarter}
-                                    onChange={(event) => setDateFilter((previous) => ({ ...previous, quarter: Number(event.target.value) }))}
-                                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-600 outline-none transition focus:border-indigo-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
-                                >
-                                    {[1, 2, 3, 4].map((quarter) => <option key={quarter} value={quarter}>ไตรมาส {quarter}</option>)}
-                                </select>
-                            )}
-                            <select
-                                value={dateFilter.year}
-                                onChange={(event) => setDateFilter((previous) => ({ ...previous, year: Number(event.target.value) }))}
-                                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-600 outline-none transition focus:border-indigo-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
-                            >
-                                {availableYears.map((year) => <option key={year} value={year}>{year + 543}</option>)}
+                        )}
+                        {dateFilter.type === 'quarter' && (
+                            <select value={dateFilter.quarter} onChange={(event) => setDateFilter((previous) => ({ ...previous, quarter: Number(event.target.value) }))} className="h-9 rounded-md border-0 bg-slate-50 px-2.5 text-sm font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/20 dark:bg-slate-900 dark:text-slate-200">
+                                {[1, 2, 3, 4].map((quarter) => <option key={quarter} value={quarter}>ไตรมาส {quarter}</option>)}
                             </select>
-                        </div>
-                        <button
-                            type="button"
-                            onClick={() => fetchDetails()}
-                            disabled={isLoadingDetails}
-                            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-600 transition-colors hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900/35 dark:text-slate-300 dark:hover:bg-indigo-950/35"
+                        )}
+                        <select value={dateFilter.year} onChange={(event) => setDateFilter((previous) => ({ ...previous, year: Number(event.target.value) }))}
+                                className="h-9 rounded-md border-0 bg-slate-50 px-2.5 text-sm font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/20 dark:bg-slate-900 dark:text-slate-200"
                         >
-                            <RefreshCw className={`h-4 w-4 ${isLoadingDetails ? 'animate-spin' : ''}`} />
-                            รีเฟรชข้อมูล
-                        </button>
+                            {availableYears.map((year) => <option key={year} value={year}>{year + 543}</option>)}
+                        </select>
                     </div>
-                </div>
-            </div>
+                    <button
+                        type="button"
+                        onClick={() => fetchDetails()}
+                        disabled={isLoadingDetails}
+                        className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:border-indigo-300 hover:text-indigo-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                    >
+                        <RefreshCw className={`h-4 w-4 ${isLoadingDetails ? 'animate-spin' : ''}`} />
+                        รีเฟรช
+                    </button>
+                </>}
+            />
 
             {detailsError && (
                 <div className="flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">
@@ -585,31 +571,41 @@ const IssueStatistics = ({ issues = [], currentAdmin }) => {
                 </div>
             )}
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                <SummaryCard icon={AlertCircle} title="แจ้งซ่อม" value={filteredIssues.length} detail={`${periodLabel} / ค้างดำเนินการ ${openIssueCount} รายการ`} color="border-orange-200 bg-orange-50 text-orange-600 dark:border-orange-800/70 dark:bg-orange-950/35 dark:text-orange-300" />
-                <SummaryCard
-                    icon={ClipboardList}
-                    title="ใบคำร้อง"
-                    value={allRequests.length}
-                    detail={`${periodLabel} / รอดำเนินการ ${pendingRequestCount} รายการ`}
-                    color="border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-800/70 dark:bg-violet-950/35 dark:text-violet-300"
-                    cardClassName="border-violet-200 dark:border-violet-800/70"
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <DashboardStatCard icon={AlertCircle} label="งานแจ้งซ่อม" value={filteredIssues.length} detail={`ค้างดำเนินการ ${openIssueCount} รายการ`} tone="amber" />
+                <DashboardStatCard
+                    icon={UserCheck}
+                    label="คำร้องขอสิทธิ์"
+                    value={filteredAccessRequests.length}
+                    detail={`รอดำเนินการ ${pendingAccessRequestCount} รายการ`}
+                    tone="sky"
                 />
-                <SummaryCard icon={Monitor} title="ทรัพย์สิน" value={activeAssets.length} detail={`มีผู้ใช้งาน ${assignedAssets.length} เครื่อง`} color="border-sky-200 bg-sky-50 text-sky-600 dark:border-sky-800/70 dark:bg-sky-950/35 dark:text-sky-300" />
+                <DashboardStatCard
+                    icon={ClipboardList}
+                    label="คำร้องขอพัฒนา"
+                    value={filteredChangeRequests.length}
+                    detail={`รอดำเนินการ ${pendingChangeRequestCount} รายการ`}
+                    tone="violet"
+                />
+                <DashboardStatCard icon={Monitor} label="เครื่อง Active" value={activeAssets.length} detail={`มีผู้ใช้งาน ${assignedAssets.length} เครื่อง`} tone="emerald" />
             </div>
 
             <section className="space-y-4">
-                <div>
-                    <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">รายงานการแจ้งซ่อม</h3>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">สถานะ หมวดหมู่ และแผนกที่แจ้งปัญหาเข้ามาในช่วง {periodLabel}</p>
+                <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                    <div>
+                        <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">รายงานการแจ้งซ่อม</h3>
+                        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">สถานะและแหล่งที่มาของงานในช่วงที่เลือก</p>
+                    </div>
+                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">{periodLabel}</span>
                 </div>
-                <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-                    <div className={DASHBOARD_PANEL_CLASS}>
-                        <div className="mb-6 flex items-center gap-2">
-                            <BarChart3 className="h-5 w-5 text-indigo-500" />
-                            <h4 className="text-lg font-bold text-slate-800 dark:text-slate-100">สถานะงานแจ้งซ่อม</h4>
-                        </div>
-                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+                <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.08fr)_minmax(24rem,0.92fr)]">
+                    <DashboardPanel
+                        title="สถานะงานแจ้งซ่อม"
+                        icon={BarChart3}
+                        action={<span className="text-xs font-semibold text-slate-400">รวม {filteredIssues.length}</span>}
+                        contentClassName="pt-3"
+                    >
+                        <div className="grid grid-cols-2 divide-x divide-slate-100 border-b border-slate-100 dark:divide-slate-700 dark:border-slate-700 sm:grid-cols-5">
                             <MetricCard title="ทั้งหมด" value={filteredIssues.length} icon={AlertCircle} iconColor="text-orange-500" />
                             <MetricCard title="รอดำเนินการ" value={pendingIssueCount} icon={Clock3} iconColor="text-amber-500" />
                             <MetricCard title="กำลังแก้ไข" value={inProgressIssueCount} icon={RefreshCw} iconColor="text-indigo-500" />
@@ -617,13 +613,13 @@ const IssueStatistics = ({ issues = [], currentAdmin }) => {
                             <MetricCard title="ปิดจบ" value={closedIssueCount} icon={CheckCircle2} iconColor="text-teal-600" />
                         </div>
                         {statusData.length === 0 ? <EmptyChart message="ยังไม่มีรายการแจ้งซ่อม" /> : (
-                            <div className="mt-6 h-72 w-full">
+                            <div className="mt-5 h-72 w-full">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={statusData} margin={{ top: 20, right: 20, left: -20, bottom: 5 }}>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" opacity={0.5} />
                                         <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 11 }} />
                                         <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} allowDecimals={false} />
-                                        <RechartsTooltip cursor={{ fill: '#f1f5f9', opacity: 0.4 }} contentStyle={{ borderRadius: '12px', border: 'none' }} />
+                                        <RechartsTooltip cursor={{ fill: '#f1f5f9', opacity: 0.4 }} contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 8px 24px rgba(15,23,42,.08)' }} />
                                         <Bar dataKey="value" name="จำนวนแจ้งซ่อม" radius={[6, 6, 0, 0]} maxBarSize={50}>
                                             {statusData.map(entry => <Cell key={entry.name} fill={entry.color} />)}
                                         </Bar>
@@ -631,24 +627,16 @@ const IssueStatistics = ({ issues = [], currentAdmin }) => {
                                 </ResponsiveContainer>
                             </div>
                         )}
-                    </div>
+                    </DashboardPanel>
 
-                    <div className={DASHBOARD_PANEL_CLASS}>
-                        <div className="mb-6 flex flex-col gap-4">
-                            <div className="flex items-center gap-2">
-                                <BarChart3 className="h-5 w-5 text-violet-500" />
-                                <div>
-                                    <h4 className="text-lg font-bold text-slate-800 dark:text-slate-100">มุมมองสถิติการแจ้งซ่อม</h4>
-                                    <p className="text-sm text-slate-500 dark:text-slate-400">เลือกสลับข้อมูลที่ต้องการดู</p>
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-3 gap-1 rounded-2xl bg-slate-100 p-1 dark:bg-slate-900/60">
+                    <DashboardPanel title="รายละเอียดงานแจ้งซ่อม" description="เปรียบเทียบตามมุมมอง" icon={BarChart3} contentClassName="pt-4">
+                            <div className="mb-4 grid grid-cols-3 gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1 dark:border-slate-700 dark:bg-slate-900/60">
                                 {ISSUE_BREAKDOWN_VIEWS.map((view) => (
                                     <button
                                         key={view.id}
                                         type="button"
                                         onClick={() => setIssueBreakdownView(view.id)}
-                                        className={`rounded-xl px-2 py-2 text-xs font-bold transition-colors sm:text-sm ${
+                                        className={`rounded-md px-2 py-2 text-xs font-semibold transition-colors sm:text-sm ${
                                             issueBreakdownView === view.id
                                                 ? 'bg-white text-indigo-600 shadow-sm dark:bg-slate-700 dark:text-indigo-300'
                                                 : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
@@ -658,7 +646,6 @@ const IssueStatistics = ({ issues = [], currentAdmin }) => {
                                     </button>
                                 ))}
                             </div>
-                        </div>
                         {issueBreakdownView === 'category' && (categoryData.length === 0 ? <EmptyChart message="ยังไม่มีข้อมูลหมวดหมู่แจ้งซ่อม" /> : (
                             <div className="h-72 w-full">
                                 <ResponsiveContainer width="100%" height="100%">
@@ -740,23 +727,42 @@ const IssueStatistics = ({ issues = [], currentAdmin }) => {
                                 </div>
                             </div>
                         ))}
-                    </div>
+                    </DashboardPanel>
 
                 </div>
             </section>
 
+            <DashboardPanel
+                title="งานแจ้งซ่อมล่าสุด"
+                description={`รายการล่าสุดในช่วง ${periodLabel}`}
+                action={<span className="text-xs font-semibold text-slate-400">แสดง {recentIssues.length} รายการ</span>}
+                contentClassName="p-0"
+            >
+                <DashboardTable
+                    rows={recentIssues}
+                    emptyMessage="ยังไม่มีรายการแจ้งซ่อมในช่วงนี้"
+                    columns={[
+                        { key: 'id', header: 'เลขที่งาน', cellClassName: 'whitespace-nowrap font-semibold text-indigo-600 dark:text-indigo-300', render: (issue) => issue.id || '-' },
+                        { key: 'reporter', header: 'ผู้แจ้ง / แผนก', render: (issue) => <><strong className="block max-w-56 truncate font-semibold text-slate-800 dark:text-slate-100">{issue.name || '-'}</strong><span className="mt-0.5 block max-w-56 truncate text-xs text-slate-500 dark:text-slate-400">{issue.department || 'ไม่ระบุแผนก'}</span></> },
+                        { key: 'category', header: 'หมวดหมู่', cellClassName: 'max-w-72 truncate text-slate-600 dark:text-slate-300', render: (issue) => issue.category || '-' },
+                        { key: 'assignee', header: 'ผู้รับงาน', cellClassName: 'whitespace-nowrap text-slate-600 dark:text-slate-300', render: (issue) => issue.assignedAdmin || 'ยังไม่มีผู้รับงาน' },
+                        { key: 'createdAt', header: 'วันที่แจ้ง', cellClassName: 'whitespace-nowrap text-slate-500 dark:text-slate-400', render: (issue) => formatDashboardDate(issue.createdAt || issue.created_at) },
+                        { key: 'status', header: 'สถานะ', headerClassName: 'text-right', cellClassName: 'whitespace-nowrap text-right', render: (issue) => <DashboardIssueStatus issue={issue} /> },
+                    ]}
+                />
+            </DashboardPanel>
+
             <section className="space-y-4">
-                <div>
-                    <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">รายงานคำร้อง</h3>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">ภาพรวมการร้องขอสิทธิ์และคำร้องขอพัฒนาในช่วง {periodLabel}</p>
+                <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                    <div>
+                        <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">รายงานคำร้อง</h3>
+                        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">ภาพรวมการร้องขอสิทธิ์และคำร้องขอพัฒนา</p>
+                    </div>
+                    <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">{periodLabel}</span>
                 </div>
-                <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-                    <div className={DASHBOARD_PANEL_CLASS}>
-                        <div className="mb-5 flex items-center gap-2">
-                            <UserCheck className="h-5 w-5 text-sky-500" />
-                            <h4 className="text-lg font-bold text-slate-800 dark:text-slate-100">คำร้องขอสิทธิ์</h4>
-                        </div>
-                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                    <DashboardPanel title="คำร้องขอสิทธิ์" icon={UserCheck} contentClassName="pt-3">
+                        <div className="grid grid-cols-2 divide-x divide-slate-100 border-b border-slate-100 dark:divide-slate-700 dark:border-slate-700 sm:grid-cols-4">
                             <MetricCard title="ทั้งหมด" value={filteredAccessRequests.length} icon={UserCheck} iconColor="text-sky-500" />
                             <MetricCard title="รอดำเนินการ" value={pendingAccessRequestCount} icon={Clock3} iconColor="text-amber-500" />
                             <MetricCard title="เสร็จสิ้น" value={completedAccessRequestCount} icon={CheckCircle2} iconColor="text-emerald-500" />
@@ -796,14 +802,10 @@ const IssueStatistics = ({ issues = [], currentAdmin }) => {
                                 </div>
                             )}
                         </div>
-                    </div>
+                    </DashboardPanel>
 
-                    <div className={DASHBOARD_PANEL_CLASS}>
-                        <div className="mb-5 flex items-center gap-2">
-                            <ClipboardList className="h-5 w-5 text-violet-500" />
-                            <h4 className="text-lg font-bold text-slate-800 dark:text-slate-100">คำร้องขอพัฒนาระบบ</h4>
-                        </div>
-                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    <DashboardPanel title="คำร้องขอพัฒนาระบบ" icon={ClipboardList} contentClassName="pt-3">
+                        <div className="grid grid-cols-2 divide-x divide-slate-100 border-b border-slate-100 dark:divide-slate-700 dark:border-slate-700 sm:grid-cols-4">
                             <MetricCard title="ทั้งหมด" value={filteredChangeRequests.length} icon={ClipboardList} iconColor="text-violet-500" />
                             <MetricCard title="รอดำเนินการ" value={pendingChangeRequestCount} icon={Clock3} iconColor="text-amber-500" />
                             <MetricCard title="ปิดจบ" value={closedChangeRequestCount} icon={CheckCircle2} iconColor="text-teal-600" />
@@ -845,7 +847,7 @@ const IssueStatistics = ({ issues = [], currentAdmin }) => {
                                 </div>
                             )}
                         </div>
-                    </div>
+                    </DashboardPanel>
                 </div>
             </section>
 

@@ -29,3 +29,10 @@
 - Disable nonessential motion when reduced motion is requested.
 - Keep dark mode and all existing color theme choices operational.
 
+## Shared Component Contract
+
+- All system modules use components exported from `src/components/system-ui`.
+- `SystemAppShell` owns sidebar, top bar, global search, theme toggle, notifications, profile, mobile drawer, and App Center navigation.
+- Pages use `SystemPageHeader`, `SystemPanel`, `SystemStatCard`, `SystemDataTable`, `SystemStatusBadge`, and `SystemDetailDrawer` before adding page-specific UI.
+- Business logic, permissions, API calls, signatures, printing, and approval workflows remain in feature modules. Shared UI components must not contain domain rules.
+- A migrated page keeps a route back to its legacy implementation until its workflow and responsive checks pass.

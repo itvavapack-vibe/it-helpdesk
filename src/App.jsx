@@ -28,7 +28,9 @@ const ContactITChat = lazy(() => import('./components/ContactITChat'));
 const AdminITChat = lazy(() => import('./components/AdminITChat'));
 const AssetInventory = lazy(() => import('./components/AssetInventory'));
 const AssetStatusManagement = lazy(() => import('./components/AssetStatusManagement'));
+const AssetCodeImport = lazy(() => import('./components/AssetCodeImport'));
 const IssueStatistics = lazy(() => import('./components/IssueStatistics'));
+const TailAdminDashboardPreview = lazy(() => import('./components/tailadmin-preview/TailAdminDashboardPreview'));
 const UserAccessRequestForm = lazy(() => import('./components/UserAccessRequestForm'));
 const ControlledAreaEntryForm = lazy(() => import('./components/ControlledAreaEntryForm'));
 const AdminAccessRequests = lazy(() => import('./components/AdminAccessRequests'));
@@ -84,6 +86,7 @@ const ADMIN_SUB_TAB_PATHS = {
     it_chat: 'it-chat',
     assets: 'assets',
     asset_status: 'assets/status',
+    asset_code_import: 'assets/import-codes',
     asset_pm: 'assets/pm',
     access_requests: 'access-requests',
     change_requests: 'change-requests',
@@ -92,6 +95,7 @@ const ADMIN_SUB_TAB_PATHS = {
     stats: 'statistics',
     employees: 'employees',
     users: 'users',
+    tailadmin_preview: 'tailadmin-preview',
 };
 const WORKFLOW_QUERY_TABS = {
     approveRequest: 'manager_approval',
@@ -355,6 +359,7 @@ function App() {
     }, [activeTab, isAdminAuth, visibleMainNavItems]);
 
     useEffect(() => {
+        if (adminSubTab === 'tailadmin_preview') return;
         if (!visibleAdminSubTabs.length) return;
         const selectedItem = visibleAdminSubTabs.find((item) => item.id === adminSubTab);
         const defaultChildId = getAdminDefaultChildId(selectedItem);
@@ -1298,6 +1303,8 @@ function App() {
                             <AssetInventory issues={issues} currentAdmin={isAdminAuth} />
                         ) : selectedAdminSubTab === 'asset_status' ? (
                             <AssetStatusManagement />
+                        ) : selectedAdminSubTab === 'asset_code_import' ? (
+                            <AssetCodeImport />
                         ) : selectedAdminSubTab === 'asset_pm' ? (
                             <AssetInventory issues={issues} view="pm" currentAdmin={isAdminAuth} />
                         ) : selectedAdminSubTab === 'access_requests' ? (
@@ -1415,6 +1422,25 @@ function App() {
         ? (visibleAdminSubTabs.find((item) => item.id === selectedAdminSubTab)?.label || 'จัดการระบบ')
         : (visibleMainNavItems.find((item) => item.tab === activeTab)?.label || 'หน้าแรก');
 
+    if (activeTab === 'admin' && adminSubTab === 'tailadmin_preview' && isAdminAuth) {
+        const navigateFromPreview = (targetId = 'stats') => {
+            updateBrowserPath(getPathForTab('admin', targetId));
+            setAdminSubTab(targetId);
+        };
+
+        return (
+            <Suspense fallback={<PageLoadingFallback />}>
+                <TailAdminDashboardPreview
+                    issues={issues}
+                    currentAdmin={isAdminAuth}
+                    isLoading={isIssuesLoading}
+                    onNavigate={navigateFromPreview}
+                    onOpenCenter={() => window.location.assign(CENTER_PATH)}
+                />
+            </Suspense>
+        );
+    }
+
     return (
         <div className={`${isStandaloneSignaturePage ? '' : 'ta-shell'} min-h-screen font-sans text-slate-800 dark:text-slate-200 flex flex-col relative w-full overflow-x-hidden`}>
             {!isStandaloneSignaturePage && <aside className={`ta-sidebar hidden xl:flex fixed inset-y-0 left-0 z-[60] flex-col border-r py-5 transition-[width,padding] duration-300 ${isSidebarCollapsed ? 'w-20 px-2' : 'w-72 px-4'}`}>
@@ -1530,7 +1556,7 @@ function App() {
                     )}
                 </div>
 
-                <div className={`mb-3 space-y-2 border-t border-slate-100 pt-3 dark:border-slate-800 ${isSidebarCollapsed ? '' : 'px-2'}`}>
+                <div className="hidden">
                     <button
                         type="button"
                         onClick={() => window.location.assign(CENTER_PATH)}
@@ -1544,7 +1570,7 @@ function App() {
                 </div>
 
                 {isAdminAuth ? (
-                    <div className={`border-t border-slate-100 pt-4 dark:border-slate-800 ${isSidebarCollapsed ? '' : 'px-2'}`}>
+                    <div className="hidden">
                         <button
                             type="button"
                             onClick={() => setIsSidebarAccountOpen((open) => !open)}
@@ -1591,7 +1617,7 @@ function App() {
                         </div>}
                     </div>
                 ) : (
-                    <div className={`border-t border-slate-100 pt-4 dark:border-slate-800 ${isSidebarCollapsed ? '' : 'px-2'}`}>
+                    <div className="hidden">
                         <button
                             type="button"
                             onClick={() => handleNavClick(adminNavItem)}
@@ -1634,18 +1660,22 @@ function App() {
                         <span>App Center</span>
                     </button>
                     <ThemePicker />
-                    {isAdminAuth && (
-                        <div className="ml-1 flex min-w-0 items-center gap-2 border-l border-slate-200 pl-3 dark:border-slate-700">
-                            <span className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full bg-indigo-50 text-sm font-bold text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-200">
-                                {isAdminAuth.profile_image_url || isAdminAuth.avatar_url ? (
-                                    <img src={isAdminAuth.profile_image_url || isAdminAuth.avatar_url} alt={isAdminAuth.name || 'Profile'} className="h-full w-full object-cover" />
-                                ) : ((isAdminAuth.name || isAdminAuth.username || 'U').charAt(0).toUpperCase())}
-                            </span>
-                            <span className="hidden min-w-0 2xl:block">
-                                <strong className="block max-w-40 truncate text-sm text-slate-800 dark:text-slate-100">{isAdminAuth.name}</strong>
-                                <span className="block max-w-40 truncate text-xs text-slate-500 dark:text-slate-400">{ROLE_LABELS[currentRole] || ROLE_LABELS[isAdminAuth.role] || 'IT Support'}</span>
-                            </span>
+                    {isAdminAuth ? (
+                        <div className="relative ml-1 border-l border-slate-200 pl-3 dark:border-slate-700">
+                            <button type="button" onClick={() => setIsProfileMenuOpen((open) => !open)} className="group flex min-w-0 items-center gap-2 rounded-xl px-1.5 py-1 hover:bg-slate-100 dark:hover:bg-slate-800" aria-haspopup="menu" aria-expanded={isProfileMenuOpen}>
+                                <span className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full bg-indigo-50 text-sm font-bold text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-200">
+                                    {isAdminAuth.profile_image_url || isAdminAuth.avatar_url ? <img src={isAdminAuth.profile_image_url || isAdminAuth.avatar_url} alt={isAdminAuth.name || 'Profile'} className="h-full w-full object-cover" /> : ((isAdminAuth.name || isAdminAuth.username || 'U').charAt(0).toUpperCase())}
+                                </span>
+                                <span className="hidden min-w-0 2xl:block"><strong className="block max-w-40 truncate text-sm text-slate-800 dark:text-slate-100">{isAdminAuth.name}</strong><span className="block max-w-40 truncate text-xs text-slate-500 dark:text-slate-400">{ROLE_LABELS[currentRole] || ROLE_LABELS[isAdminAuth.role] || 'IT Support'}</span></span>
+                                <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${isProfileMenuOpen ? 'rotate-180' : ''}`} />
+                            </button>
+                            {isProfileMenuOpen && <div className="absolute right-0 mt-3 w-64 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+                                <div className="border-b border-slate-100 px-4 py-3 dark:border-slate-800"><strong className="block truncate text-sm text-slate-800 dark:text-slate-100">{isAdminAuth.name}</strong><span className="mt-1 block truncate text-xs text-slate-500">{isAdminAuth.username} · {ROLE_LABELS[currentRole] || ROLE_LABELS[isAdminAuth.role] || 'IT Support'}</span></div>
+                                <div className="p-1.5"><button type="button" onClick={handleProfileSettings} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"><UserCog className="h-4 w-4" /> ตั้งค่าโปรไฟล์</button><button type="button" onClick={handleAdminLogout} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-rose-600 hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-rose-950/30"><LogOut className="h-4 w-4" /> ออกจากระบบ</button></div>
+                            </div>}
                         </div>
+                    ) : (
+                        <button type="button" onClick={() => handleNavClick(adminNavItem)} className="flex h-10 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-3 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"><LogIn className="h-4 w-4" /><span>เข้าสู่ระบบ</span></button>
                     )}
                 </div>
             </header>}

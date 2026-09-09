@@ -30,6 +30,7 @@
     "test:issue-assignee": "node scripts/test-first-issue-assignee.mjs",
     "test:asset-pm-approval": "node scripts/test-asset-pm-approval.mjs",
     "test:asset-status-history": "node scripts/test-asset-status-history.mjs",
+    "test:glpi-asset-code-import": "node scripts/test-glpi-asset-code-import.mjs",
     "migrate:employee-name-en": "node scripts/run-migrate-employee-name-en.mjs",
     "import:employees": "node scripts/import-employees-xlsx.mjs",
     "import:access-requests": "node scripts/import-access-requests-xlsx.mjs",

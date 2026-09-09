@@ -24,6 +24,7 @@ import SecretaryDepartmentOverview from './SecretaryDepartmentOverview'
 import SecretaryIssueForm from './SecretaryIssueForm'
 import SecretaryIssueList from './SecretaryIssueList'
 import SecretaryUserManagement from './SecretaryUserManagement'
+import SecretaryTailAdminPreview from './SecretaryTailAdminPreview'
 import { secretaryGetMe, secretaryLogin } from './secretaryApi'
 import { isSecretaryReceiverRole, isSecretarySuperAdmin, SECRETARY_AUTH_STORAGE_KEY, SECRETARY_ROLE_LABELS } from './secretaryConstants'
 
@@ -220,6 +221,7 @@ const SecretaryApp = () => {
 
   if (isValidating) return <div className="grid min-h-screen place-items-center"><Loader2 className="h-9 w-9 animate-spin text-indigo-500" /></div>
   if (!auth) return <SecretaryLogin onLogin={login} />
+  if (window.location.pathname.toLowerCase().endsWith('/tailadmin-preview')) return <SecretaryTailAdminPreview auth={auth} />
 
   return (
     <div className="ta-shell min-h-screen text-slate-800 dark:text-slate-100">
@@ -255,16 +257,7 @@ const SecretaryApp = () => {
           ))}
         </nav>
 
-        <div className="space-y-2 border-t border-slate-100 pt-4 dark:border-slate-800">
-          <div className={`flex min-w-0 items-center rounded-xl bg-slate-50 py-3 dark:bg-slate-900 ${isSidebarCollapsed ? 'xl:justify-center xl:px-2' : 'gap-3 px-3'}`} title={isSidebarCollapsed ? auth.name : undefined}>
-            <UserRound className="h-5 w-5 shrink-0 text-indigo-500" />
-            <div className={`min-w-0 ${isSidebarCollapsed ? 'xl:hidden' : ''}`}><strong className="block truncate text-sm text-slate-800 dark:text-slate-100">{auth.name}</strong><span className="block truncate text-xs text-slate-500">{SECRETARY_ROLE_LABELS[auth.role]}</span></div>
-          </div>
-          <div className={`flex gap-2 ${isSidebarCollapsed ? 'xl:flex-col xl:items-center' : ''}`}>
-            <button type="button" onClick={() => window.location.assign(CENTER_PATH)} className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm hover:border-indigo-300 hover:text-indigo-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300" title="App Center" aria-label="App Center"><LayoutGrid className="h-5 w-5" /></button>
-            <div className={`min-w-0 flex-1 ${isSidebarCollapsed ? 'xl:w-10 xl:flex-none' : ''}`}><ThemePicker variant="sidebar" isCollapsed={isSidebarCollapsed} /></div>
-            <button type="button" onClick={logout} className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-rose-600 hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-rose-950/30" title="ออกจากระบบ" aria-label="ออกจากระบบ"><LogOut className="h-5 w-5" /></button>
-          </div>
+        <div className="border-t border-slate-100 pt-4 dark:border-slate-800">
           <button type="button" onClick={() => setIsSidebarCollapsed((collapsed) => !collapsed)} className="hidden h-10 w-full items-center justify-center gap-2 rounded-xl text-sm font-semibold text-slate-500 hover:bg-slate-100 hover:text-indigo-600 dark:text-slate-400 dark:hover:bg-slate-900 xl:flex" title={isSidebarCollapsed ? 'ขยาย sidebar' : 'ย่อ sidebar'} aria-label={isSidebarCollapsed ? 'ขยาย sidebar' : 'ย่อ sidebar'}>
             {isSidebarCollapsed ? <PanelLeftOpen className="h-5 w-5" /> : <><PanelLeftClose className="h-5 w-5" /><span>ย่อ sidebar</span></>}
           </button>
@@ -283,13 +276,19 @@ const SecretaryApp = () => {
             <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-200"><UserRound className="h-5 w-5" /></span>
             <span className="hidden min-w-0 2xl:block"><strong className="block max-w-40 truncate text-sm text-slate-800 dark:text-slate-100">{auth.name}</strong><span className="block max-w-40 truncate text-xs text-slate-500 dark:text-slate-400">{SECRETARY_ROLE_LABELS[auth.role]}</span></span>
           </div>
+          <button type="button" onClick={logout} className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-rose-600 hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-rose-950/30" title="ออกจากระบบ" aria-label="ออกจากระบบ"><LogOut className="h-5 w-5" /></button>
         </div>
       </header>
 
       <header className="ta-topbar fixed inset-x-0 top-0 z-[60] flex min-h-16 items-center justify-between border-b px-4 xl:hidden">
         <button type="button" onClick={() => setIsMobileSidebarOpen(true)} className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300" aria-label="เปิดเมนู"><Menu className="h-5 w-5" /></button>
         <strong className="truncate px-3 text-sm font-bold text-slate-900 dark:text-white">Secretary Center</strong>
-        <ThemePicker />
+        <div className="flex shrink-0 items-center gap-1">
+          <button type="button" onClick={() => window.location.assign(CENTER_PATH)} className="grid h-10 w-10 place-items-center rounded-xl text-slate-600 hover:bg-slate-100 hover:text-indigo-600 dark:text-slate-300 dark:hover:bg-slate-900" title="App Center" aria-label="App Center"><LayoutGrid className="h-5 w-5" /></button>
+          <ThemePicker />
+          <span className="grid h-9 w-9 place-items-center rounded-full bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-200" title={`${auth.name} · ${SECRETARY_ROLE_LABELS[auth.role]}`}><UserRound className="h-5 w-5" /></span>
+          <button type="button" onClick={logout} className="grid h-10 w-10 place-items-center rounded-xl text-rose-600 hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-rose-950/30" title="ออกจากระบบ" aria-label="ออกจากระบบ"><LogOut className="h-5 w-5" /></button>
+        </div>
       </header>
 
       <main className={`ta-main min-h-screen w-full px-4 pb-8 pt-24 transition-[margin,width] duration-300 sm:px-6 xl:px-8 ${isSidebarCollapsed ? 'xl:ml-20 xl:w-[calc(100%-5rem)]' : 'xl:ml-72 xl:w-[calc(100%-18rem)]'}`}>

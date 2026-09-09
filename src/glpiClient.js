@@ -65,21 +65,32 @@ export const formatGlpiUserName = (nameStr) => {
 };
 
 export const getComputers = async (sessionToken) => {
-    const res = await fetchWithTimeout(
-        `${BASE_URL}/Computer?range=0-999&expand_dropdowns=true&is_deleted=false`,
-        {
-            headers: {
-                'Session-Token': sessionToken,
-            },
-        }
-    );
+    const headers = { 'Session-Token': sessionToken };
+    const [res, lastBootRes] = await Promise.all([
+        fetchWithTimeout(
+            `${BASE_URL}/Computer?range=0-999&expand_dropdowns=true&is_deleted=false`,
+            { headers }
+        ),
+        fetchWithTimeout(
+            `${BASE_URL}/search/Computer?range=0-999&forcedisplay[0]=2&forcedisplay[1]=5182`,
+            { headers },
+            15000
+        ),
+    ]);
     if (!res.ok) throw new Error(`GLPI getComputers failed: ${res.status}`);
     const data = await res.json();
+    if (!lastBootRes.ok) throw new Error(`GLPI get computer Last boot failed: ${lastBootRes.status}`);
+    const lastBootData = await lastBootRes.json();
+    const lastBootById = new Map(
+        (Array.isArray(lastBootData?.data) ? lastBootData.data : [])
+            .map((row) => [Number(row?.['2']), row?.['5182'] || null])
+    );
 
     if (Array.isArray(data)) {
         return data.map(c => ({
             ...c,
-            users_id: formatGlpiUserName(c.users_id)
+            users_id: formatGlpiUserName(c.users_id),
+            last_boot: lastBootById.get(Number(c.id)) || null,
         }));
     }
     return data;

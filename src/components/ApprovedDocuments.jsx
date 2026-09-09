@@ -274,7 +274,7 @@ const ApprovedDocuments = ({ currentAdmin }) => {
 
     const openApproval = (doc) => {
         setApprovalDocument(doc);
-        setSelectedApprovalStatus('');
+        setSelectedApprovalStatus(doc.type === 'asset_pm' ? 'Approved' : '');
     };
 
     const fetchFullDocument = async (doc) => {
@@ -696,7 +696,7 @@ const ApprovedDocuments = ({ currentAdmin }) => {
                                                 )}
                                                 {canApprove(doc) && (
                                                     <button type="button" onClick={() => openApproval(doc)} className="inline-flex items-center gap-1.5 rounded-lg bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-600 transition-colors hover:bg-amber-600 hover:text-white">
-                                                        <Edit className="w-4 h-4" /> เปลี่ยนสถานะ
+                                                        <Edit className="w-4 h-4" /> {doc.type === 'asset_pm' ? 'ลงนามอนุมัติ' : 'เปลี่ยนสถานะ'}
                                                     </button>
                                                 )}
                                             </div>
@@ -714,7 +714,9 @@ const ApprovedDocuments = ({ currentAdmin }) => {
                     <div className="w-full max-w-md rounded-3xl border border-slate-100 bg-white p-5 shadow-2xl dark:border-slate-700 dark:bg-slate-800 sm:p-6">
                         <div className="mb-5 flex items-center justify-between gap-3">
                             <div>
-                                <h3 className="text-lg font-bold text-slate-800 dark:text-white">ลงนามอนุมัติเอกสาร</h3>
+                                <h3 className="text-lg font-bold text-slate-800 dark:text-white">
+                                    {approvalDocument.type === 'asset_pm' ? 'ลงนามอนุมัติรายงาน PM' : 'ลงนามอนุมัติเอกสาร'}
+                                </h3>
                                 <p className="mt-1 text-xs text-slate-500">{approvalDocument.ticketNumber || '-'}</p>
                             </div>
                             <button type="button" onClick={() => { setApprovalDocument(null); setSelectedApprovalStatus(''); }} className="text-slate-400 hover:text-rose-500" aria-label="ปิด">
