@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Building2, CalendarDays, FileText, Loader2, Tag, UserRound, X } from 'lucide-react'
-import { resolveAttachmentUrl } from '../utils/fileUpload'
+import { resolveAttachmentUrl } from '@/utils/fileUpload'
 import { secretaryGetIssueHistory } from './secretaryApi'
 import { formatSecretaryDate } from './secretaryConstants'
 import SecretaryStatusBadge from './SecretaryStatusBadge'

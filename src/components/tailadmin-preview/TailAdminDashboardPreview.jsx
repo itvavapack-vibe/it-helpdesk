@@ -9,7 +9,7 @@ import {
 } from 'recharts';
 import {
     SystemAppShell, SystemPageHeader, SystemStatCard, SystemStatusBadge,
-} from '../system-ui';
+} from '@/shared/system-ui';
 import TailAdminIssuePage from './TailAdminIssuePage';
 import TailAdminAssetPage from './TailAdminAssetPage';
 import TailAdminAssetStatusPage from './TailAdminAssetStatusPage';

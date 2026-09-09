@@ -7,7 +7,7 @@ import { mysql } from '../../mysqlClient';
 import {
     SystemDataTable, SystemDetailDrawer, SystemPageHeader, SystemStatCard,
     SystemStatusBadge,
-} from '../system-ui';
+} from '@/shared/system-ui';
 
 const STATUS = {
     ACTIVE: 'ทำงาน',

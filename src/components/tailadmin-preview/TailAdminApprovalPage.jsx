@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ClipboardCheck, Eye, FileKey2, FileText, RefreshCw, SearchX, Server, Wrench } from 'lucide-react';
 import { mysql } from '../../mysqlClient';
 import { APPROVAL_QUEUE_STATUS_BY_ROLE, canApproveServerRoomEntry, normalizeRoleValue, visibleQueueStatuses } from '../../config/roles';
-import { SystemDataTable, SystemDetailDrawer, SystemPageHeader, SystemStatCard, SystemStatusBadge } from '../system-ui';
+import { SystemDataTable, SystemDetailDrawer, SystemPageHeader, SystemStatCard, SystemStatusBadge } from '@/shared/system-ui';
 
 const TYPE_META = {
     access: ['ขอผู้ใช้งานระบบ', FileKey2, 'info'],

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DoorClosed, DoorOpen, Eye, RefreshCw, SearchX, Server, ShieldCheck } from 'lucide-react';
 import { mysql } from '../../mysqlClient';
-import { SystemDataTable, SystemDetailDrawer, SystemPageHeader, SystemStatCard, SystemStatusBadge } from '../system-ui';
+import { SystemDataTable, SystemDetailDrawer, SystemPageHeader, SystemStatCard, SystemStatusBadge } from '@/shared/system-ui';
 
 const STATUS_META = {
     Pending_Approval: ['รออนุมัติ', 'warning'],

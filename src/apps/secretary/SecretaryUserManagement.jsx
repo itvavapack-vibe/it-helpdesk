@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import * as XLSX from 'xlsx'
 import Swal from 'sweetalert2'
 import { Download, FileSpreadsheet, Loader2, Pencil, Plus, Search, Trash2, Upload, X } from 'lucide-react'
-import { PASSWORD_POLICY_TEXT } from '../../shared/passwordPolicy'
+import { PASSWORD_POLICY_TEXT } from '../../../shared/passwordPolicy'
 import {
   secretaryCreateUser,
   secretaryDeleteUser,

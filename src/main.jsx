@@ -1,11 +1,11 @@
 import React, { Suspense, lazy } from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
-import CenterPortal from './components/CenterPortal.jsx'
+import CenterPortal from './apps/center/CenterPortal.jsx'
 import { CENTER_PATH, isCenterPath, isSecretaryPath } from './config/appPaths.js'
 import './index.css'
 
-const SecretaryApp = lazy(() => import('./secretary/SecretaryApp.jsx'))
+const SecretaryApp = lazy(() => import('./apps/secretary/SecretaryApp.jsx'))
 
 const showCenter = isCenterPath(window.location.pathname, window.location.search)
 const showSecretary = isSecretaryPath(window.location.pathname)

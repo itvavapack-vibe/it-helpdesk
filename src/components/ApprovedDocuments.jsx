@@ -10,7 +10,7 @@ import { getStatusBadgeClass } from '../utils/statusStyles';
 import Fmit12PdfPreview from './Fmit12PdfPreview';
 import Fmit15PdfPreview from './Fmit15PdfPreview';
 import AssetPmApprovalReport from './AssetPmApprovalReport';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/select';
 
 const STATUS_LABELS = {
     Pending_IT: 'รับแจ้ง',

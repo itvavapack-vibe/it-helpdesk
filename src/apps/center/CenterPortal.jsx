@@ -11,8 +11,8 @@ import {
     Wrench,
     X,
 } from 'lucide-react'
-import ThemePicker from './ThemePicker'
-import { IT_HELPDESK_BASE_PATH, SECRETARY_PATH, toItHelpdeskPath } from '../config/appPaths'
+import ThemePicker from '@/shared/system-ui/ThemePicker'
+import { IT_HELPDESK_BASE_PATH, SECRETARY_PATH, toItHelpdeskPath } from '@/config/appPaths'
 
 const SYSTEMS = [
     {

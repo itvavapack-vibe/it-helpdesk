@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { MessageCircle, Paperclip, RefreshCw, SearchX, UserRound } from 'lucide-react';
 import { mysql } from '../../mysqlClient';
 import { canAdminSeeItChatSession } from '../../config/itChatAssignees';
-import { SystemPageHeader, SystemStatusBadge } from '../system-ui';
+import { SystemPageHeader, SystemStatusBadge } from '@/shared/system-ui';
 
 const parseAttachments = (value) => {
     if (!value) return [];

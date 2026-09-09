@@ -3,7 +3,7 @@ import {
     ChevronLeft, ChevronRight, CircleAlert, Eye, Filter,
     ListFilter, RotateCcw, SearchX, Wrench,
 } from 'lucide-react';
-import { SystemDetailDrawer, SystemPageHeader, SystemStatusBadge } from '../system-ui';
+import { SystemDetailDrawer, SystemPageHeader, SystemStatusBadge } from '@/shared/system-ui';
 
 const STATUS_META = {
     Pending: ['รอดำเนินการ', 'warning'],

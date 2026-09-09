@@ -3,7 +3,7 @@ import { mysql } from '../mysqlClient';
 import { Search, Filter, ClipboardPenLine, CheckCircle, XCircle, Clock, Trash2, Edit, Link, Printer, Paperclip, X, Eye, LayoutGrid, User, Briefcase, FileText, AlertCircle, FileSpreadsheet } from 'lucide-react';
 import Swal from 'sweetalert2';
 import SignatureCanvas from 'react-signature-canvas';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/select';
 import { toLocalDateInputValue, toMysqlDateTime } from '../utils/dateTime';
 import { CHANGE_QUEUE_STATUS_BY_ROLE, canDeleteRecords, canHandleChangeRequestCategory, canManageAllWork, normalizeRoleValue, visibleQueueStatuses } from '../config/roles';
 import { CHANGE_REQUEST_TYPE_OPTIONS, getChangeRequestTypeLabel } from '../config/changeRequestTypes';

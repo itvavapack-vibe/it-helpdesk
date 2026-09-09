@@ -13,20 +13,20 @@ This is intentionally not shadcn/ui. It is a copy-friendly internal library for 
 ## Import
 
 ```jsx
-import { Button, Card, Input, Label, Dialog } from '@/components/ui';
+import { Button, Card, Input, Label, Dialog } from '@/shared/ui';
 ```
 
 or import one component:
 
 ```jsx
-import { Button } from '@/components/ui/button';
+import { Button } from '@/shared/ui/button';
 ```
 
 ## Copy To Another Project
 
 Copy these files:
 
-- `src/components/ui`
+- `src/shared/ui`
 - `src/lib/utils.js`
 
 Also copy the CSS utilities from `src/index.css`:

@@ -4,7 +4,7 @@ import SignatureCanvas from 'react-signature-canvas';
 import Swal from 'sweetalert2';
 import Fmit12PdfPreview from './Fmit12PdfPreview';
 import { mysql } from '../mysqlClient';
-import { Combobox } from './ui/combobox';
+import { Combobox } from '@/shared/ui/combobox';
 import { buildManagerApprovalLink, copyText } from '../utils/closeIssueLink';
 import { insertWithMonthlyDocumentNumber } from '../utils/ticketNumber';
 

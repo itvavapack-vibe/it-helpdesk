@@ -4,7 +4,7 @@ import SignatureCanvas from 'react-signature-canvas';
 import Swal from 'sweetalert2';
 import { mysql } from '../mysqlClient';
 import Fmit12PdfPreview from './Fmit12PdfPreview';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/select';
 import { ACCESS_QUEUE_STATUS_BY_ROLE, ROLES, canDeleteRecords, canManageAllWork, normalizeRoleValue, visibleQueueStatuses } from '../config/roles';
 import { toMysqlDateTime } from '../utils/dateTime';
 import { showAcknowledgeAccessRequestLinkDialog } from '../utils/closeIssueLink';

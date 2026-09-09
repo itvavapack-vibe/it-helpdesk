@@ -17,8 +17,8 @@ import {
   Users,
   X,
 } from 'lucide-react'
-import ThemePicker from '../components/ThemePicker'
-import { CENTER_PATH } from '../config/appPaths'
+import ThemePicker from '@/shared/system-ui/ThemePicker'
+import { CENTER_PATH } from '@/config/appPaths'
 import SecretaryDashboard from './SecretaryDashboard'
 import SecretaryDepartmentOverview from './SecretaryDepartmentOverview'
 import SecretaryIssueForm from './SecretaryIssueForm'

@@ -3,7 +3,7 @@ import { Check, Edit2, LockKeyhole, LockOpen, Save, Search, Settings, Shield, Tr
 import Swal from 'sweetalert2';
 import { getAdminSecuritySettings, mysql, unlockAdminAccount, updateAdminSecuritySettings } from '../mysqlClient';
 import { ROLE_LABELS, ROLE_OPTIONS, ROLES, canManageAdminUsers, normalizeRoleValue } from '../config/roles';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/select';
 import { PASSWORD_POLICY_TEXT, getPasswordPolicyErrors } from '../../shared/passwordPolicy';
 
 const normalizeRole = normalizeRoleValue;

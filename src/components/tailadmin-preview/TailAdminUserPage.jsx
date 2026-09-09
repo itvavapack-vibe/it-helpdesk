@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Eye, KeyRound, LockKeyhole, RefreshCw, SearchX, ShieldCheck, UserCog, UsersRound } from 'lucide-react';
 import { mysql } from '../../mysqlClient';
 import { ROLE_LABELS, normalizeRoleValue } from '../../config/roles';
-import { SystemDataTable, SystemDetailDrawer, SystemPageHeader, SystemStatCard, SystemStatusBadge } from '../system-ui';
+import { SystemDataTable, SystemDetailDrawer, SystemPageHeader, SystemStatCard, SystemStatusBadge } from '@/shared/system-ui';
 
 const formatDateTime = (value) => {
     if (!value) return '-';

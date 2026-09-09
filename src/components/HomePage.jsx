@@ -1,6 +1,6 @@
 import React from 'react';
 import { ClipboardList, ClipboardPenLine, Key } from 'lucide-react';
-import { Button } from '@/components/ui';
+import { Button } from '@/shared/ui';
 import { HOME_QUICK_ACTIONS, canSee } from '../config/navigation';
 
 const TRACKING_TONES = {

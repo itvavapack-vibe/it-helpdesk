@@ -3,7 +3,7 @@ import SignatureCanvas from 'react-signature-canvas';
 import { CheckCircle2, ClipboardCheck, Eraser, FileSignature, ImagePlus, Loader2, X, XCircle } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { mysql } from '../mysqlClient';
-import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Label, Textarea } from '@/components/ui';
+import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Label, Textarea } from '@/shared/ui';
 import { toMysqlDateTime } from '../utils/dateTime';
 import { loadSignatureIntoCanvas } from '../utils/signatureCanvas';
 import { resolveAttachmentUrl } from '../utils/fileUpload';

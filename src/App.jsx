@@ -1,7 +1,7 @@
 import { Suspense, lazy, useState, useEffect, useRef } from 'react';
 import SignatureCanvas from 'react-signature-canvas';
 import { getAdminProfile, mysql, updateAdminProfile } from './mysqlClient';
-import ThemePicker from './components/ThemePicker';
+import ThemePicker from '@/shared/system-ui/ThemePicker';
 import HomePage from './components/HomePage';
 import { ChevronDown, LayoutGrid, LogIn, LogOut, Maximize2, MessageCircle, Monitor, MoreHorizontal, PanelLeftClose, PanelLeftOpen, UserCog, X } from 'lucide-react';
 import { ADMIN_SUB_TABS, MAIN_NAV_ITEMS, canSee, normalizeRole } from './config/navigation';

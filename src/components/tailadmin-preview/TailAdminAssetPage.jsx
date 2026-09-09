@@ -8,7 +8,7 @@ import { getAssetBranchKey, getAssetBranchLabel } from '../../utils/assetBranch'
 import {
     SystemDataTable, SystemDetailDrawer, SystemPageHeader, SystemStatCard,
     SystemStatusBadge,
-} from '../system-ui';
+} from '@/shared/system-ui';
 
 const isActive = (asset) => String(asset?.states_id || '').trim().toLowerCase() === 'active';
 const sourceType = (asset) => {

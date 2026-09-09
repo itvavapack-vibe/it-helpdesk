@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowRightLeft, Eye, Laptop, MonitorCheck, PackageX, RefreshCw, SearchX, Wrench } from 'lucide-react';
 import { mysql } from '../../mysqlClient';
 import { ASSET_STATUS, getAssetStatusLabel } from '../../utils/assetStatus';
-import { SystemDataTable, SystemDetailDrawer, SystemPageHeader, SystemStatCard, SystemStatusBadge } from '../system-ui';
+import { SystemDataTable, SystemDetailDrawer, SystemPageHeader, SystemStatCard, SystemStatusBadge } from '@/shared/system-ui';
 
 const ACTIVE = 'Active';
 const eventTime = (item) => new Date(item?.event_date || item?.updated_at || item?.created_at || 0).getTime() || 0;

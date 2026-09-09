@@ -17,7 +17,7 @@ import {
   UserRound,
   X,
 } from 'lucide-react'
-import { MAX_ATTACHMENT_FILES, MAX_ATTACHMENT_SIZE, resolveAttachmentUrl, uploadAttachmentFiles } from '../utils/fileUpload'
+import { MAX_ATTACHMENT_FILES, MAX_ATTACHMENT_SIZE, resolveAttachmentUrl, uploadAttachmentFiles } from '@/utils/fileUpload'
 import {
   secretaryGetIssueHistory,
   secretaryListIssues,

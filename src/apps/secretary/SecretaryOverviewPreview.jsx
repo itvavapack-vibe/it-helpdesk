@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Building2, CalendarDays, ChevronRight, ClipboardList, Eye, RefreshCw, RotateCcw, SearchX } from 'lucide-react';
-import { SystemDataTable, SystemDetailDrawer, SystemPageHeader, SystemStatusBadge } from '../components/system-ui';
+import { SystemDataTable, SystemDetailDrawer, SystemPageHeader, SystemStatusBadge } from '@/shared/system-ui';
 import { secretaryGetDepartmentOverview } from './secretaryApi';
 import { formatSecretaryDate, SECRETARY_BRANCH_OPTIONS, SECRETARY_DEPARTMENT_OPTIONS, SECRETARY_IMPACTS } from './secretaryConstants';
 

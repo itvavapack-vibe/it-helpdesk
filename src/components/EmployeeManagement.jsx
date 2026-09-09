@@ -12,7 +12,7 @@ import {
     X
 } from 'lucide-react';
 import Swal from 'sweetalert2';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/select';
 import { toLocalDateInputValue, toMysqlDateTime } from '../utils/dateTime';
 
 const DEPARTMENTS = [

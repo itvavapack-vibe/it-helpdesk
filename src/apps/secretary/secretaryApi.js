@@ -1,4 +1,4 @@
-import { API_URL } from '../mysqlClient'
+import { API_URL } from '@/mysqlClient'
 import { SECRETARY_AUTH_STORAGE_KEY } from './secretaryConstants'
 
 const getToken = () => {

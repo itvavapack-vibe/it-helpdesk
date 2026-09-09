@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Eye, EyeOff, Lock, User } from 'lucide-react';
 import { changeExpiredAdminPassword, loginAdmin } from '../mysqlClient';
-import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Label } from '@/components/ui';
+import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Label } from '@/shared/ui';
 import { PASSWORD_POLICY_TEXT, getPasswordPolicyErrors } from '../../shared/passwordPolicy';
 
 const AdminLogin = ({ onLogin }) => {

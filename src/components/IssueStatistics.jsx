@@ -3,7 +3,7 @@ import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Toolti
 import { AlertCircle, BarChart3, CalendarDays, CheckCircle2, ClipboardList, Clock3, Monitor, PieChart as PieChartIcon, RefreshCw, TrendingUp, UserCheck, Users } from 'lucide-react';
 import { mysql } from '../mysqlClient';
 import { ROLES, normalizeRoleValue } from '../config/roles';
-import { DashboardPageHeader, DashboardPanel, DashboardStatCard, DashboardTable } from './dashboard';
+import { DashboardPageHeader, DashboardPanel, DashboardStatCard, DashboardTable } from '@/shared/dashboard';
 
 const CATEGORIES = [
     'แก้ไขปัญหาด้าน Software D365',

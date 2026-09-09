@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Building2, CalendarCheck, Eye, MonitorCheck, RefreshCw, SearchX, Send, Wrench } from 'lucide-react';
 import { mysql } from '../../mysqlClient';
 import { getAllAssetBranches, getAssetBranchKey } from '../../utils/assetBranch';
-import { SystemDataTable, SystemDetailDrawer, SystemPageHeader, SystemStatCard, SystemStatusBadge } from '../system-ui';
+import { SystemDataTable, SystemDetailDrawer, SystemPageHeader, SystemStatCard, SystemStatusBadge } from '@/shared/system-ui';
 
 const isBuy = (asset) => /buy|ซื้อ/i.test(String(asset?.autoupdatesystems_id || ''));
 const formatDate = (value) => {

@@ -9,12 +9,12 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-} from "@/components/ui/command"
+} from "@/shared/ui/command"
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@/components/ui/popover"
+} from "@/shared/ui/popover"
 
 export function Combobox({ options = [], value, onValueChange, placeholder = "Select option...", searchPlaceholder = "Search..." }) {
   const [open, setOpen] = React.useState(false)

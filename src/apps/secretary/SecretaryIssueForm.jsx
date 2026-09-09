@@ -13,12 +13,12 @@ import {
   Send,
   X,
 } from 'lucide-react'
-import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover'
+import { Popover, PopoverContent, PopoverTrigger } from '@/shared/ui/popover'
 import {
   MAX_ATTACHMENT_FILES,
   MAX_ATTACHMENT_SIZE,
   uploadAttachmentFiles,
-} from '../utils/fileUpload'
+} from '@/utils/fileUpload'
 import { secretaryCreateIssue, secretaryListUserOptions } from './secretaryApi'
 import { SECRETARY_CATEGORIES, SECRETARY_IMPACTS } from './secretaryConstants'
 

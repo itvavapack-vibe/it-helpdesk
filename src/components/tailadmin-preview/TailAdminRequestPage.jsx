@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ClipboardPenLine, Eye, FileKey2, RefreshCw, SearchX, Wrench } from 'lucide-react';
 import { mysql } from '../../mysqlClient';
 import { canHandleChangeRequestCategory, normalizeRoleValue } from '../../config/roles';
-import { SystemDataTable, SystemDetailDrawer, SystemPageHeader, SystemStatCard, SystemStatusBadge } from '../system-ui';
+import { SystemDataTable, SystemDetailDrawer, SystemPageHeader, SystemStatCard, SystemStatusBadge } from '@/shared/system-ui';
 
 const ACCESS_LABELS = {
     Pending: 'ร้องขอ', Pending_Manager: 'ผู้จัดการของผู้แจ้ง', Pending_IT: 'รับแจ้ง',

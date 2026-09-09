@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { CheckCircle, ClipboardList, Monitor, X, ImagePlus } from 'lucide-react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Combobox } from './ui/combobox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/select';
+import { Combobox } from '@/shared/ui/combobox';
 import Swal from 'sweetalert2';
 import { mysql } from '../mysqlClient';
 import { DEFAULT_ISSUE_CATEGORY, ISSUE_CATEGORIES } from '../config/issueOptions';

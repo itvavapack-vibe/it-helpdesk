@@ -8,7 +8,7 @@ single risky release.
 
 ## Architecture
 
-- Shared shell and visual primitives: `src/components/system-ui`
+- Shared shell and visual primitives: `src/shared/system-ui`
 - Domain pages remain in their existing IT Helpdesk or Secretary ownership
 - Design rules: `design.md`
 - Tokens: `tokens.css`
