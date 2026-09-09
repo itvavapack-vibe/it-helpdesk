@@ -1,6 +1,6 @@
 import React, { Suspense, lazy } from 'react'
 import ReactDOM from 'react-dom/client'
-import App from './App.jsx'
+import ItHelpdeskApp from './apps/it-helpdesk/ItHelpdeskApp.jsx'
 import CenterPortal from './apps/center/CenterPortal.jsx'
 import { CENTER_PATH, isCenterPath, isSecretaryPath } from './config/appPaths.js'
 import './index.css'
@@ -20,6 +20,6 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Suspense fallback={<div className="grid min-h-screen place-items-center text-sm font-semibold text-slate-500">กำลังโหลด Secretary Center...</div>}>
                 <SecretaryApp />
             </Suspense>
-        ) : <App />}
+        ) : <ItHelpdeskApp />}
     </React.StrictMode>
 )

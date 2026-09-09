@@ -9,7 +9,8 @@ single risky release.
 ## Architecture
 
 - Shared shell and visual primitives: `src/shared/system-ui`
-- Domain pages remain in their existing IT Helpdesk or Secretary ownership
+- IT Helpdesk domains: `src/apps/it-helpdesk`
+- Secretary domain: `src/apps/secretary`
 - Design rules: `design.md`
 - Tokens: `tokens.css`
 - UAT preview route: `/it-helpdesk/admin/tailadmin-preview`

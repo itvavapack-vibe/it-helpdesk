@@ -17,6 +17,7 @@ export default ({ mode }) => {
     resolve: {
       alias: {
         '@': path.resolve(process.cwd(), './src'),
+        '@common': path.resolve(process.cwd(), './shared'),
       },
     },
     define: {

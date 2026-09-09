@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertCircle, CheckCircle2, ClipboardList, Eye, LayoutDashboard, Network, RefreshCw, SearchX, Users } from 'lucide-react';
 import { CENTER_PATH, SECRETARY_PATH } from '@/config/appPaths';
 import { SystemAppShell, SystemDataTable, SystemDetailDrawer, SystemPageHeader, SystemStatCard, SystemStatusBadge } from '@/shared/system-ui';
-import '@/components/tailadmin-preview/tailadmin-preview.css';
+import '@/shared/system-ui/system-pages.css';
 import { secretaryGetDashboard, secretaryListIssues } from './secretaryApi';
 import { formatSecretaryDate, isSecretaryReceiverRole, isSecretarySuperAdmin, SECRETARY_IMPACTS, SECRETARY_ROLE_LABELS, SECRETARY_STATUS } from './secretaryConstants';
 import SecretaryOverviewPreview from './SecretaryOverviewPreview';

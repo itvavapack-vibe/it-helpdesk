@@ -9,16 +9,26 @@ top-level component directory.
 | Path | Ownership |
 | --- | --- |
 | `src/apps/center` | App Center routes and screens |
+| `src/apps/it-helpdesk` | IT Helpdesk application shell and feature domains |
+| `src/apps/it-helpdesk/access` | User access requests and access approvals |
+| `src/apps/it-helpdesk/admin` | Employees, admin users, and security settings |
+| `src/apps/it-helpdesk/approvals` | Shared approval inbox and approval reports |
+| `src/apps/it-helpdesk/assets` | GLPI inventory, PM, asset status, and asset-code import |
+| `src/apps/it-helpdesk/chat` | Requester and IT chat experiences |
+| `src/apps/it-helpdesk/changes` | System change requests and acceptance workflows |
+| `src/apps/it-helpdesk/issues` | Helpdesk tickets, tracking, signatures, and issue reports |
+| `src/apps/it-helpdesk/preview` | UAT-only redesigned Helpdesk page previews |
+| `src/apps/it-helpdesk/server-room` | Server-room access management |
 | `src/apps/secretary` | Secretary Center features, API client, and screens |
-| `src/components` | Existing IT Helpdesk feature components during phased migration |
 | `src/shared/ui` | Low-level reusable controls such as buttons, selects, and dialogs |
 | `src/shared/system-ui` | Shared application shell, tables, headers, theme, and status UI |
 | `src/shared/dashboard` | Shared dashboard composition components |
 | `src/config` | Routes and frontend configuration |
 | `src/utils` | Cross-feature frontend utilities |
 
-Use the `@/` alias for imports that cross feature boundaries. Keep relative
-imports for files inside the same feature folder.
+Use the `@/` alias for frontend imports that cross feature boundaries and
+`@common/` for root shared modules. Keep relative imports for files inside the
+same feature folder.
 
 ## Backend And Operations
 
