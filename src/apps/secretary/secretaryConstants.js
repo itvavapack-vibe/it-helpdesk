@@ -99,3 +99,9 @@ export const formatSecretaryDate = (value, options = {}) => {
     ...options,
   }).format(date)
 }
+
+export const formatSecretaryDateTime = (value) => formatSecretaryDate(value, {
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false,
+})

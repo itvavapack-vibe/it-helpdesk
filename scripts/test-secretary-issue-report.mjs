@@ -104,11 +104,13 @@ try {
       damage_value: '12345.67',
       related_user_ids: [relatedId],
       attachments: [uploadedFile],
-      occurred_at: new Date().toISOString().slice(0, 10),
+      occurred_at: '2000-01-02',
     },
   })
   issueId = Number(issue.id)
 
+  if (!issue.created_at || Number.isNaN(Date.parse(issue.created_at))) throw new Error('Automatic issue submission date time was not stored')
+  if (String(issue.occurred_at).slice(0, 10) !== '2000-01-02') throw new Error('Occurred date was not stored separately from submission date time')
   if (issue.branch !== reporterBranch) throw new Error('Reporter branch snapshot was not stored')
   if (Number(issue.damage_value) !== 12345.67) throw new Error('Damage value was not stored')
   if (issue.related_users?.[0]?.name !== 'Related Department Test User') throw new Error('Related user snapshot was not stored')

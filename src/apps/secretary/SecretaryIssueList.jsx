@@ -25,6 +25,7 @@ import {
 } from './secretaryApi'
 import {
   formatSecretaryDate,
+  formatSecretaryDateTime,
   isSecretaryReceiverRole,
   SECRETARY_BRANCH_OPTIONS,
   SECRETARY_CATEGORIES,
@@ -233,7 +234,7 @@ const SecretaryIssueList = ({ auth, initialStatus = '', mineOnly = false }) => {
   const exportFiltered = () => {
     const rows = filteredIssues.map((issue) => ({
       'เลขที่': issue.issue_number,
-      'วันที่แจ้ง': formatSecretaryDate(issue.created_at),
+      'วันที่แจ้ง': formatSecretaryDateTime(issue.created_at),
       'วันที่พบปัญหา': formatSecretaryDate(issue.occurred_at),
       'ผู้แจ้ง': issue.reporter_name,
       'แผนก': issue.department,
@@ -311,7 +312,7 @@ const SecretaryIssueList = ({ auth, initialStatus = '', mineOnly = false }) => {
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {filteredIssues.map((issue) => (
                     <tr key={issue.id} onClick={() => openIssue(issue)} className="cursor-pointer hover:bg-indigo-50/60 dark:hover:bg-indigo-950/20">
-                      <td className="whitespace-nowrap px-4 py-4"><strong className="block text-slate-800 dark:text-slate-100">{issue.issue_number}</strong><span className="mt-1 block text-xs text-slate-500">{formatSecretaryDate(issue.created_at)}</span></td>
+                      <td className="whitespace-nowrap px-4 py-4"><strong className="block text-slate-800 dark:text-slate-100">{issue.issue_number}</strong><span className="mt-1 block text-xs text-slate-500">{formatSecretaryDateTime(issue.created_at)}</span></td>
                       {isReceiver && <td className="px-4 py-4"><strong className="block text-slate-700 dark:text-slate-200">{issue.reporter_name}</strong><span className="mt-1 block text-xs text-slate-500">{issue.department}</span></td>}
                       <td className="max-w-52 px-4 py-4 text-slate-600 dark:text-slate-300">{issue.branch || '-'}</td>
                       <td className="max-w-sm px-4 py-4"><strong className="block truncate text-slate-800 dark:text-slate-100">{issue.title}</strong><span className="mt-1 block truncate text-xs text-slate-500">{issue.category}</span></td>
@@ -329,7 +330,7 @@ const SecretaryIssueList = ({ auth, initialStatus = '', mineOnly = false }) => {
             {filteredIssues.map((issue) => (
               <button key={issue.id} type="button" onClick={() => openIssue(issue)} className="min-w-0 rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm dark:border-slate-700 dark:bg-slate-900/80">
                 <span className="flex items-start justify-between gap-3"><span className="min-w-0"><span className="block text-xs font-semibold text-slate-500">{issue.issue_number}</span><strong className="mt-1 block truncate text-slate-800 dark:text-slate-100">{issue.title}</strong></span><SecretaryStatusBadge status={issue.status} /></span>
-                <span className="mt-3 flex items-start gap-2 text-xs text-slate-500"><Building2 className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span>{issue.department}<span className="mx-1.5">·</span>{issue.branch || '-'}<span className="mx-1.5">·</span>{formatSecretaryDate(issue.created_at)}</span></span>
+                <span className="mt-3 flex items-start gap-2 text-xs text-slate-500"><Building2 className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span>{issue.department}<span className="mx-1.5">·</span>{issue.branch || '-'}<span className="mx-1.5">·</span>{formatSecretaryDateTime(issue.created_at)}</span></span>
               </button>
             ))}
           </div>
