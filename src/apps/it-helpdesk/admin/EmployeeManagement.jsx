@@ -1,9 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { mysql } from '@/mysqlClient';
 import {
+    BellRing,
     Briefcase,
+    Check,
+    CheckCheck,
     Edit2,
     MoveRight,
+    RefreshCw,
     Search,
     Trash2,
     UserMinus,
@@ -14,6 +18,7 @@ import {
 import Swal from 'sweetalert2';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/select';
 import { toLocalDateInputValue, toMysqlDateTime } from '@/utils/dateTime';
+import { ROLES, normalizeRoleValue } from '@/config/roles';
 
 const DEPARTMENTS = [
     'แอดมิน',
@@ -68,6 +73,13 @@ const STATUS_OPTIONS = [
 ];
 
 const FINAL_REQUEST_STATUSES = ['Completed', 'Rejected', 'Cancelled'];
+
+const NOTIFICATION_TYPES = {
+    hired: { label: 'พนักงานเข้าใหม่', tone: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300' },
+    transferred: { label: 'พนักงานโอนย้าย', tone: 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-300' },
+    resigned: { label: 'พนักงานลาออก', tone: 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-800 dark:bg-rose-950/30 dark:text-rose-300' },
+    active: { label: 'กลับเข้าทำงาน', tone: 'border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-800 dark:bg-violet-950/30 dark:text-violet-300' },
+};
 
 const emptyForm = {
     id: null,
@@ -134,10 +146,17 @@ const EmployeeManagement = ({ currentAdmin }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalMode, setModalMode] = useState('add');
     const [formData, setFormData] = useState(emptyForm);
+    const [employeeNotifications, setEmployeeNotifications] = useState([]);
+    const [notificationFilter, setNotificationFilter] = useState('unread');
+    const [notificationError, setNotificationError] = useState('');
+    const [isNotificationLoading, setIsNotificationLoading] = useState(false);
+    const isItHardwareRole = normalizeRoleValue(currentAdmin?.role) === ROLES.IT_SUPPORT;
+    const isHrRole = normalizeRoleValue(currentAdmin?.role) === ROLES.HR;
 
     useEffect(() => {
         fetchEmployees();
         fetchTransferHistories();
+        if (isItHardwareRole) fetchEmployeeNotifications();
 
         const subscription = mysql
             .channel('employees_changes')
@@ -147,13 +166,14 @@ const EmployeeManagement = ({ currentAdmin }) => {
         return () => {
             mysql.removeChannel(subscription);
         };
-    }, []);
+    }, [isItHardwareRole]);
 
     useEffect(() => {
         const intervalId = setInterval(() => {
             if (document.visibilityState === 'visible') {
                 fetchEmployees({ silent: true });
                 fetchTransferHistories({ silent: true });
+                if (isItHardwareRole) fetchEmployeeNotifications({ silent: true });
             }
         }, 10000);
 
@@ -161,6 +181,7 @@ const EmployeeManagement = ({ currentAdmin }) => {
             if (document.visibilityState === 'visible') {
                 fetchEmployees({ silent: true });
                 fetchTransferHistories({ silent: true });
+                if (isItHardwareRole) fetchEmployeeNotifications({ silent: true });
             }
         };
 
@@ -169,7 +190,7 @@ const EmployeeManagement = ({ currentAdmin }) => {
             clearInterval(intervalId);
             document.removeEventListener('visibilitychange', handleVisibilityChange);
         };
-    }, []);
+    }, [isItHardwareRole]);
 
     const fetchEmployees = async ({ silent = false } = {}) => {
         if (!silent) setIsLoading(true);
@@ -210,6 +231,25 @@ const EmployeeManagement = ({ currentAdmin }) => {
             if (!silent) {
                 Swal.fire('ไม่พบตารางประวัติโอนย้าย', 'กรุณารัน migration employee transfer history ก่อน', 'warning');
             }
+        }
+    };
+
+    const fetchEmployeeNotifications = async ({ silent = false } = {}) => {
+        if (!isItHardwareRole) return;
+        if (!silent) setIsNotificationLoading(true);
+        setNotificationError('');
+        try {
+            const { data, error } = await mysql
+                .from('employee_status_notifications')
+                .select('*')
+                .order('created_at', { ascending: false });
+            if (error) throw error;
+            setEmployeeNotifications(data || []);
+        } catch (error) {
+            console.error('Error fetching employee status notifications:', error);
+            setNotificationError('ไม่สามารถโหลดการแจ้งเตือนสถานะพนักงานได้');
+        } finally {
+            if (!silent) setIsNotificationLoading(false);
         }
     };
 
@@ -440,6 +480,34 @@ const EmployeeManagement = ({ currentAdmin }) => {
         if (error) throw error;
     };
 
+    const createEmployeeStatusNotification = async ({ original, payload, changeType, effectiveDate, employeeRecordId }) => {
+        if (!isHrRole) return true;
+        const eventKeySuffix = changeType === 'transferred' || changeType === 'active'
+            ? `${effectiveDate || 'no-date'}:${Date.now()}`
+            : effectiveDate || 'no-date';
+        const { error } = await mysql.from('employee_status_notifications').insert([{
+            event_key: `${changeType}:${payload.emp_id}:${eventKeySuffix}`,
+            employee_id: employeeRecordId || original?.id || null,
+            emp_id: payload.emp_id,
+            employee_name: payload.name_th,
+            change_type: changeType,
+            from_status: original?.status || null,
+            to_status: payload.status,
+            from_department: original?.department || null,
+            to_department: payload.department || null,
+            from_position: original?.position || null,
+            to_position: payload.position || null,
+            effective_date: effectiveDate || null,
+            source_admin_id: currentAdmin?.id || null,
+            source_admin_name: currentAdmin?.name || currentAdmin?.username || 'ฝ่ายบุคคล',
+        }]);
+        if (error) {
+            console.error('Error creating employee status notification:', error);
+            return false;
+        }
+        return true;
+    };
+
     const cancelEmployeeRequests = async (employeeId, cancelData = {}) => {
         const cancelPayload = {
             status: 'Cancelled',
@@ -532,7 +600,17 @@ const EmployeeManagement = ({ currentAdmin }) => {
             if (modalMode === 'add') {
                 const { error } = await mysql.from('employees').insert([payload]);
                 if (error) throw error;
-                Swal.fire('เพิ่มพนักงานแล้ว', 'สร้างข้อมูลพนักงานใหม่เรียบร้อย', 'success');
+                const notificationSaved = await createEmployeeStatusNotification({
+                    original: null,
+                    payload,
+                    changeType: 'hired',
+                    effectiveDate: payload.start_date,
+                });
+                Swal.fire(
+                    notificationSaved ? 'เพิ่มพนักงานแล้ว' : 'เพิ่มพนักงานแล้ว แต่ส่งแจ้งเตือนไม่สำเร็จ',
+                    notificationSaved ? (isHrRole ? 'สร้างข้อมูลพนักงานใหม่และแจ้ง IT Hardware เรียบร้อย' : 'สร้างข้อมูลพนักงานใหม่เรียบร้อย') : 'ข้อมูลพนักงานถูกบันทึกแล้ว กรุณาตรวจสอบตารางแจ้งเตือน',
+                    notificationSaved ? 'success' : 'warning'
+                );
             } else {
                 const original = employees.find((employee) => employee.id === formData.id);
                 const wasResigned = original?.status === EMPLOYEE_STATUS.RESIGNED;
@@ -559,10 +637,28 @@ const EmployeeManagement = ({ currentAdmin }) => {
                         cancelItName: formData.cancel_it_name.trim(),
                         cancelItSign: null
                     });
-                    Swal.fire('อัปเดตสถานะแล้ว', 'บันทึกสถานะลาออก และยกเลิกคำร้องที่ยังค้างของพนักงานคนนี้แล้ว', 'success');
-                } else {
-                    Swal.fire('บันทึกแล้ว', 'อัปเดตข้อมูลพนักงานเรียบร้อย', 'success');
                 }
+
+                const statusChange = isTransferUpdate
+                    ? { type: 'transferred', date: payload.transfer_date }
+                    : becomesResigned && !wasResigned
+                        ? { type: 'resigned', date: payload.end_date }
+                        : original?.status !== payload.status && payload.status === EMPLOYEE_STATUS.ACTIVE
+                            ? { type: 'active', date: toLocalDateInputValue() }
+                            : null;
+                const notificationSaved = statusChange
+                    ? await createEmployeeStatusNotification({ original, payload, changeType: statusChange.type, effectiveDate: statusChange.date, employeeRecordId: formData.id })
+                    : true;
+                const successText = becomesResigned && !wasResigned
+                    ? (isHrRole ? 'บันทึกสถานะลาออก ยกเลิกคำร้องที่ค้าง และแจ้ง IT Hardware เรียบร้อย' : 'บันทึกสถานะลาออกและยกเลิกคำร้องที่ยังค้างเรียบร้อย')
+                    : statusChange && isHrRole
+                        ? 'อัปเดตสถานะและแจ้ง IT Hardware เรียบร้อย'
+                        : 'อัปเดตข้อมูลพนักงานเรียบร้อย';
+                Swal.fire(
+                    notificationSaved ? 'บันทึกแล้ว' : 'บันทึกแล้ว แต่ส่งแจ้งเตือนไม่สำเร็จ',
+                    notificationSaved ? successText : 'ข้อมูลพนักงานถูกบันทึกแล้ว กรุณาตรวจสอบตารางแจ้งเตือน',
+                    notificationSaved ? 'success' : 'warning'
+                );
             }
 
             closeModal();
@@ -642,6 +738,64 @@ const EmployeeManagement = ({ currentAdmin }) => {
         formData.status === EMPLOYEE_STATUS.TRANSFERRED ||
         currentTransferHistory.length > 0
     );
+    const unreadNotifications = employeeNotifications.filter((item) => !item.reviewed_at);
+    const displayedNotifications = employeeNotifications.filter((item) => {
+        if (notificationFilter === 'unread') return !item.reviewed_at;
+        if (notificationFilter === 'all') return true;
+        return item.change_type === notificationFilter;
+    });
+
+    const markNotificationReviewed = async (notification) => {
+        if (notification.reviewed_at) return;
+        const reviewedAt = toMysqlDateTime();
+        const payload = {
+            reviewed_at: reviewedAt,
+            reviewed_by_admin_id: currentAdmin?.id || null,
+            reviewed_by_name: currentAdmin?.name || currentAdmin?.username || 'IT Hardware',
+        };
+        const { error } = await mysql.from('employee_status_notifications').update(payload).eq('id', notification.id);
+        if (error) {
+            setNotificationError('บันทึกการตรวจสอบไม่สำเร็จ กรุณาลองใหม่');
+            return;
+        }
+        setEmployeeNotifications((current) => current.map((item) => item.id === notification.id ? { ...item, ...payload } : item));
+    };
+
+    const markAllNotificationsReviewed = async () => {
+        if (!unreadNotifications.length) return;
+        const reviewedAt = toMysqlDateTime();
+        const payload = {
+            reviewed_at: reviewedAt,
+            reviewed_by_admin_id: currentAdmin?.id || null,
+            reviewed_by_name: currentAdmin?.name || currentAdmin?.username || 'IT Hardware',
+        };
+        setIsNotificationLoading(true);
+        const { error } = await mysql.from('employee_status_notifications').update(payload).is('reviewed_at', null);
+        setIsNotificationLoading(false);
+        if (error) {
+            setNotificationError('บันทึกการตรวจสอบทั้งหมดไม่สำเร็จ กรุณาลองใหม่');
+            return;
+        }
+        setEmployeeNotifications((current) => current.map((item) => item.reviewed_at ? item : { ...item, ...payload }));
+    };
+
+    const inspectEmployee = (notification) => {
+        setSearchTerm(notification.emp_id || notification.employee_name || '');
+        setStatusFilter('All');
+        setMonthlyEventFilter('All');
+        setMonthFilter('');
+        setMonthInput('');
+        markNotificationReviewed(notification);
+    };
+
+    const getNotificationDetail = (notification) => {
+        if (notification.change_type === 'transferred') {
+            return `${notification.from_department || '-'} / ${notification.from_position || '-'} → ${notification.to_department || '-'} / ${notification.to_position || '-'}`;
+        }
+        if (notification.change_type === 'resigned') return `วันที่พ้นสภาพ ${formatDate(notification.effective_date)}`;
+        if (notification.change_type === 'hired') return `วันที่เริ่มงาน ${formatDate(notification.effective_date)} · ${notification.to_department || '-'} / ${notification.to_position || '-'}`;
+        return `${notification.to_department || '-'} / ${notification.to_position || '-'}`;
+    };
 
     return (
         <div className="space-y-6 animate-fade-in pb-10">
@@ -733,6 +887,45 @@ const EmployeeManagement = ({ currentAdmin }) => {
                     </button>
                 </div>
             </div>
+
+            {isItHardwareRole && (
+                <section className="overflow-hidden rounded-2xl border border-amber-200 bg-white shadow-sm dark:border-amber-900/60 dark:bg-slate-800">
+                    <div className="flex flex-col gap-4 border-b border-amber-100 bg-amber-50/70 p-5 dark:border-amber-900/40 dark:bg-amber-950/20 lg:flex-row lg:items-center lg:justify-between">
+                        <div className="flex items-start gap-3">
+                            <span className="relative grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300"><BellRing className="h-5 w-5" />{unreadNotifications.length > 0 && <b className="absolute -right-2 -top-2 min-w-6 rounded-full bg-rose-500 px-1.5 py-0.5 text-center text-[10px] text-white">{unreadNotifications.length > 99 ? '99+' : unreadNotifications.length}</b>}</span>
+                            <div><h3 className="font-bold text-slate-900 dark:text-white">แจ้งเตือนเปลี่ยนสถานะพนักงานจากฝ่ายบุคคล</h3><p className="mt-1 text-sm text-slate-500 dark:text-slate-400">สำหรับ IT Hardware ตรวจสอบพนักงานเข้าใหม่ โอนย้าย ลาออก และกลับเข้าทำงาน</p></div>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            <button type="button" onClick={() => fetchEmployeeNotifications()} disabled={isNotificationLoading} className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-600 hover:text-blue-600 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"><RefreshCw className={`h-4 w-4 ${isNotificationLoading ? 'animate-spin' : ''}`} />รีเฟรช</button>
+                            <button type="button" onClick={markAllNotificationsReviewed} disabled={!unreadNotifications.length || isNotificationLoading} className="inline-flex h-9 items-center gap-2 rounded-xl bg-emerald-600 px-3 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-50"><CheckCheck className="h-4 w-4" />ตรวจแล้วทั้งหมด</button>
+                        </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2 border-b border-slate-100 px-5 py-3 dark:border-slate-700">
+                        {[
+                            ['unread', `ยังไม่ได้ตรวจ (${unreadNotifications.length})`],
+                            ['all', `ทั้งหมด (${employeeNotifications.length})`],
+                            ['hired', 'เข้าใหม่'],
+                            ['transferred', 'โอนย้าย'],
+                            ['resigned', 'ลาออก'],
+                            ['active', 'กลับเข้าทำงาน'],
+                        ].map(([value, label]) => <button key={value} type="button" onClick={() => setNotificationFilter(value)} className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${notificationFilter === value ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-200 text-slate-600 hover:border-blue-300 hover:text-blue-600 dark:border-slate-700 dark:text-slate-300'}`}>{label}</button>)}
+                    </div>
+                    {notificationError && <div className="m-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700 dark:border-rose-800 dark:bg-rose-950/30 dark:text-rose-300">{notificationError}</div>}
+                    <div className="max-h-[430px] divide-y divide-slate-100 overflow-y-auto dark:divide-slate-700">
+                        {isNotificationLoading && !employeeNotifications.length ? <div className="p-8 text-center text-sm text-slate-500">กำลังโหลดการแจ้งเตือน...</div> : displayedNotifications.length === 0 ? <div className="p-8 text-center text-sm text-slate-500">ไม่มีรายการในหมวดนี้</div> : displayedNotifications.map((notification) => {
+                            const meta = NOTIFICATION_TYPES[notification.change_type] || { label: notification.to_status || 'เปลี่ยนสถานะ', tone: 'border-slate-200 bg-slate-50 text-slate-600' };
+                            return <article key={notification.id} className={`flex flex-col gap-3 p-4 sm:flex-row sm:items-center ${notification.reviewed_at ? 'bg-white dark:bg-slate-800' : 'bg-amber-50/35 dark:bg-amber-950/10'}`}>
+                                <button type="button" onClick={() => inspectEmployee(notification)} className="min-w-0 flex-1 text-left">
+                                    <span className="flex flex-wrap items-center gap-2"><strong className="text-sm text-slate-900 dark:text-white">{notification.employee_name}</strong><span className="font-mono text-xs text-slate-500">{notification.emp_id}</span><span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${meta.tone}`}>{meta.label}</span>{!notification.reviewed_at && <span className="rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-bold text-white">ใหม่</span>}</span>
+                                    <span className="mt-1 block text-xs leading-5 text-slate-600 dark:text-slate-300">{getNotificationDetail(notification)}</span>
+                                    <span className="mt-1 block text-[11px] text-slate-400">แจ้งโดย {notification.source_admin_name || 'ฝ่ายบุคคล'} · {formatDate(notification.created_at)}</span>
+                                </button>
+                                {notification.reviewed_at ? <span className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-emerald-600 dark:text-emerald-300"><Check className="h-4 w-4" />ตรวจแล้วโดย {notification.reviewed_by_name || 'IT Hardware'}</span> : <button type="button" onClick={() => markNotificationReviewed(notification)} className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-xs font-bold text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300"><Check className="h-4 w-4" />ตรวจแล้ว</button>}
+                            </article>;
+                        })}
+                    </div>
+                </section>
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
                 {[

@@ -44,6 +44,8 @@ try {
   assert.equal(logEvents[1].group_name, 'Infrastructure')
 
   const { events, staleAssets } = buildAssetStatusChanges(activeComputers, existingAssets, now)
+  assert.equal(events.some((event) => event.status === ASSET_STATUS.NEW), false)
+  events.push(...buildGlpiAssetStatusChanges([{ ...activeComputers[1], states_id: 'New' }], [], now).events)
   assert.equal(events.length, 3)
   assert.equal(staleAssets.length, 1)
   assert.deepEqual(new Set(events.map((event) => event.status)), new Set([
@@ -58,7 +60,7 @@ try {
 
   const glpiChanges = buildGlpiAssetStatusChanges([
     activeComputers[0],
-    { ...activeComputers[1], states_id: 0 },
+    { ...activeComputers[1], states_id: 'New' },
     { id: secondId, name: 'Disposed Test', states_id: 'Deactive', users_id: 'Disposed User', locations_id: 'VAVA 2 > Old', date_mod: '2099-05-07 10:00:00' },
   ], existingAssets, now)
   assert.equal(glpiChanges.activeComputers.length, 1)

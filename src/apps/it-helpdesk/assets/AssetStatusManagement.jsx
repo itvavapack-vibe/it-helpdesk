@@ -15,11 +15,13 @@ import {
 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import Swal from 'sweetalert2'
-import { getComputerLogs, getComputers, withGlpiSession } from '@/glpiClient'
+import { getComputerLogs, withGlpiSession } from '@/glpiClient'
 import { mysql } from '@/mysqlClient'
-import { syncGlpiAssetsToMysql } from '@/utils/assetSync'
-import { ASSET_STATUS, getAssetStatusLabel } from '@/utils/assetStatus'
+import MonthlyNewAssets from './MonthlyNewAssets'
+import AssetSyncStatusPanel from '@/components/AssetSyncStatusPanel'
+import { ASSET_STATUS, getAssetStatusLabel, isNewAssetHistory } from '@/utils/assetStatus'
 import { buildTransferEventsFromGlpiLogs } from '@/utils/glpiAssetLogs'
+import { getGlpiAssetSyncStatus, triggerGlpiAssetSync } from '@/utils/glpiAssetServerSync'
 import { MAX_ATTACHMENT_FILES, resolveAttachmentUrl, uploadAttachmentFiles } from '@/utils/fileUpload'
 
 const ACTIVE_STATUS = 'Active'
@@ -78,6 +80,7 @@ const AssetStatusManagement = () => {
   const [activeAssets, setActiveAssets] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [isSyncing, setIsSyncing] = useState(false)
+  const [syncStatus, setSyncStatus] = useState(null)
   const [warning, setWarning] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('All')
@@ -112,30 +115,12 @@ const AssetStatusManagement = () => {
     if (isSyncing) return
     setIsSyncing(true)
     try {
-      const { computers, transferEvents } = await withGlpiSession(async (sessionToken) => {
-        const computerRows = await getComputers(sessionToken)
-        const rows = Array.isArray(computerRows) ? computerRows : []
-        const events = []
-        const concurrency = 8
-        for (let index = 0; index < rows.length; index += concurrency) {
-          const chunk = rows.slice(index, index + concurrency)
-          const chunkEvents = await Promise.all(chunk.map(async (computer) => {
-            const logs = await getComputerLogs(sessionToken, computer.id, 1000)
-            return buildTransferEventsFromGlpiLogs(computer, logs)
-          }))
-          events.push(...chunkEvents.flat())
-        }
-        return { computers: rows, transferEvents: events }
-      })
-      const result = await syncGlpiAssetsToMysql(computers)
-      if (transferEvents.length) {
-        const { error } = await mysql.from('asset_status_history').upsert(transferEvents, { onConflict: 'event_key' })
-        if (error) throw new Error(error)
-      }
+      const result = await triggerGlpiAssetSync()
+      setSyncStatus(await getGlpiAssetSyncStatus())
       await loadData({ silent: true })
       setWarning('')
       if (showResult) {
-        Swal.fire('Sync GLPI สำเร็จ', `Active ${result.total} เครื่อง · เครื่องใหม่ ${result.newEvents} · ประวัติโอนย้าย ${transferEvents.length} · ตัดจำหน่าย ${result.disposedEvents}`, 'success')
+        Swal.fire('Sync GLPI สำเร็จ', `Active ${result.total} เครื่อง · เพิ่ม ${result.added} · เปลี่ยนแปลง ${result.updated} · นำออก ${result.removed}`, 'success')
       }
     } catch (error) {
       console.error('Sync computer assets from GLPI failed:', error)
@@ -149,6 +134,24 @@ const AssetStatusManagement = () => {
   useEffect(() => {
     loadData()
   }, [loadData])
+
+  useEffect(() => {
+    let active = true
+    const loadStatus = async () => {
+      try {
+        const nextStatus = await getGlpiAssetSyncStatus()
+        if (active) setSyncStatus(nextStatus)
+      } catch (error) {
+        console.warn('Load GLPI asset sync status failed:', error)
+      }
+    }
+    loadStatus()
+    const timer = window.setInterval(loadStatus, 30000)
+    return () => {
+      active = false
+      window.clearInterval(timer)
+    }
+  }, [])
 
   const activeRows = useMemo(() => activeAssets.map((asset) => ({
     id: `active-${asset.glpi_id}`,
@@ -187,7 +190,7 @@ const AssetStatusManagement = () => {
   }), [history, monthFilter, yearFilter])
 
   const statusRows = useMemo(() => ({
-    [ASSET_STATUS.NEW]: latestPerAsset(dateFilteredHistory.filter((event) => event.status === ASSET_STATUS.NEW)),
+    [ASSET_STATUS.NEW]: latestPerAsset(dateFilteredHistory.filter(isNewAssetHistory)),
     [ASSET_STATUS.TRANSFERRED]: latestPerAsset(dateFilteredHistory.filter((event) => event.status === ASSET_STATUS.TRANSFERRED)),
     [ASSET_STATUS.DISPOSED]: latestPerAsset(dateFilteredHistory.filter((event) => event.status === ASSET_STATUS.DISPOSED)),
   }), [dateFilteredHistory])
@@ -311,11 +314,13 @@ const AssetStatusManagement = () => {
           <select value={monthFilter} onChange={(event) => setMonthFilter(event.target.value)} disabled={statusFilter === 'All'} className="input-modern w-full !py-2.5 text-sm font-semibold disabled:opacity-50"><option value="All">ทุกเดือน</option>{Array.from({ length: 12 }, (_, index) => String(index + 1).padStart(2, '0')).map((month) => <option key={month} value={month}>{new Date(2026, Number(month) - 1, 1).toLocaleDateString('th-TH', { month: 'long' })}</option>)}</select>
           <select value={yearFilter} onChange={(event) => setYearFilter(event.target.value)} disabled={statusFilter === 'All'} className="input-modern w-full !py-2.5 text-sm font-semibold disabled:opacity-50">{yearOptions.map((year) => <option key={year} value={year}>ปี {Number(year).toLocaleString('th-TH', { useGrouping: false })}</option>)}</select>
         </div>
+        <AssetSyncStatusPanel status={syncStatus} loading={isSyncing} />
         {warning && <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-700 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">{warning}</div>}
       </section>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{cards.map((card) => { const Icon = card.icon; const selected = statusFilter === card.status; return <button key={card.status} type="button" onClick={() => setStatusFilter(card.status)} aria-pressed={selected} className={`glass-card flex items-center gap-4 rounded-2xl p-4 text-left transition hover:-translate-y-0.5 hover:shadow-md ${selected ? 'border-sky-400 ring-2 ring-sky-200 dark:border-sky-500 dark:ring-sky-900/60' : ''}`}><div className={`grid h-12 w-12 shrink-0 place-items-center rounded-xl ${card.style}`}><Icon className="h-6 w-6" /></div><div><p className="text-xs font-bold text-slate-500 dark:text-slate-400">{card.label}</p><p className="text-3xl font-extrabold text-slate-900 dark:text-white">{card.value}</p></div></button> })}</div>
 
+      <MonthlyNewAssets history={history} year={yearFilter} years={yearOptions} onYearChange={setYearFilter} selectedMonth={statusFilter === ASSET_STATUS.NEW ? monthFilter : null} onSelectMonth={(value) => { setMonthFilter(value); setStatusFilter(ASSET_STATUS.NEW) }} loading={isLoading} />
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
         {isLoading ? <div className="grid min-h-64 place-items-center"><RefreshCw className="h-8 w-8 animate-spin text-sky-500" /></div> : filteredRows.length === 0 ? <div className="px-5 py-16 text-center"><Laptop className="mx-auto h-14 w-14 text-slate-300 dark:text-slate-600" /><h3 className="mt-3 font-bold text-slate-700 dark:text-slate-200">ไม่พบข้อมูลเครื่องตามตัวกรอง</h3></div> : <div className="overflow-x-auto"><table className="w-full min-w-[1120px] border-collapse text-left"><thead><tr className="border-b border-slate-200 bg-slate-50 text-xs font-bold uppercase text-slate-500 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400"><th className="p-4">รหัสทรัพย์สิน</th><th className="p-4">เครื่องคอมพิวเตอร์</th><th className="p-4">ผู้ใช้งาน</th><th className="p-4">ที่ตั้ง / กรุ๊ป</th><th className="p-4">การเปลี่ยนแปลง</th><th className="p-4">วันที่ / สถานะ</th><th className="p-4 text-right">รายละเอียด</th></tr></thead><tbody className="divide-y divide-slate-100 dark:divide-slate-700/60">{filteredRows.map((row) => <tr key={row.id} className="align-top hover:bg-slate-50/80 dark:hover:bg-slate-900/30"><td className="p-4"><div className={`font-mono text-sm font-bold ${isRentalSource(row.source_type) ? 'text-indigo-700 dark:text-indigo-300' : 'text-slate-800 dark:text-slate-100'}`}>{displayAssetCode(row)}</div><div className="mt-1 text-xs text-slate-400">GLPI #{row.asset_glpi_id}</div></td><td className="p-4"><div className="font-bold text-slate-800 dark:text-slate-100">{row.asset_name || '-'}</div><div className="mt-1 text-xs text-slate-500">Serial: {row.serial || '-'}</div></td><td className="p-4 text-sm text-slate-700 dark:text-slate-300">{row.user_name || row.previous_user_name || '-'}</td><td className="max-w-64 p-4 text-sm"><div className="text-slate-700 dark:text-slate-300">{row.location_name || row.previous_location_name || '-'}</div><div className="mt-1 text-xs font-semibold text-sky-700 dark:text-sky-300">กรุ๊ป: {row.group_name || row.previous_group_name || '-'}</div></td><td className="max-w-80 p-4 text-xs leading-5 text-slate-500 dark:text-slate-400">{row.status === ASSET_STATUS.TRANSFERRED ? <div className="space-y-1">{row.previous_location_name !== row.location_name && <div><strong>ที่ตั้ง:</strong> {row.previous_location_name || '-'} → {row.location_name || '-'}</div>}{row.previous_group_name !== row.group_name && <div><strong>กรุ๊ป:</strong> {row.previous_group_name || '-'} → {row.group_name || '-'}</div>}</div> : row.status === ASSET_STATUS.DISPOSED ? 'ไม่อยู่ในรายการ Active จาก GLPI' : row.status === ASSET_STATUS.NEW ? 'เพิ่มเครื่องจาก GLPI' : 'ข้อมูลเครื่อง Active ปัจจุบัน'}</td><td className="p-4"><div className="flex items-center gap-1.5 whitespace-nowrap text-sm font-semibold text-slate-600 dark:text-slate-300"><CalendarDays className="h-4 w-4 text-slate-400" />{formatDate(row.event_date)}</div><span className={`mt-2 inline-flex whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-bold ${STATUS_STYLES[row.status]}`}>{statusLabel(row.status)}</span></td><td className="p-4 text-right"><button type="button" onClick={() => { setSelectedEvent(row); setAttachmentFiles([]) }} className="inline-flex items-center gap-2 rounded-lg border border-sky-200 px-3 py-2 text-xs font-bold text-sky-700 hover:bg-sky-50 dark:border-sky-800 dark:text-sky-300 dark:hover:bg-sky-950/30"><Eye className="h-4 w-4" />ดูรายละเอียด</button></td></tr>)}</tbody></table></div>}
       </section>

@@ -2,13 +2,15 @@ import React, { Suspense, lazy } from 'react'
 import ReactDOM from 'react-dom/client'
 import ItHelpdeskApp from './apps/it-helpdesk/ItHelpdeskApp.jsx'
 import CenterPortal from './apps/center/CenterPortal.jsx'
-import { CENTER_PATH, isCenterPath, isSecretaryPath } from './config/appPaths.js'
+import { CENTER_PATH, isCenterPath, isHrPath, isSecretaryPath } from './config/appPaths.js'
 import './index.css'
 
 const SecretaryApp = lazy(() => import('./apps/secretary/SecretaryApp.jsx'))
+const HrApp = lazy(() => import('./apps/hr/HrApp.jsx'))
 
 const showCenter = isCenterPath(window.location.pathname, window.location.search)
 const showSecretary = isSecretaryPath(window.location.pathname)
+const showHr = isHrPath(window.location.pathname)
 
 if (window.location.pathname === '/' && !window.location.search) {
     window.history.replaceState({}, document.title, CENTER_PATH)
@@ -16,7 +18,11 @@ if (window.location.pathname === '/' && !window.location.search) {
 
 ReactDOM.createRoot(document.getElementById('root')).render(
     <React.StrictMode>
-        {showCenter ? <CenterPortal /> : showSecretary ? (
+        {showCenter ? <CenterPortal /> : showHr ? (
+            <Suspense fallback={<div className="grid min-h-screen place-items-center text-sm font-semibold text-slate-500">กำลังโหลด HR Center...</div>}>
+                <HrApp />
+            </Suspense>
+        ) : showSecretary ? (
             <Suspense fallback={<div className="grid min-h-screen place-items-center text-sm font-semibold text-slate-500">กำลังโหลด Secretary Center...</div>}>
                 <SecretaryApp />
             </Suspense>

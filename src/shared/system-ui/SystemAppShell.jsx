@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-    Bell, ChevronDown, ChevronLeft, ChevronRight, LayoutGrid, Menu,
+    Bell, ChevronDown, ChevronLeft, ChevronRight, LayoutGrid, LogIn, Menu,
     MonitorCog, Moon, Search, Sun, UserRound, X,
 } from 'lucide-react';
 import SystemPageBoundary from './SystemPageBoundary';
+import './system-pages.css';
 
 export default function SystemAppShell({
     brand = 'IT HELPDESK',
@@ -14,12 +15,17 @@ export default function SystemAppShell({
     onNavigate,
     onOpenCenter,
     onExit,
+    onLogin,
+    exitLabel = 'กลับหน้าระบบเดิม',
+    userManagementPage = 'users',
     query,
     onQueryChange,
     searchPlaceholder = 'ค้นหา...',
     currentUser,
     notificationCount = 0,
     notificationItems = [],
+    publicMode = false,
+    showSearch = true,
     children,
 }) {
     const [collapsed, setCollapsed] = useState(false);
@@ -74,8 +80,8 @@ export default function SystemAppShell({
                     </button>
                 </nav>
                 <div className="tap-sidebar-footer">
-                    <button type="button" className="tap-back-button" title={collapsed ? 'กลับหน้าระบบเดิม' : undefined} onClick={onExit}>
-                        <ChevronLeft size={19} /><span>กลับหน้าระบบเดิม</span>
+                    <button type="button" className="tap-back-button" title={collapsed ? (publicMode ? 'เข้าสู่ระบบเจ้าหน้าที่' : exitLabel) : undefined} onClick={publicMode ? onLogin : onExit}>
+                        {publicMode ? <LogIn size={19} /> : <ChevronLeft size={19} />}<span>{publicMode ? 'เข้าสู่ระบบเจ้าหน้าที่' : exitLabel}</span>
                     </button>
                 </div>
             </aside>
@@ -86,15 +92,15 @@ export default function SystemAppShell({
                         <button type="button" className="tap-icon-button tap-menu-button" aria-label="เปิดหรือย่อเมนู" onClick={() => window.innerWidth < 1024 ? setMobileOpen(true) : setCollapsed((value) => !value)}>
                             {collapsed ? <ChevronRight size={20} /> : <Menu size={20} />}
                         </button>
-                        <label className="tap-search">
+                        {showSearch && <label className="tap-search">
                             <Search size={19} />
                             <input ref={searchRef} value={query} onChange={(event) => onQueryChange?.(event.target.value)} placeholder={searchPlaceholder} />
                             <kbd>Ctrl K</kbd>
-                        </label>
+                        </label>}
                     </div>
                     <div className="tap-header-actions">
                         <button type="button" className="tap-icon-button" aria-label="เปลี่ยนธีม" title="เปลี่ยนธีม" onClick={toggleTheme}>{dark ? <Sun size={19} /> : <Moon size={19} />}</button>
-                        <div className="tap-popover-anchor">
+                        {!publicMode && <div className="tap-popover-anchor">
                             <button type="button" className="tap-icon-button" aria-label="การแจ้งเตือน" onClick={() => setPopover(popover === 'notice' ? '' : 'notice')}>
                                 <Bell size={19} />{notificationCount > 0 && <span className="tap-dot" />}
                             </button>
@@ -104,18 +110,18 @@ export default function SystemAppShell({
                                     ? notificationItems.map((item) => <p key={item.label}>{item.label} <b>{item.value}</b></p>)
                                     : <p>ไม่มีรายการใหม่</p>}
                             </div>}
-                        </div>
-                        <div className="tap-popover-anchor">
+                        </div>}
+                        {publicMode ? <button type="button" onClick={onLogin} className="tap-primary-button"><LogIn size={17} />เข้าสู่ระบบเจ้าหน้าที่</button> : <div className="tap-popover-anchor">
                             <button type="button" className="tap-profile-button" onClick={() => setPopover(popover === 'profile' ? '' : 'profile')}>
                                 <span className="tap-avatar">{(currentUser?.name || currentUser?.username || 'U').charAt(0).toUpperCase()}</span>
                                 <span className="tap-profile-copy"><strong>{currentUser?.name || currentUser?.username || 'ผู้ใช้งาน'}</strong><small>{currentUser?.position || 'ผู้ดูแลระบบ'}</small></span>
                                 <ChevronDown size={16} />
                             </button>
                             {popover === 'profile' && <div className="tap-popover tap-profile-menu">
-                                <button type="button" onClick={() => navigate('users')}><UserRound size={17} /> จัดการผู้ใช้งาน</button>
-                                <button type="button" onClick={onExit}><ChevronLeft size={17} /> กลับหน้าระบบเดิม</button>
+                                {userManagementPage && <button type="button" onClick={() => navigate(userManagementPage)}><UserRound size={17} /> จัดการผู้ใช้งาน</button>}
+                                <button type="button" onClick={onExit}><ChevronLeft size={17} /> {exitLabel}</button>
                             </div>}
-                        </div>
+                        </div>}
                     </div>
                 </header>
                 <main className="tap-main-content"><SystemPageBoundary pageKey={activePage}>{children}</SystemPageBoundary></main>

@@ -18,7 +18,22 @@ export const isGlpiActiveAsset = (asset) => normalizeValue(asset?.states_id) ===
 
 export const isGlpiNewAsset = (asset) => {
   const state = normalizeValue(asset?.states_id)
-  return !state || state === '0' || state === 'new'
+  return state === 'new'
+}
+
+export const isNewAssetHistory = (event) => (
+  event.status === ASSET_STATUS.NEW && isGlpiNewAsset({ states_id: event.source_state })
+)
+
+export const getMonthlyNewAssetCounts = (history, year) => {
+  const months = Array.from({ length: 12 }, () => new Set())
+  history.filter(isNewAssetHistory).forEach((event) => {
+    const date = new Date(event.event_date)
+    if (date.getFullYear() === Number(year)) {
+      months[date.getMonth()].add(String(event.asset_glpi_id))
+    }
+  })
+  return months.map((assets) => assets.size)
 }
 
 export const getGlpiNewAssetDate = (asset) => asset?.last_boot || asset?.date_creation
@@ -113,9 +128,7 @@ export const buildAssetStatusChanges = (activeComputers, existingAssets, now = n
     const glpiId = Number(computer.id ?? computer.glpi_id)
     const previousAsset = existingById.get(glpiId)
     const asset = { ...computer, glpi_id: glpiId }
-    if (!previousAsset) {
-      events.push(createAssetStatusEvent({ asset, status: ASSET_STATUS.NEW, eventDate: getGlpiNewAssetDate(computer), now }))
-    } else if (hasAssetAssignmentChanged(previousAsset, asset)) {
+    if (previousAsset && hasAssetAssignmentChanged(previousAsset, asset)) {
       events.push(createAssetStatusEvent({ asset, previousAsset, status: ASSET_STATUS.TRANSFERRED, eventDate: computer.date_mod, now }))
     }
   })
@@ -137,6 +150,9 @@ export const buildGlpiAssetStatusChanges = (glpiComputers, existingAssets, now =
   const events = activeEvents.filter((event) => event.status !== ASSET_STATUS.DISPOSED)
 
   glpiComputers.filter((asset) => !isGlpiActiveAsset(asset)).forEach((computer) => {
+    // An unset GLPI state is neither New nor evidence of disposal.
+    const state = normalizeValue(computer.states_id)
+    if (!state || state === '0') return
     const glpiId = Number(computer.id ?? computer.glpi_id)
     const previousAsset = existingById.get(glpiId) || null
     const status = isGlpiNewAsset(computer) ? ASSET_STATUS.NEW : ASSET_STATUS.DISPOSED

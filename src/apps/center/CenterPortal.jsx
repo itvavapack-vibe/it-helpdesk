@@ -12,7 +12,7 @@ import {
     X,
 } from 'lucide-react'
 import ThemePicker from '@/shared/system-ui/ThemePicker'
-import { IT_HELPDESK_BASE_PATH, SECRETARY_PATH, toItHelpdeskPath } from '@/config/appPaths'
+import { HR_PATH, IT_HELPDESK_BASE_PATH, SECRETARY_PATH, toItHelpdeskPath } from '@/config/appPaths'
 
 const SYSTEMS = [
     {
@@ -28,9 +28,10 @@ const SYSTEMS = [
         id: 'hr',
         group: 'ทรัพยากรบุคคล',
         title: 'HR Center',
-        description: 'ข้อมูลพนักงาน โครงสร้างองค์กร คำร้อง เอกสาร และบริการจากฝ่ายทรัพยากรบุคคล',
+        description: 'ระบบแจ้งซ่อมธุรการ ระบบจองห้องประชุม และระบบจองรถธุรการ',
         icon: Users,
-        keywords: 'hr พนักงาน บุคคล แผนก ตำแหน่ง โอนย้าย คำร้อง เอกสาร',
+        path: HR_PATH,
+        keywords: 'hr center ธุรการ อาคาร แจ้งซ่อม ห้องประชุม จองรถ',
     },
     {
         id: 'secretary',

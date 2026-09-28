@@ -28,6 +28,12 @@ import { importGlpiAssetCodes } from './lib/glpi-asset-code-import.js'
 import { getLanAddresses } from './lib/network.js'
 import { sendTelegramNotification } from './lib/telegram.js'
 import { answerAiHelpdeskQuestion } from './lib/ai-helpdesk.js'
+import { startAccessRequestAutoAcknowledgementJob } from './lib/access-request-auto-acknowledgement.js'
+import {
+  getGlpiAssetSyncStatus,
+  runGlpiAssetSync,
+  startGlpiAssetSyncJob,
+} from './lib/glpi-asset-sync.js'
 import {
   createSecretaryIssue,
   createSecretaryUser,
@@ -44,6 +50,21 @@ import {
   updateSecretaryIssueStatus,
   updateSecretaryUser,
 } from './lib/secretary.js'
+import {
+  createFacilitiesRequest,
+  createPublicFacilitiesRequest,
+  createFacilitiesUser,
+  deleteFacilitiesUser,
+  getFacilitiesDashboard,
+  getFacilitiesProfile,
+  getFacilitiesRequestHistory,
+  listFacilitiesRequests,
+  listFacilitiesUsers,
+  loginFacilities,
+  trackPublicFacilitiesRequest,
+  updateFacilitiesRequestStatus,
+  updateFacilitiesUser,
+} from './lib/facilities.js'
 
 dotenv.config()
 
@@ -151,6 +172,26 @@ app.post('/api/auth/login', async (req, res) => {
       changeToken: error.changeToken,
       attemptsRemaining: error.attemptsRemaining,
     })
+  }
+})
+
+app.get('/api/glpi/asset-sync/status', async (req, res) => {
+  try {
+    if (!getAdminFromRequest(req)) return res.status(401).json({ error: 'Authentication required' })
+    return res.json({ data: await getGlpiAssetSyncStatus() })
+  } catch (error) {
+    return res.status(error.status || 500).json({ error: error.message })
+  }
+})
+
+app.post('/api/glpi/asset-sync', async (req, res) => {
+  try {
+    const admin = getAdminFromRequest(req)
+    if (!admin) return res.status(401).json({ error: 'Authentication required' })
+    const data = await runGlpiAssetSync({ triggerSource: `manual:${admin.id}` })
+    return res.json({ data })
+  } catch (error) {
+    return res.status(error.status || 500).json({ error: error.message })
   }
 })
 
@@ -378,6 +419,71 @@ app.post('/api/secretary/users/import', async (req, res) => {
   }
 })
 
+app.post('/api/facilities/auth/login', async (req, res) => {
+  try { return res.json({ data: await loginFacilities(req.body || {}) }) }
+  catch (error) { return res.status(error.status || 500).json({ error: error.message, code: error.code }) }
+})
+
+app.get('/api/facilities/auth/me', async (req, res) => {
+  try { return res.json({ data: await getFacilitiesProfile(req) }) }
+  catch (error) { return res.status(error.status || 500).json({ error: error.message, code: error.code }) }
+})
+
+app.get('/api/facilities/dashboard', async (req, res) => {
+  try { return res.json({ data: await getFacilitiesDashboard(req) }) }
+  catch (error) { return res.status(error.status || 500).json({ error: error.message, code: error.code }) }
+})
+
+app.post('/api/facilities/public/requests', async (req, res) => {
+  try { return res.status(201).json({ data: await createPublicFacilitiesRequest(req) }) }
+  catch (error) { return res.status(error.status || 500).json({ error: error.message, code: error.code }) }
+})
+
+app.get('/api/facilities/public/requests/track', async (req, res) => {
+  try { return res.json({ data: await trackPublicFacilitiesRequest(req) }) }
+  catch (error) { return res.status(error.status || 500).json({ error: error.message, code: error.code }) }
+})
+
+app.get('/api/facilities/requests', async (req, res) => {
+  try { return res.json({ data: await listFacilitiesRequests(req) }) }
+  catch (error) { return res.status(error.status || 500).json({ error: error.message, code: error.code }) }
+})
+
+app.post('/api/facilities/requests', async (req, res) => {
+  try { return res.status(201).json({ data: await createFacilitiesRequest(req) }) }
+  catch (error) { return res.status(error.status || 500).json({ error: error.message, code: error.code }) }
+})
+
+app.get('/api/facilities/requests/:id/history', async (req, res) => {
+  try { return res.json({ data: await getFacilitiesRequestHistory(req, req.params.id) }) }
+  catch (error) { return res.status(error.status || 500).json({ error: error.message, code: error.code }) }
+})
+
+app.patch('/api/facilities/requests/:id/status', async (req, res) => {
+  try { return res.json({ data: await updateFacilitiesRequestStatus(req, req.params.id) }) }
+  catch (error) { return res.status(error.status || 500).json({ error: error.message, code: error.code }) }
+})
+
+app.get('/api/facilities/users', async (req, res) => {
+  try { return res.json({ data: await listFacilitiesUsers(req) }) }
+  catch (error) { return res.status(error.status || 500).json({ error: error.message, code: error.code }) }
+})
+
+app.post('/api/facilities/users', async (req, res) => {
+  try { return res.status(201).json({ data: await createFacilitiesUser(req) }) }
+  catch (error) { return res.status(error.status || 500).json({ error: error.message, code: error.code }) }
+})
+
+app.put('/api/facilities/users/:id', async (req, res) => {
+  try { return res.json({ data: await updateFacilitiesUser(req, req.params.id) }) }
+  catch (error) { return res.status(error.status || 500).json({ error: error.message, code: error.code }) }
+})
+
+app.delete('/api/facilities/users/:id', async (req, res) => {
+  try { return res.json({ data: await deleteFacilitiesUser(req, req.params.id) }) }
+  catch (error) { return res.status(error.status || 500).json({ error: error.message, code: error.code }) }
+})
+
 function requireAdminsAccess(req, action) {
   const admin = getAdminFromRequest(req)
   if (!admin) {
@@ -478,6 +584,9 @@ for (const port of listenPorts) {
 
 console.log(`Configured API port: ${API_PORT}`)
 console.log(`Configured web port: ${WEB_PORT}`)
+
+startAccessRequestAutoAcknowledgementJob()
+startGlpiAssetSyncJob()
 
 if (listenPorts.length) {
   const lanIps = getLanAddresses()

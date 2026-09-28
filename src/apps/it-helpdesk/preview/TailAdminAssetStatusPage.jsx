@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowRightLeft, Eye, Laptop, MonitorCheck, PackageX, RefreshCw, SearchX, Wrench } from 'lucide-react';
 import { mysql } from '@/mysqlClient';
-import { ASSET_STATUS, getAssetStatusLabel } from '@/utils/assetStatus';
+import MonthlyNewAssets from '../assets/MonthlyNewAssets';
+import AssetSyncStatusPanel from '@/components/AssetSyncStatusPanel';
+import { getGlpiAssetSyncStatus, triggerGlpiAssetSync } from '@/utils/glpiAssetServerSync';
+import { ASSET_STATUS, getAssetStatusLabel, isNewAssetHistory } from '@/utils/assetStatus';
 import { SystemDataTable, SystemDetailDrawer, SystemPageHeader, SystemStatCard, SystemStatusBadge } from '@/shared/system-ui';
 
 const ACTIVE = 'Active';
@@ -33,6 +36,8 @@ export default function TailAdminAssetStatusPage({ query, onOpenLegacy }) {
     const [history, setHistory] = useState([]);
     const [assets, setAssets] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [syncing, setSyncing] = useState(false);
+    const [syncStatus, setSyncStatus] = useState(null);
     const [warning, setWarning] = useState('');
     const [status, setStatus] = useState(ACTIVE);
     const [year, setYear] = useState(String(new Date().getFullYear()));
@@ -69,6 +74,31 @@ export default function TailAdminAssetStatusPage({ query, onOpenLegacy }) {
         }
     }, []);
     useEffect(() => { loadData(); }, [loadData]);
+    const syncFromGlpi = useCallback(async () => {
+        if (syncing) return;
+        setSyncing(true);
+        try {
+            await triggerGlpiAssetSync();
+            setSyncStatus(await getGlpiAssetSyncStatus());
+            await loadData();
+        } catch (error) {
+            setWarning(error?.message || 'Sync GLPI ไม่สำเร็จ');
+        } finally {
+            setSyncing(false);
+        }
+    }, [loadData, syncing]);
+    useEffect(() => {
+        let active = true;
+        const loadStatus = async () => {
+            try {
+                const next = await getGlpiAssetSyncStatus();
+                if (active) setSyncStatus(next);
+            } catch { /* Status is supplementary; data loading still works. */ }
+        };
+        loadStatus();
+        const timer = window.setInterval(loadStatus, 30000);
+        return () => { active = false; window.clearInterval(timer); };
+    }, []);
     const activeRows = useMemo(() => assets.map((asset) => ({
         ...asset, id: `active-${asset.glpi_id}`, asset_glpi_id: asset.glpi_id,
         asset_name: asset.name, asset_code: asset.otherserial, user_name: asset.users_id,
@@ -81,7 +111,7 @@ export default function TailAdminAssetStatusPage({ query, onOpenLegacy }) {
         return String(date.getFullYear()) === year && (month === 'all' || String(date.getMonth() + 1).padStart(2, '0') === month);
     }), [history, month, year]);
     const grouped = useMemo(() => ({
-        [ASSET_STATUS.NEW]: latestPerAsset(periodRows.filter((item) => item.status === ASSET_STATUS.NEW)),
+        [ASSET_STATUS.NEW]: latestPerAsset(periodRows.filter(isNewAssetHistory)),
         [ASSET_STATUS.TRANSFERRED]: latestPerAsset(periodRows.filter((item) => item.status === ASSET_STATUS.TRANSFERRED)),
         [ASSET_STATUS.DISPOSED]: latestPerAsset(periodRows.filter((item) => item.status === ASSET_STATUS.DISPOSED)),
     }), [periodRows]);
@@ -114,8 +144,10 @@ export default function TailAdminAssetStatusPage({ query, onOpenLegacy }) {
         { key: 'action', label: '', render: (item) => <button type="button" className="tap-row-action" onClick={() => setSelected(item)} title="ดูรายละเอียด"><Eye size={18} /></button> },
     ];
     return <>
-        <SystemPageHeader breadcrumb="IT Helpdesk / Computer Management" title="ทรัพย์สินคอมพิวเตอร์" className="tap-issue-heading" actions={<div className="tap-page-actions"><button type="button" className="tap-secondary-button" disabled={loading} onClick={loadData}><RefreshCw size={17} className={loading ? 'animate-spin' : ''} /> รีเฟรช</button><button type="button" className="tap-primary-button" onClick={onOpenLegacy}><Wrench size={17} /> เปิดหน้าเดิม</button></div>} />
+        <SystemPageHeader breadcrumb="IT Helpdesk / Computer Management" title="ทรัพย์สินคอมพิวเตอร์" className="tap-issue-heading" actions={<div className="tap-page-actions"><button type="button" className="tap-secondary-button" disabled={loading || syncing} onClick={syncFromGlpi}><RefreshCw size={17} className={syncing ? 'animate-spin' : ''} /> {syncing ? 'กำลัง Sync' : 'Sync GLPI'}</button><button type="button" className="tap-primary-button" onClick={onOpenLegacy}><Wrench size={17} /> เปิดหน้าเดิม</button></div>} />
         <section className="tap-asset-summary">{cards.map(([id, label, value, Icon, tone]) => <button type="button" key={id} onClick={() => setStatus(id)} className={`tap-stat-filter ${status === id ? 'is-selected' : ''}`}><SystemStatCard icon={Icon} label={label} value={value.toLocaleString('th-TH')} detail={id === ACTIVE ? 'ปัจจุบัน' : `ปี ${Number(year) + 543}`} tone={tone} /></button>)}</section>
+        <AssetSyncStatusPanel status={syncStatus} loading={syncing} />
+        <MonthlyNewAssets history={history} year={year} years={years} onYearChange={setYear} selectedMonth={status === ASSET_STATUS.NEW ? month : null} onSelectMonth={(value) => { setMonth(value); setStatus(ASSET_STATUS.NEW); }} loading={loading} />
         <section className="tap-card tap-issue-list">
             <div className="tap-issue-toolbar"><div className="tap-toolbar-title"><ArrowRightLeft size={20} /><div><h2>รายการสถานะทรัพย์สิน</h2><p>พบ {filtered.length.toLocaleString('th-TH')} รายการ</p></div></div><div className="tap-filter-controls"><label><select value={month} disabled={status === ACTIVE} onChange={(event) => setMonth(event.target.value)}><option value="all">ทุกเดือน</option>{Array.from({ length: 12 }, (_, index) => String(index + 1).padStart(2, '0')).map((item) => <option key={item} value={item}>{new Date(2026, Number(item) - 1, 1).toLocaleDateString('th-TH', { month: 'long' })}</option>)}</select></label><label><select value={year} disabled={status === ACTIVE} onChange={(event) => setYear(event.target.value)}>{years.map((item) => <option key={item} value={item}>ปี {Number(item) + 543}</option>)}</select></label></div></div>
             {warning && <div className="tap-inline-error">{warning}</div>}

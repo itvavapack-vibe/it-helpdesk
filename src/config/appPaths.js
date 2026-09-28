@@ -1,6 +1,7 @@
 export const CENTER_PATH = '/homepage'
 export const IT_HELPDESK_BASE_PATH = '/it-helpdesk'
 export const SECRETARY_PATH = '/secretary'
+export const HR_PATH = '/hr'
 
 const normalizePath = (path = '/') => {
   const normalized = `/${String(path).replace(/^\/+|\/+$/g, '')}`
@@ -34,4 +35,9 @@ export const isCenterPath = (pathname = '/', search = '') => {
 export const isSecretaryPath = (pathname = '/') => {
   const normalized = normalizePath(pathname).toLowerCase()
   return normalized === SECRETARY_PATH || normalized.startsWith(`${SECRETARY_PATH}/`)
+}
+
+export const isHrPath = (pathname = '/') => {
+  const normalized = normalizePath(pathname).toLowerCase()
+  return normalized === HR_PATH || normalized.startsWith(`${HR_PATH}/`)
 }

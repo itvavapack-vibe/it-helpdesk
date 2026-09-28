@@ -9,7 +9,7 @@ import { withGlpiSession, getComputers, getUsers, getComputerDetail, extractIpAd
 import { mysql } from '@/mysqlClient';
 import { MAX_ATTACHMENT_FILES, resolveAttachmentUrl, uploadAttachmentFiles } from '@/utils/fileUpload';
 import { getAllAssetBranches, getAssetBranchKey, getAssetBranchLabel, isAssetReportBranch } from '@/utils/assetBranch';
-import { syncGlpiAssetsToMysql } from '@/utils/assetSync';
+import { triggerGlpiAssetSync } from '@/utils/glpiAssetServerSync';
 import { toItHelpdeskPath } from '@/config/appPaths';
 
 const AssetPmDashboardCharts = lazy(() => import('./AssetPmDashboardCharts'));
@@ -259,10 +259,10 @@ const AssetInventory = ({ issues = [], view = 'inventory', currentAdmin = null }
             };
 
             // 1. Sync Assets (Computers) and keep GLPI lifecycle history.
-            const assetSync = await syncGlpiAssetsToMysql(glpiComputers.length ? glpiComputers : computers);
+            const assetSync = await triggerGlpiAssetSync();
             stats.assetsAdded = assetSync.added;
             stats.assetsUpdated = assetSync.updated;
-            stats.assetsDeleted = assetSync.disposed;
+            stats.assetsDeleted = assetSync.removed;
 
             // 2. Sync Users
             const usersData = await withGlpiSession(getUsers);

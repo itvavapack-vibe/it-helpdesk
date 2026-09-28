@@ -23,6 +23,7 @@ const defaultMigrations = [
   'scripts/run-migrate-admin-signature.mjs',
   'scripts/run-migrate-admin-security.mjs',
   'scripts/run-migrate-access-request-acknowledgement.mjs',
+  'scripts/run-migrate-employee-status-notifications.mjs',
 ]
 
 let isDeploying = false
