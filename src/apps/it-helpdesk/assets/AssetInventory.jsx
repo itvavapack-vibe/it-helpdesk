@@ -47,10 +47,12 @@ const ASSET_PANEL_CLASS = 'rounded-3xl border border-slate-200 bg-white shadow-s
 const ASSET_TOOL_BUTTON_CLASS = 'inline-flex items-center gap-2 rounded-xl border bg-white px-4 py-2 text-sm font-semibold shadow-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-900/35';
 
 const createDefaultPmChecklist = () => Object.fromEntries(
-    PM_CHECKLIST.map((item) => [item.id, { status: '-', note: '' }])
+    PM_CHECKLIST.map((item) => [item.id, { status: 'Pass', note: '' }])
 );
 
-const normalizePmStatus = (status) => (status === 'Pass' || status === 'Fail' ? status : '-');
+const normalizePmStatus = (status, fallback = '-') => (
+    status === 'Pass' || status === 'Fail' ? status : fallback
+);
 
 const LEGACY_PM_CHECKLIST_MAP = {
     monitor: ['monitor', 'monitor_keyboard_mouse'],
@@ -79,7 +81,7 @@ const buildChecklistFromRecord = (record) => {
                     .find((key) => savedChecklist?.[key]);
                 const value = sourceKey ? savedChecklist[sourceKey] : {};
                 return [item.id, {
-                    status: normalizePmStatus(value.status),
+                    status: normalizePmStatus(value.status, 'Pass'),
                     note: '',
                 }];
             })
@@ -751,7 +753,7 @@ const AssetInventory = ({ issues = [], view = 'inventory', currentAdmin = null }
             PM_CHECKLIST.map((item) => {
                 const value = pmForm.checklist[item.id] || {};
                 return [item.id, {
-                    status: normalizePmStatus(value.status),
+                    status: normalizePmStatus(value.status, 'Pass'),
                     note: '',
                 }];
             })
