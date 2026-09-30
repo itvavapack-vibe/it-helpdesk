@@ -1,5 +1,5 @@
 import React, { Suspense, lazy, useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Monitor, RefreshCw, AlertCircle, Search, X, Tag, FileSpreadsheet, QrCode, Clock, Upload, Copy, Check, ClipboardCheck, BarChart3, Save, Printer, Download, Send } from 'lucide-react';
+import { Monitor, RefreshCw, AlertCircle, Search, X, Tag, FileSpreadsheet, QrCode, Clock, Upload, Copy, Check, ClipboardCheck, BarChart3, Save, Printer, Download, Send, ListChecks, ArrowRight } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import html2canvas from 'html2canvas-pro';
 import jsPDF from 'jspdf';
@@ -141,6 +141,9 @@ const AssetInventory = ({ issues = [], view = 'inventory', currentAdmin = null }
     const [pmAttachmentFiles, setPmAttachmentFiles] = useState([]);
     const [isSavingPm, setIsSavingPm] = useState(false);
     const [isSubmittingPmReport, setIsSubmittingPmReport] = useState(false);
+    const [selectedNeverPmIds, setSelectedNeverPmIds] = useState([]);
+    const [pmQueue, setPmQueue] = useState([]);
+    const [neverPmSearch, setNeverPmSearch] = useState('');
     const [pmForm, setPmForm] = useState(() => ({
         pmDate: new Date().toISOString().slice(0, 10),
         inspectorName: '',
@@ -439,7 +442,7 @@ const AssetInventory = ({ issues = [], view = 'inventory', currentAdmin = null }
         );
     };
 
-    const openPmForm = (computer) => {
+    const openPmForm = (computer, { preserveForm = false } = {}) => {
         const latestRecord = getLatestPmRecord(computer);
         const lastInspector = latestRecord?.inspector_name || '';
         const initialChecklist = latestRecord
@@ -447,13 +450,17 @@ const AssetInventory = ({ issues = [], view = 'inventory', currentAdmin = null }
             : createDefaultPmChecklist();
         setPmComputer(computer);
         setPmAttachmentFiles([]);
-        setPmForm({
+        setPmForm((current) => preserveForm ? {
+            ...current,
+            inspectorName: currentInspectorName || current.inspectorName || lastInspector,
+            note: '',
+        } : ({
             pmDate: new Date().toISOString().slice(0, 10),
             inspectorName: currentInspectorName || lastInspector,
             nextDueDate: '',
             checklist: initialChecklist,
             note: '',
-        });
+        }));
     };
 
     const updatePmChecklist = (itemId, field, value) => {
@@ -496,6 +503,49 @@ const AssetInventory = ({ issues = [], view = 'inventory', currentAdmin = null }
             issue: issueRecords.length,
         };
     }, [computers, isBuyComputer, pmRecords]);
+
+    const neverPmComputers = useMemo(() => {
+        const checkedIds = new Set(pmRecords.map((record) => String(record.asset_glpi_id)));
+        const query = neverPmSearch.trim().toLowerCase();
+        return computers
+            .filter(isBuyComputer)
+            .filter((computer) => !checkedIds.has(String(computer.id)))
+            .filter((computer) => !query || [computer.name, computer.otherserial, computer.serial, computer.users_id, computer.locations_id]
+                .some((value) => String(value || '').toLowerCase().includes(query)))
+            .sort((left, right) => String(left.locations_id || '').localeCompare(String(right.locations_id || ''), 'th') || String(left.name || '').localeCompare(String(right.name || ''), 'th'));
+    }, [computers, isBuyComputer, neverPmSearch, pmRecords]);
+
+    useEffect(() => {
+        const availableIds = new Set(neverPmComputers.map((computer) => String(computer.id)));
+        setSelectedNeverPmIds((current) => current.filter((id) => availableIds.has(String(id))));
+    }, [neverPmComputers]);
+
+    const toggleAllNeverPm = () => {
+        const visibleIds = neverPmComputers.map((computer) => String(computer.id));
+        const selected = new Set(selectedNeverPmIds.map(String));
+        const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selected.has(id));
+        setSelectedNeverPmIds(allSelected
+            ? selectedNeverPmIds.filter((id) => !visibleIds.includes(String(id)))
+            : [...new Set([...selectedNeverPmIds.map(String), ...visibleIds])]);
+    };
+
+    const startPmQueue = () => {
+        const selected = new Set(selectedNeverPmIds.map(String));
+        const queue = neverPmComputers.filter((computer) => selected.has(String(computer.id)));
+        if (!queue.length) {
+            Swal.fire('ยังไม่ได้เลือกเครื่อง', 'กรุณาเลือกเครื่องที่ต้องการนำเข้าคิว PM อย่างน้อย 1 เครื่อง', 'info');
+            return;
+        }
+        setPmQueue(queue);
+        openPmForm(queue[0]);
+    };
+
+    const markAllPmChecksPassed = () => {
+        setPmForm((current) => ({
+            ...current,
+            checklist: Object.fromEntries(PM_CHECKLIST.map((item) => [item.id, { status: 'Pass', note: '' }])),
+        }));
+    };
 
     const pmYearOptions = useMemo(() => {
         const years = Array.from(new Set(
@@ -678,7 +728,7 @@ const AssetInventory = ({ issues = [], view = 'inventory', currentAdmin = null }
         XLSX.writeFile(wb, `Asset_Inventory_${new Date().toISOString().split('T')[0]}.xlsx`);
     };
 
-    const savePmRecord = async () => {
+    const savePmRecord = async ({ continueQueue = false } = {}) => {
         if (!pmComputer || isSavingPm) return;
         if (!currentAdmin?.signature) {
             Swal.fire('ยังไม่มีลายเซ็นผู้ทำ PM', 'กรุณาบันทึกลายเซ็นในโปรไฟล์ผู้ดูแลก่อนบันทึกผล PM ระบบจะใช้ลายเซ็นนี้กับรายงานทุกสาขา', 'warning');
@@ -753,16 +803,30 @@ const AssetInventory = ({ issues = [], view = 'inventory', currentAdmin = null }
                     console.error('Queue PM approval failed:', approvalError);
                 }
             }
-            setPmComputer(null);
+            const remainingQueue = pmQueue.filter((computer) => String(computer.id) !== String(pmComputer.id));
+            setSelectedNeverPmIds((current) => current.filter((id) => String(id) !== String(pmComputer.id)));
+            setPmQueue(continueQueue ? remainingQueue : []);
             setPmAttachmentFiles([]);
-            if (savedRecord) setPmReportRecord(savedRecord);
-            Swal.fire(
-                approvalQueued ? 'บันทึกและส่งอนุมัติแล้ว' : 'บันทึกผล PM แล้ว',
-                approvalQueued
-                    ? 'บันทึกผลตรวจ PM และอัปเดตชุดรายงานในกล่องอนุมัติของผู้จัดการแล้ว'
-                    : 'บันทึกผลตรวจ PM สำเร็จ แต่ยังส่งกล่องอนุมัติไม่สำเร็จ กรุณากดส่งรายงานอีกครั้งจาก Dashboard',
-                approvalQueued ? 'success' : 'warning',
-            );
+            if (continueQueue && remainingQueue.length > 0) {
+                openPmForm(remainingQueue[0], { preserveForm: true });
+                Swal.fire({
+                    icon: approvalQueued ? 'success' : 'warning',
+                    title: 'บันทึกแล้ว',
+                    text: `เหลือในคิวอีก ${remainingQueue.length} เครื่อง`,
+                    timer: 900,
+                    showConfirmButton: false,
+                });
+            } else {
+                setPmComputer(null);
+                if (savedRecord) setPmReportRecord(savedRecord);
+                Swal.fire(
+                    approvalQueued ? 'บันทึกและส่งอนุมัติแล้ว' : 'บันทึกผล PM แล้ว',
+                    approvalQueued
+                        ? 'บันทึกผลตรวจ PM และอัปเดตชุดรายงานในกล่องอนุมัติของผู้จัดการแล้ว'
+                        : 'บันทึกผลตรวจ PM สำเร็จ แต่ยังส่งกล่องอนุมัติไม่สำเร็จ กรุณากดส่งรายงานอีกครั้งจาก Dashboard',
+                    approvalQueued ? 'success' : 'warning',
+                );
+            }
         } catch (error) {
             console.error('Save PM record failed:', error);
             Swal.fire('บันทึกไม่สำเร็จ', 'กรุณาตรวจสอบว่ารัน migration asset_pm_records แล้ว', 'error');
@@ -1035,6 +1099,29 @@ const AssetInventory = ({ issues = [], view = 'inventory', currentAdmin = null }
                         {pmWarning}
                     </div>
                 )}
+                </div>
+
+                <div className={`${ASSET_PANEL_CLASS} overflow-hidden`}>
+                    <div className="flex flex-col gap-3 border-b border-slate-200 p-5 dark:border-slate-700 lg:flex-row lg:items-center lg:justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="grid h-10 w-10 place-items-center rounded-xl bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-200"><ListChecks className="h-5 w-5" /></div>
+                            <div><h3 className="font-bold text-slate-900 dark:text-white">คิวเครื่องที่ยังไม่เคย PM</h3><p className="text-sm text-slate-500 dark:text-slate-400">เลือกเครื่องแล้วตรวจต่อเนื่อง ระบบจะคงวันที่ ผู้ตรวจ และผลตรวจจากเครื่องก่อนหน้า</p></div>
+                        </div>
+                        <div className="flex flex-col gap-2 sm:flex-row">
+                            <div className="relative"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input value={neverPmSearch} onChange={(event) => setNeverPmSearch(event.target.value)} placeholder="ค้นหาเครื่อง ผู้ใช้ หรือสาขา" className="input-modern !py-2 pl-9 text-sm sm:w-72" /></div>
+                            <button type="button" onClick={startPmQueue} disabled={!selectedNeverPmIds.length} className="inline-flex items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50"><ClipboardCheck className="h-4 w-4" /> เริ่มตรวจ {selectedNeverPmIds.length} เครื่อง</button>
+                        </div>
+                    </div>
+                    <div className="flex items-center justify-between gap-3 border-b border-slate-100 bg-slate-50 px-5 py-3 text-sm dark:border-slate-700 dark:bg-slate-900/35">
+                        <label className="inline-flex cursor-pointer items-center gap-2 font-bold text-slate-700 dark:text-slate-200"><input type="checkbox" checked={neverPmComputers.length > 0 && neverPmComputers.every((computer) => selectedNeverPmIds.map(String).includes(String(computer.id)))} onChange={toggleAllNeverPm} className="h-4 w-4 rounded border-slate-300 text-sky-600" />เลือกทั้งหมดที่แสดง ({neverPmComputers.length})</label>
+                        <span className="font-semibold text-sky-700 dark:text-sky-300">เลือกแล้ว {selectedNeverPmIds.length} เครื่อง</span>
+                    </div>
+                    <div className="max-h-80 overflow-y-auto">
+                        {neverPmComputers.length ? neverPmComputers.map((computer) => {
+                            const checked = selectedNeverPmIds.map(String).includes(String(computer.id));
+                            return <label key={computer.id} className={`flex cursor-pointer items-start gap-3 border-b border-slate-100 px-5 py-3 transition last:border-0 dark:border-slate-700/70 ${checked ? 'bg-sky-50 dark:bg-sky-950/25' : 'hover:bg-slate-50 dark:hover:bg-slate-900/30'}`}><input type="checkbox" checked={checked} onChange={() => setSelectedNeverPmIds((current) => checked ? current.filter((id) => String(id) !== String(computer.id)) : [...current, String(computer.id)])} className="mt-1 h-4 w-4 rounded border-slate-300 text-sky-600" /><span className="min-w-0 flex-1"><strong className="block truncate text-sm text-slate-800 dark:text-slate-100">{computer.name || '-'}</strong><span className="mt-0.5 block truncate text-xs text-slate-500 dark:text-slate-400">{computer.otherserial || computer.serial || '-'} · {computer.users_id || 'ไม่มีผู้ใช้งาน'}</span></span><span className="max-w-44 truncate text-xs font-semibold text-slate-500 dark:text-slate-400">{computer.locations_id || '-'}</span></label>;
+                        }) : <div className="p-8 text-center text-sm font-semibold text-emerald-600 dark:text-emerald-300">ไม่มีเครื่องที่ยังไม่เคย PM ตามรายการที่ค้นหา</div>}
+                    </div>
                 </div>
 
                 <Suspense fallback={<div className="rounded-3xl border border-slate-200 bg-white p-8 text-center text-sm font-semibold text-slate-400 shadow-sm dark:border-slate-700 dark:bg-slate-800">กำลังโหลดรายการ PM...</div>}>
@@ -1480,9 +1567,10 @@ const AssetInventory = ({ issues = [], view = 'inventory', currentAdmin = null }
                                 <div>
                                     <h3 className="text-lg font-bold text-slate-900 dark:text-white">การตรวจเช็คคอมพิวเตอร์ PM (FMIT08)</h3>
                                     <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{pmComputer.name || '-'} · {pmComputer.otherserial || pmComputer.serial || '-'}</p>
+                                    {pmQueue.length > 0 && <p className="mt-1 text-xs font-bold text-sky-700 dark:text-sky-300">คิว PM · เหลือ {pmQueue.length} เครื่องรวมเครื่องนี้</p>}
                                 </div>
                             </div>
-                            <button type="button" onClick={() => setPmComputer(null)} className="text-slate-400 transition hover:text-rose-500">
+                            <button type="button" onClick={() => { setPmComputer(null); setPmQueue([]); }} className="text-slate-400 transition hover:text-rose-500">
                                 <X className="h-5 w-5" />
                             </button>
                         </div>
@@ -1513,6 +1601,10 @@ const AssetInventory = ({ issues = [], view = 'inventory', currentAdmin = null }
                             </div>
 
                             <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700">
+                                <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-900/60">
+                                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400">รายการตรวจเช็ค {PM_CHECKLIST.length} รายการ</span>
+                                    <button type="button" onClick={markAllPmChecksPassed} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-emerald-700"><Check className="h-3.5 w-3.5" /> ผ่านทั้งหมด</button>
+                                </div>
                                 <table className="w-full table-fixed text-left text-sm">
                                     <colgroup>
                                         <col className="w-20" />
@@ -1623,12 +1715,12 @@ const AssetInventory = ({ issues = [], view = 'inventory', currentAdmin = null }
                             </div>
                         </div>
                         <div className="flex flex-col-reverse gap-2 border-t border-slate-100 bg-slate-50 px-5 py-4 dark:border-slate-700 dark:bg-slate-900/40 sm:flex-row sm:justify-end">
-                            <button type="button" onClick={() => setPmComputer(null)} className="rounded-xl bg-white px-4 py-2 text-sm font-bold text-slate-600 shadow-sm transition hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">
+                            <button type="button" onClick={() => { setPmComputer(null); setPmQueue([]); }} className="rounded-xl bg-white px-4 py-2 text-sm font-bold text-slate-600 shadow-sm transition hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">
                                 ยกเลิก
                             </button>
-                            <button type="button" onClick={savePmRecord} disabled={isSavingPm} className="inline-flex items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60">
+                            <button type="button" onClick={() => savePmRecord({ continueQueue: pmQueue.length > 1 })} disabled={isSavingPm} className="inline-flex items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60">
                                 <Save className={`h-4 w-4 ${isSavingPm ? 'animate-pulse' : ''}`} />
-                                {isSavingPm ? 'กำลังบันทึก...' : 'บันทึกและสร้างรายงาน FMIT08'}
+                                {isSavingPm ? 'กำลังบันทึก...' : pmQueue.length > 1 ? <>บันทึกและไปเครื่องถัดไป <ArrowRight className="h-4 w-4" /></> : 'บันทึกและสร้างรายงาน FMIT08'}
                             </button>
                         </div>
                     </div>
