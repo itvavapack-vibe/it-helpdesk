@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
     ArrowRightLeft, CircleGauge, ClipboardCheck, ClipboardList, FileCheck2, FileKey2,
     MessageCircle, MonitorCog, PackageOpen, Server, UserCog, UsersRound, Wrench,
@@ -35,12 +35,9 @@ const formatDate = (value) => {
     return Number.isNaN(date.getTime()) ? '-' : new Intl.DateTimeFormat('th-TH', { day: '2-digit', month: 'short', year: '2-digit' }).format(date);
 };
 
-export default function TailAdminDashboardPreview({ issues = [], currentAdmin, isLoading = false, initialPage = 'stats', onNavigate, onOpenLegacy, onOpenCenter }) {
+export default function TailAdminDashboardPreview({ issues = [], currentAdmin, isLoading = false, onNavigate, onOpenCenter }) {
     const [query, setQuery] = useState('');
-    const [page, setPage] = useState(initialPage);
-    useEffect(() => {
-        if (initialPage) setPage(initialPage);
-    }, [initialPage]);
+    const [page, setPage] = useState('stats');
     const summary = useMemo(() => {
         const result = { Pending: 0, 'In Progress': 0, Resolved: 0, Closed: 0 };
         issues.forEach((issue) => {
@@ -92,10 +89,8 @@ export default function TailAdminDashboardPreview({ issues = [], currentAdmin, i
         ...(canManageAdminUsers(currentAdmin?.role) ? [{ id: 'users', label: 'จัดการผู้ใช้งาน', icon: UserCog }] : []),
     ];
     const handleNavigate = (id) => {
-        if (['stats', 'issues', 'assets', 'asset_status', 'asset_pm', 'access_requests', 'change_requests', 'approved_documents', 'server_room', 'it_chat', 'employees', 'users'].includes(id)) {
-            setPage(id);
-            onNavigate?.(id);
-        } else onNavigate?.(id);
+        if (['stats', 'issues', 'assets', 'asset_status', 'asset_pm', 'access_requests', 'change_requests', 'approved_documents', 'server_room', 'it_chat', 'employees', 'users'].includes(id)) setPage(id);
+        else onNavigate?.(id);
     };
 
     return (
@@ -116,27 +111,27 @@ export default function TailAdminDashboardPreview({ issues = [], currentAdmin, i
             ]}
         >
             {page === 'issues' ? (
-                <TailAdminIssuePage issues={issues} query={query} isLoading={isLoading} onOpenLegacy={() => onOpenLegacy?.('issues')} />
+                <TailAdminIssuePage issues={issues} query={query} isLoading={isLoading} onOpenLegacy={() => onNavigate?.('issues')} />
             ) : page === 'assets' ? (
-                <TailAdminAssetPage issues={issues} query={query} onOpenLegacy={() => onOpenLegacy?.('assets')} />
+                <TailAdminAssetPage issues={issues} query={query} onOpenLegacy={() => onNavigate?.('assets')} />
             ) : page === 'asset_status' ? (
-                <TailAdminAssetStatusPage query={query} onOpenLegacy={() => onOpenLegacy?.('asset_status')} />
+                <TailAdminAssetStatusPage query={query} onOpenLegacy={() => onNavigate?.('asset_status')} />
             ) : page === 'asset_pm' ? (
-                <TailAdminPmPage query={query} onOpenLegacy={() => onOpenLegacy?.('asset_pm')} />
+                <TailAdminPmPage query={query} onOpenLegacy={() => onNavigate?.('asset_pm')} />
             ) : page === 'access_requests' ? (
-                <TailAdminRequestPage type="access" query={query} currentAdmin={currentAdmin} onOpenLegacy={() => onOpenLegacy?.('access_requests')} />
+                <TailAdminRequestPage type="access" query={query} currentAdmin={currentAdmin} onOpenLegacy={() => onNavigate?.('access_requests')} />
             ) : page === 'change_requests' ? (
-                <TailAdminRequestPage type="change" query={query} currentAdmin={currentAdmin} onOpenLegacy={() => onOpenLegacy?.('change_requests')} />
+                <TailAdminRequestPage type="change" query={query} currentAdmin={currentAdmin} onOpenLegacy={() => onNavigate?.('change_requests')} />
             ) : page === 'approved_documents' ? (
-                <TailAdminApprovalPage query={query} currentAdmin={currentAdmin} onOpenLegacy={() => onOpenLegacy?.('approved_documents')} />
+                <TailAdminApprovalPage query={query} currentAdmin={currentAdmin} onOpenLegacy={() => onNavigate?.('approved_documents')} />
             ) : page === 'server_room' ? (
-                <TailAdminServerRoomPage query={query} onOpenLegacy={() => onOpenLegacy?.('server_room')} />
+                <TailAdminServerRoomPage query={query} onOpenLegacy={() => onNavigate?.('server_room')} />
             ) : page === 'it_chat' ? (
-                <TailAdminChatPage query={query} currentAdmin={currentAdmin} onOpenLegacy={() => onOpenLegacy?.('it_chat')} />
+                <TailAdminChatPage query={query} currentAdmin={currentAdmin} onOpenLegacy={() => onNavigate?.('it_chat')} />
             ) : page === 'employees' ? (
-                <TailAdminEmployeePage query={query} onOpenLegacy={() => onOpenLegacy?.('employees')} />
+                <TailAdminEmployeePage query={query} onOpenLegacy={() => onNavigate?.('employees')} />
             ) : page === 'users' && canManageAdminUsers(currentAdmin?.role) ? (
-                <TailAdminUserPage query={query} onOpenLegacy={() => onOpenLegacy?.('users')} />
+                <TailAdminUserPage query={query} onOpenLegacy={() => onNavigate?.('users')} />
             ) : (
                 <>
                     <SystemPageHeader
@@ -169,7 +164,7 @@ export default function TailAdminDashboardPreview({ issues = [], currentAdmin, i
                             <div className="tap-target-note"><PackageOpen size={19} /><p><strong>{completed} งาน</strong><span>เสร็จสิ้นหรือปิดจบแล้ว</span></p></div>
                         </article>
                         <article className="tap-card tap-table-card">
-                            <div className="tap-card-heading"><div><h2>งานแจ้งซ่อมล่าสุด</h2><p>{query ? `ผลการค้นหา “${query}”` : 'รายการที่มีการแจ้งเข้ามาล่าสุด'}</p></div><button type="button" onClick={() => handleNavigate('issues')}>ดูทั้งหมด</button></div>
+                            <div className="tap-card-heading"><div><h2>งานแจ้งซ่อมล่าสุด</h2><p>{query ? `ผลการค้นหา “${query}”` : 'รายการที่มีการแจ้งเข้ามาล่าสุด'}</p></div><button type="button" onClick={() => setPage('issues')}>ดูทั้งหมด</button></div>
                             <div className="tap-table-scroll"><table><thead><tr><th>เลขที่เอกสาร</th><th>ผู้แจ้ง / แผนก</th><th>รายละเอียด</th><th>วันที่แจ้ง</th><th>สถานะ</th></tr></thead><tbody>
                                 {rows.map((issue, index) => {
                                     const status = effectiveStatus(issue);

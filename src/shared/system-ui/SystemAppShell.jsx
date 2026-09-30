@@ -28,7 +28,7 @@ export default function SystemAppShell({
     showSearch = true,
     children,
 }) {
-    const [collapsed, setCollapsed] = useState(() => localStorage.getItem('system-shell-collapsed') === '1');
+    const [collapsed, setCollapsed] = useState(false);
     const [mobileOpen, setMobileOpen] = useState(false);
     const [popover, setPopover] = useState('');
     const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'));
@@ -44,28 +44,6 @@ export default function SystemAppShell({
         document.addEventListener('keydown', shortcut);
         return () => document.removeEventListener('keydown', shortcut);
     }, []);
-
-    useEffect(() => {
-        localStorage.setItem('system-shell-collapsed', collapsed ? '1' : '0');
-    }, [collapsed]);
-
-    useEffect(() => {
-        const closeTransientUi = (event) => {
-            if (event.key === 'Escape') {
-                setPopover('');
-                setMobileOpen(false);
-            }
-        };
-        const closePopoverOutside = (event) => {
-            if (popover && event.target instanceof Element && !event.target.closest('.tap-popover-anchor')) setPopover('');
-        };
-        document.addEventListener('keydown', closeTransientUi);
-        document.addEventListener('pointerdown', closePopoverOutside);
-        return () => {
-            document.removeEventListener('keydown', closeTransientUi);
-            document.removeEventListener('pointerdown', closePopoverOutside);
-        };
-    }, [popover]);
 
     const navigate = (id) => {
         setMobileOpen(false);
@@ -123,7 +101,7 @@ export default function SystemAppShell({
                     <div className="tap-header-actions">
                         <button type="button" className="tap-icon-button" aria-label="เปลี่ยนธีม" title="เปลี่ยนธีม" onClick={toggleTheme}>{dark ? <Sun size={19} /> : <Moon size={19} />}</button>
                         {!publicMode && <div className="tap-popover-anchor">
-                            <button type="button" className="tap-icon-button" aria-label="การแจ้งเตือน" aria-expanded={popover === 'notice'} onClick={() => setPopover(popover === 'notice' ? '' : 'notice')}>
+                            <button type="button" className="tap-icon-button" aria-label="การแจ้งเตือน" onClick={() => setPopover(popover === 'notice' ? '' : 'notice')}>
                                 <Bell size={19} />{notificationCount > 0 && <span className="tap-dot" />}
                             </button>
                             {popover === 'notice' && <div className="tap-popover tap-notifications">
@@ -134,7 +112,7 @@ export default function SystemAppShell({
                             </div>}
                         </div>}
                         {publicMode ? <button type="button" onClick={onLogin} className="tap-primary-button"><LogIn size={17} />เข้าสู่ระบบเจ้าหน้าที่</button> : <div className="tap-popover-anchor">
-                            <button type="button" className="tap-profile-button" aria-label="เปิดเมนูโปรไฟล์" aria-expanded={popover === 'profile'} onClick={() => setPopover(popover === 'profile' ? '' : 'profile')}>
+                            <button type="button" className="tap-profile-button" onClick={() => setPopover(popover === 'profile' ? '' : 'profile')}>
                                 <span className="tap-avatar">{(currentUser?.name || currentUser?.username || 'U').charAt(0).toUpperCase()}</span>
                                 <span className="tap-profile-copy"><strong>{currentUser?.name || currentUser?.username || 'ผู้ใช้งาน'}</strong><small>{currentUser?.position || 'ผู้ดูแลระบบ'}</small></span>
                                 <ChevronDown size={16} />

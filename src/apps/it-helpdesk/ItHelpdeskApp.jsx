@@ -97,11 +97,6 @@ const ADMIN_SUB_TAB_PATHS = {
     users: 'users',
     tailadmin_preview: 'tailadmin-preview',
 };
-const TAILADMIN_ADMIN_PAGES = new Set([
-    'stats', 'issues', 'it_chat', 'assets', 'asset_status', 'asset_pm',
-    'access_requests', 'change_requests', 'approved_documents', 'server_room',
-    'employees', 'users', 'tailadmin_preview',
-]);
 const WORKFLOW_QUERY_TABS = {
     approveRequest: 'manager_approval',
     approveChangeReq: 'change_manager_approval',
@@ -1427,15 +1422,10 @@ function App() {
         ? (visibleAdminSubTabs.find((item) => item.id === selectedAdminSubTab)?.label || 'จัดการระบบ')
         : (visibleMainNavItems.find((item) => item.tab === activeTab)?.label || 'หน้าแรก');
 
-    const isLegacyAdminView = new URLSearchParams(window.location.search).get('legacy') === '1';
-    if (activeTab === 'admin' && isAdminAuth && !isLegacyAdminView && TAILADMIN_ADMIN_PAGES.has(selectedAdminSubTab)) {
+    if (activeTab === 'admin' && adminSubTab === 'tailadmin_preview' && isAdminAuth) {
         const navigateFromPreview = (targetId = 'stats') => {
             updateBrowserPath(getPathForTab('admin', targetId));
             setAdminSubTab(targetId);
-        };
-        const openLegacyFromPreview = (targetId = 'stats') => {
-            const targetPath = getPathForTab('admin', targetId);
-            window.location.assign(`${targetPath}?legacy=1`);
         };
 
         return (
@@ -1444,9 +1434,7 @@ function App() {
                     issues={issues}
                     currentAdmin={isAdminAuth}
                     isLoading={isIssuesLoading}
-                    initialPage={selectedAdminSubTab === 'tailadmin_preview' ? 'stats' : selectedAdminSubTab}
                     onNavigate={navigateFromPreview}
-                    onOpenLegacy={openLegacyFromPreview}
                     onOpenCenter={() => window.location.assign(CENTER_PATH)}
                 />
             </Suspense>
