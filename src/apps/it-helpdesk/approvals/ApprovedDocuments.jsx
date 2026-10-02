@@ -33,6 +33,7 @@ const ACCESS_DOCUMENT_LIST_COLUMNS = [
     'department',
     'request_details',
     'other_system_details',
+    'requester_sign',
     'status',
     'created_at',
 ].join(',');
@@ -161,6 +162,7 @@ const ApprovedDocuments = ({ currentAdmin }) => {
                     details: req.request_details || req.other_system_details || '',
                     status: req.status || '',
                     createdAt: req.created_at,
+                    raw: req,
                 }));
 
             const changeDocs = (changeResult.data || [])
@@ -261,7 +263,7 @@ const ApprovedDocuments = ({ currentAdmin }) => {
             return [{ value: 'Pending_IT_Manager', label: 'ส่งต่อ IT Manager' }];
         }
         if (doc.type === 'access') {
-            return [{ value: 'Pending_User_Acknowledgement', label: 'อนุมัติและส่งให้ผู้แจ้งรับทราบ' }];
+            return [{ value: 'Completed', label: 'อนุมัติและปิดงานทันที' }];
         }
         if (doc.type === 'server_room') {
             return [{ value: 'Approved', label: 'อนุมัติเข้าห้องเซิร์ฟเวอร์' }];
@@ -504,6 +506,11 @@ const ApprovedDocuments = ({ currentAdmin }) => {
 
         const isSupervisorStep = approvalDocument.status === 'Pending_IT_Supervisor';
         const signature = requiresSignature ? signatureRef.current.getCanvas().toDataURL('image/png') : '';
+        if (approvalDocument.type === 'access' && !isSupervisorStep && !approvalDocument.raw?.requester_sign) {
+            Swal.fire('ไม่พบลายเซ็นผู้ขอ', 'คำร้องนี้ไม่มีลายเซ็นตอนยื่นคำร้อง จึงยังไม่สามารถปิดงานอัตโนมัติได้', 'warning');
+            return;
+        }
+        const approvalDate = toMysqlDateTime();
         const updateData = approvalDocument.type === 'asset_pm'
             ? {
                 status: selectedApprovalStatus,
@@ -511,14 +518,14 @@ const ApprovedDocuments = ({ currentAdmin }) => {
                 manager_name: currentAdmin?.name || currentAdmin?.username || '',
                 manager_position: currentAdmin?.position || '',
                 manager_signature: signature,
-                manager_date: toMysqlDateTime(),
+                manager_date: approvalDate,
             }
             : approvalDocument.type === 'server_room'
             ? {
                 status: selectedApprovalStatus,
                 approved_by: currentAdmin?.name || currentAdmin?.username || '',
                 approved_role: currentRole,
-                approved_at: toMysqlDateTime(),
+                approved_at: approvalDate,
             }
             : approvalDocument.type === 'access'
                 ? isSupervisorStep
@@ -527,14 +534,16 @@ const ApprovedDocuments = ({ currentAdmin }) => {
                         it_supervisor_name: currentAdmin?.name || '',
                         it_supervisor_position: currentAdmin?.position || '',
                         it_supervisor_sign: signature,
-                        it_supervisor_date: toMysqlDateTime(),
+                        it_supervisor_date: approvalDate,
                     }
                     : {
                         status: selectedApprovalStatus,
                         it_manager_name: currentAdmin?.name || '',
                         it_manager_position: currentAdmin?.position || '',
                         it_manager_sign: signature,
-                        it_manager_date: toMysqlDateTime(),
+                        it_manager_date: approvalDate,
+                        user_acknowledge_sign: approvalDocument.raw?.requester_sign || null,
+                        user_acknowledge_date: approvalDate,
                     }
                 : isSupervisorStep
                     ? {
@@ -542,7 +551,7 @@ const ApprovedDocuments = ({ currentAdmin }) => {
                         it_supervisor_name: currentAdmin?.name || '',
                         it_supervisor_position: currentAdmin?.position || '',
                         it_supervisor_sign: signature,
-                        it_supervisor_date: toMysqlDateTime(),
+                        it_supervisor_date: approvalDate,
                     }
                     : {
                         status: selectedApprovalStatus,
@@ -550,7 +559,7 @@ const ApprovedDocuments = ({ currentAdmin }) => {
                         it_manager_name: currentAdmin?.name || '',
                         it_manager_position: currentAdmin?.position || '',
                         it_manager_sign: signature,
-                        it_manager_date: toMysqlDateTime(),
+                        it_manager_date: approvalDate,
                     };
 
         try {

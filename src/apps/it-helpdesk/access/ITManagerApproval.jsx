@@ -51,19 +51,27 @@ const ITManagerApproval = ({ requestId, onBack }) => {
 
         const signData = signatureRef.current.getCanvas().toDataURL('image/png');
 
+        if (!request?.requester_sign) {
+            return Swal.fire('ไม่พบลายเซ็นผู้ขอ', 'คำร้องนี้ไม่มีลายเซ็นตอนยื่นคำร้อง จึงยังไม่สามารถปิดงานอัตโนมัติได้', 'warning');
+        }
+
+        const completedAt = toMysqlDateTime();
+
         try {
             const { error } = await mysql
                 .from('access_requests')
                 .update({
-                    status: 'Pending_User_Acknowledgement',
+                    status: 'Completed',
                     it_manager_sign: signData,
-                    it_manager_date: toMysqlDateTime()
+                    it_manager_date: completedAt,
+                    user_acknowledge_sign: request.requester_sign,
+                    user_acknowledge_date: completedAt,
                 })
                 .eq('id', requestId);
 
             if (error) throw error;
             
-            Swal.fire('สำเร็จ', 'บันทึกลายเซ็นและส่งต่อให้ผู้แจ้งรับทราบเรียบร้อยแล้ว', 'success').then(() => {
+            Swal.fire('สำเร็จ', 'บันทึกลายเซ็นผู้อนุมัติและใช้ลายเซ็นผู้ขอปิดงานเรียบร้อยแล้ว', 'success').then(() => {
                 if(onBack) onBack();
             });
         } catch (error) {
