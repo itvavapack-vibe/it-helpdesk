@@ -43,4 +43,4 @@
 - The grid renders only available systems and grows naturally as departments are added.
 - Frequently used IT tasks appear as direct actions below the directory.
 - The homepage uses square corners, strong typography, restrained borders, and no ornamental gradients.
-- The compact App Launcher layout keeps the complete system directory visible near the top of the page.
+- The App Center uses a TailAdmin dashboard shell with persistent navigation, operational summary cards, equal system cards, and a compact quick-action panel.
