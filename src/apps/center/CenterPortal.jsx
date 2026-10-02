@@ -39,6 +39,7 @@ const CenterPortal = () => {
         <label className="center-search"><span>ค้นหาระบบหรือบริการ</span><span className="center-search-control"><Search aria-hidden="true" /><input type="search" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="เช่น แจ้งซ่อม, ขอ User, จองห้อง" />{searchTerm && <button type="button" onClick={() => setSearchTerm('')} aria-label="ล้างคำค้นหา"><X aria-hidden="true" /></button>}</span><small>ค้นหาได้จากชื่อระบบและบริการภายใน</small></label>
       </section>
 
+      <div className="center-overview"><h2>{searchTerm ? 'ผลการค้นหา' : 'ระบบงานทั้งหมด'}</h2><span>{filteredSystems.length} ระบบพร้อมใช้งาน</span></div>
       {filteredSystems.length > 0 ? <section className="center-directory" aria-label="ระบบงานภายใน">
         {filteredSystems.map((system) => { const Icon = system.icon; return <button key={system.id} type="button" className={`center-system-card is-${system.tone}`} onClick={() => openPath(system.path)}>
           <span className="center-card-topline"><span className="center-system-icon"><Icon aria-hidden="true" /></span><span className="center-live"><i /> พร้อมใช้งาน</span></span>
