@@ -36,3 +36,10 @@
 - Pages use `SystemPageHeader`, `SystemPanel`, `SystemStatCard`, `SystemDataTable`, `SystemStatusBadge`, and `SystemDetailDrawer` before adding page-specific UI.
 - Business logic, permissions, API calls, signatures, printing, and approval workflows remain in feature modules. Shared UI components must not contain domain rules.
 - A migrated page keeps a route back to its legacy implementation until its workflow and responsive checks pass.
+
+## App Center Homepage
+
+- Uses a Portal Directory macrostructure with IT Helpdesk as the primary operational entry.
+- HR Center and Secretary Center remain equal secondary destinations with clear ownership labels.
+- Frequently used IT tasks appear as direct actions below the directory.
+- The homepage uses square corners, strong typography, restrained borders, and no ornamental gradients.

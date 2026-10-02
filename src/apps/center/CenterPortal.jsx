@@ -1,199 +1,68 @@
 import { useEffect, useMemo, useState } from 'react'
-import {
-    ArrowUpRight,
-    ClipboardCheck,
-    FileText,
-    Headphones,
-    LayoutGrid,
-    Search,
-    SearchX,
-    Users,
-    Wrench,
-    X,
-} from 'lucide-react'
+import { ArrowRight, ArrowUpRight, Building2, CalendarDays, CarFront, ClipboardCheck, FileText, Headphones, LayoutGrid, Search, SearchX, ShieldCheck, Users, Wrench, X } from 'lucide-react'
 import ThemePicker from '@/shared/system-ui/ThemePicker'
 import { HR_PATH, IT_HELPDESK_BASE_PATH, SECRETARY_PATH, toItHelpdeskPath } from '@/config/appPaths'
+import './center-portal.css'
 
 const SYSTEMS = [
-    {
-        id: 'it-helpdesk',
-        group: 'เทคโนโลยีสารสนเทศ',
-        title: 'IT Helpdesk',
-        description: 'แจ้งซ่อม ขอใช้งานระบบ ขอพัฒนาโปรแกรม และติดต่อเจ้าหน้าที่ไอที',
-        icon: Headphones,
-        path: IT_HELPDESK_BASE_PATH,
-        keywords: 'it helpdesk แจ้งซ่อม user โปรแกรม ติดต่อไอที',
-    },
-    {
-        id: 'hr',
-        group: 'ทรัพยากรบุคคล',
-        title: 'HR Center',
-        description: 'ระบบแจ้งซ่อมธุรการ ระบบจองห้องประชุม และระบบจองรถธุรการ',
-        icon: Users,
-        path: HR_PATH,
-        keywords: 'hr center ธุรการ อาคาร แจ้งซ่อม ห้องประชุม จองรถ',
-    },
-    {
-        id: 'secretary',
-        group: 'งานเลขานุการ',
-        title: 'Secretary Center',
-        description: 'รับส่งเอกสาร นัดหมาย หนังสือภายในและภายนอก รวมถึงงานประสานงานเลขานุการ',
-        icon: FileText,
-        path: SECRETARY_PATH,
-        keywords: 'secretary เลขานุการ เอกสาร หนังสือ นัดหมาย ประสานงาน',
-    },
+  { id: 'it-helpdesk', group: 'เทคโนโลยีสารสนเทศ', title: 'IT Helpdesk', description: 'แจ้งซ่อม ขอใช้งานระบบ ขอพัฒนาโปรแกรม และติดต่อเจ้าหน้าที่ไอที', detail: 'ศูนย์บริการงาน IT สำหรับพนักงานทุกสาขา', icon: Headphones, path: IT_HELPDESK_BASE_PATH, tone: 'indigo', keywords: 'it helpdesk แจ้งซ่อม user โปรแกรม ติดต่อไอที ทรัพย์สิน pm' },
+  { id: 'hr', group: 'ทรัพยากรบุคคลและธุรการ', title: 'HR Center', description: 'ระบบแจ้งซ่อมธุรการ ระบบจองห้องประชุม และระบบจองรถธุรการ', detail: 'บริการงานอาคาร สถานที่ ห้องประชุม และรถส่วนกลาง', icon: Users, path: HR_PATH, tone: 'emerald', keywords: 'hr center ธุรการ อาคาร แจ้งซ่อม ห้องประชุม จองรถ' },
+  { id: 'secretary', group: 'งานเลขานุการ', title: 'Secretary Center', description: 'รับส่งเอกสาร นัดหมาย หนังสือภายในและภายนอก และงานประสานงาน', detail: 'ติดตามและจัดการงานเอกสารจากจุดเดียว', icon: FileText, path: SECRETARY_PATH, tone: 'amber', keywords: 'secretary เลขานุการ เอกสาร หนังสือ นัดหมาย ประสานงาน' },
 ]
 
 const QUICK_ACTIONS = [
-    { id: 'report', label: 'แจ้งซ่อม / ปัญหา', path: '/report-issue', icon: Wrench },
-    { id: 'track', label: 'ติดตามงานแจ้งซ่อม', path: '/track-repair', icon: Search },
-    { id: 'access', label: 'ขอ User และสิทธิ์', path: '/request-access', icon: Users },
-    { id: 'change', label: 'ขอพัฒนาระบบ', path: '/request-change', icon: ClipboardCheck },
+  { id: 'report', label: 'แจ้งซ่อม IT', helper: 'แจ้งปัญหาอุปกรณ์หรือระบบ', path: '/report-issue', icon: Wrench },
+  { id: 'track', label: 'ติดตามงานซ่อม', helper: 'ตรวจสถานะด้วยเลขที่เอกสาร', path: '/track-repair', icon: Search },
+  { id: 'access', label: 'ขอ User และสิทธิ์', helper: 'ขอเข้าใช้งานระบบของบริษัท', path: '/request-access', icon: ShieldCheck },
+  { id: 'change', label: 'ขอพัฒนาระบบ', helper: 'เสนอแก้ไขหรือพัฒนาโปรแกรม', path: '/request-change', icon: ClipboardCheck },
 ]
 
+const HR_SERVICES = [{ label: 'แจ้งซ่อมธุรการ', icon: Building2 }, { label: 'จองห้องประชุม', icon: CalendarDays }, { label: 'จองรถธุรการ', icon: CarFront }]
 const normalizeSearch = (value) => String(value || '').trim().toLocaleLowerCase('th')
 
 const CenterPortal = () => {
-    const [searchTerm, setSearchTerm] = useState('')
+  const [searchTerm, setSearchTerm] = useState('')
+  useEffect(() => { const previousTitle = document.title; document.title = 'App Center | VAVA PACK'; return () => { document.title = previousTitle } }, [])
+  const filteredSystems = useMemo(() => { const query = normalizeSearch(searchTerm); return SYSTEMS.filter((system) => !query || normalizeSearch(`${system.title} ${system.group} ${system.description} ${system.keywords}`).includes(query)) }, [searchTerm])
+  const formattedDate = useMemo(() => new Intl.DateTimeFormat('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date()), [])
+  const openPath = (path) => window.location.assign(path)
+  const primarySystem = filteredSystems.find((system) => system.id === 'it-helpdesk')
+  const secondarySystems = filteredSystems.filter((system) => system.id !== 'it-helpdesk')
+  const PrimaryIcon = primarySystem?.icon
 
-    useEffect(() => {
-        const previousTitle = document.title
-        document.title = 'App Center | VAVA PACK'
-        const checkDarkMode = () => {
-            const hour = new Date().getHours()
-            document.documentElement.classList.toggle('dark', hour >= 18 || hour < 6)
-        }
-        checkDarkMode()
-        const intervalId = window.setInterval(checkDarkMode, 60 * 1000)
-        return () => {
-            window.clearInterval(intervalId)
-            document.title = previousTitle
-        }
-    }, [])
+  return <div className="center-portal">
+    <header className="center-nav">
+      <button type="button" className="center-brand" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} aria-label="กลับด้านบน">
+        <img src="/vava-pack-logo.png" width="469" height="346" alt="VAVA PACK" /><span><strong>VAVA PACK</strong><small>APP CENTER</small></span>
+      </button>
+      <div className="center-nav-actions"><span className="center-date">{formattedDate}</span><ThemePicker /><button type="button" className="center-contact" onClick={() => openPath(toItHelpdeskPath('/contact-it'))}><Headphones aria-hidden="true" /><span>ติดต่อ IT</span></button></div>
+    </header>
 
-    const filteredSystems = useMemo(() => {
-        const query = normalizeSearch(searchTerm)
-        return SYSTEMS.filter((system) => (
-            !query || normalizeSearch(`${system.title} ${system.group} ${system.description} ${system.keywords}`).includes(query)
-        ))
-    }, [searchTerm])
+    <main className="center-main">
+      <section className="center-intro" aria-labelledby="center-title">
+        <div className="center-intro-copy"><span className="center-kicker"><LayoutGrid aria-hidden="true" /> INTERNAL WORKSPACE</span><h1 id="center-title">ทุกระบบงาน<br />เริ่มต้นที่นี่</h1><p>เลือกบริการที่ต้องการ ระบบจะพาคุณไปยังแบบฟอร์มหรือหน้าจัดการที่เกี่ยวข้องทันที</p></div>
+        <label className="center-search"><span>ค้นหาระบบหรือบริการ</span><span className="center-search-control"><Search aria-hidden="true" /><input type="search" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="เช่น แจ้งซ่อม, ขอ User, จองห้อง" />{searchTerm && <button type="button" onClick={() => setSearchTerm('')} aria-label="ล้างคำค้นหา"><X aria-hidden="true" /></button>}</span><small>ค้นหาได้จากชื่อระบบและบริการภายใน</small></label>
+      </section>
 
-    const openPath = (path) => window.location.assign(path)
+      {filteredSystems.length > 0 ? <section className={`center-directory${primarySystem ? '' : ' is-secondary-only'}`} aria-label="ระบบงานภายใน">
+        {primarySystem && <article className="center-primary-card">
+          <div className="center-card-topline"><span className="center-system-icon"><PrimaryIcon aria-hidden="true" /></span><span className="center-live"><i /> พร้อมใช้งาน</span></div>
+          <div className="center-card-copy"><span>{primarySystem.group}</span><h2>{primarySystem.title}</h2><p>{primarySystem.description}</p></div>
+          <div className="center-primary-actions"><button type="button" className="center-enter-primary" onClick={() => openPath(primarySystem.path)}>เข้าสู่ระบบ <ArrowRight aria-hidden="true" /></button><span>{primarySystem.detail}</span></div>
+        </article>}
+        <div className="center-secondary-grid">{secondarySystems.map((system) => { const Icon = system.icon; return <button key={system.id} type="button" className={`center-system-card is-${system.tone}`} onClick={() => openPath(system.path)}>
+          <span className="center-card-topline"><span className="center-system-icon"><Icon aria-hidden="true" /></span><ArrowUpRight aria-hidden="true" /></span><span className="center-system-group">{system.group}</span><strong>{system.title}</strong><span className="center-system-description">{system.description}</span>
+          {system.id === 'hr' && <span className="center-service-row">{HR_SERVICES.map(({ label, icon: ServiceIcon }) => <span key={label} title={label}><ServiceIcon aria-hidden="true" /></span>)}</span>}<span className="center-system-link">เข้าสู่ระบบ <ArrowRight aria-hidden="true" /></span>
+        </button> })}</div>
+      </section> : <section className="center-empty" aria-live="polite"><SearchX aria-hidden="true" /><h2>ไม่พบระบบที่ค้นหา</h2><p>ลองค้นหาด้วยคำอื่น หรือกลับไปดูระบบทั้งหมด</p><button type="button" onClick={() => setSearchTerm('')}>แสดงระบบทั้งหมด</button></section>}
 
-    return (
-        <div className="ta-shell min-h-screen text-slate-800 dark:text-slate-100">
-            <header className="ta-center-header ta-topbar border-b">
-                <div className="mx-auto flex min-h-18 w-full max-w-7xl items-center justify-between gap-3 px-4 py-2 sm:px-6 lg:px-8">
-                    <button type="button" onClick={() => window.scrollTo({ top: 0 })} className="flex min-w-0 items-center gap-3 text-left" aria-label="กลับด้านบน">
-                        <img src="/vava-pack-logo.png" width="469" height="346" alt="VAVA PACK" className="h-12 w-16 shrink-0 object-contain sm:h-14 sm:w-20" />
-                        <span className="min-w-0 border-l border-slate-300 pl-3 dark:border-slate-600">
-                            <strong className="block truncate text-sm font-bold text-slate-900 dark:text-white">App Center</strong>
-                            <span className="block truncate text-[11px] font-medium text-slate-500 dark:text-slate-400">INTERNAL SYSTEMS</span>
-                        </span>
-                    </button>
-                    <div className="flex shrink-0 items-center gap-2">
-                        <ThemePicker />
-                        <button
-                            type="button"
-                            onClick={() => openPath(toItHelpdeskPath('/contact-it'))}
-                            className="ta-toolbar-button min-[440px]:w-auto min-[440px]:px-3"
-                            title="ติดต่อ IT"
-                        >
-                            <Headphones className="h-5 w-5" />
-                            <span className="hidden whitespace-nowrap text-sm font-semibold min-[440px]:inline">ติดต่อ IT</span>
-                        </button>
-                    </div>
-                </div>
-            </header>
-
-            <main className="ta-center-content px-4 py-7 sm:px-6 sm:py-9 lg:px-8 lg:py-10">
-                <section className="grid items-end gap-8 border-b border-slate-200 pb-8 dark:border-slate-700 lg:grid-cols-[minmax(0,1.2fr)_minmax(20rem,0.8fr)]">
-                    <div className="min-w-0">
-                        <p className="mb-2 text-xs font-bold uppercase text-indigo-600 dark:text-indigo-300">VAVA PACK INTERNAL SYSTEMS</p>
-                        <h1 className="text-2xl font-bold leading-tight text-slate-900 dark:text-white sm:text-3xl">ศูนย์รวมระบบงานบริษัท</h1>
-                        <p className="mt-3 max-w-2xl text-base leading-7 text-slate-600 dark:text-slate-300">เลือกเข้าสู่ระบบของแต่ละแผนกได้จากจุดเดียว ทุกระบบใช้ธีมหลักร่วมกันและแยกพื้นที่การทำงานอย่างชัดเจน</p>
-                    </div>
-                    <label className="block min-w-0">
-                        <span className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-200">ค้นหาระบบ</span>
-                        <span className="flex h-12 min-w-0 items-center rounded-xl border border-slate-300 bg-white px-3 shadow-sm focus-within:border-indigo-400 focus-within:ring-4 focus-within:ring-indigo-100 dark:border-slate-600 dark:bg-slate-900 dark:focus-within:border-indigo-500 dark:focus-within:ring-indigo-950/60">
-                            <Search className="h-5 w-5 shrink-0 text-slate-400" />
-                            <input
-                                type="search"
-                                value={searchTerm}
-                                onChange={(event) => setSearchTerm(event.target.value)}
-                                placeholder="เช่น แจ้งซ่อม, HR, Secretary"
-                                className="h-full min-w-0 flex-1 border-0 bg-transparent px-3 text-sm text-slate-800 outline-none placeholder:text-slate-400 dark:text-slate-100"
-                            />
-                            {searchTerm && <button type="button" onClick={() => setSearchTerm('')} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200" aria-label="ล้างคำค้นหา"><X className="h-4 w-4" /></button>}
-                        </span>
-                    </label>
-                </section>
-
-                <section className="pt-9" aria-labelledby="system-directory-title">
-                    <div className="mb-4 flex items-end justify-between gap-4">
-                        <div>
-                            <p className="mb-1 text-xs font-bold text-indigo-600 dark:text-indigo-300">APPLICATION DIRECTORY</p>
-                            <h2 id="system-directory-title" className="text-xl font-bold text-slate-900 dark:text-white">ระบบงานทั้งหมด</h2>
-                        </div>
-                        <span className="shrink-0 text-sm font-medium text-slate-500 dark:text-slate-400">{filteredSystems.length} ระบบ</span>
-                    </div>
-
-                    {filteredSystems.length > 0 ? (
-                        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                            {filteredSystems.map((system) => {
-                                const Icon = system.icon
-                                const isActive = Boolean(system.path)
-                                const content = (
-                                    <>
-                                        <span className="flex items-center justify-between gap-3">
-                                            <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl ${isActive ? 'bg-indigo-100 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300'}`}><Icon className="h-5 w-5" /></span>
-                                            <span className={`rounded-lg px-2 py-1 text-xs font-bold ${isActive ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300'}`}>{isActive ? 'พร้อมใช้งาน' : 'กำลังวางระบบ'}</span>
-                                        </span>
-                                        <span className="mt-4 text-xs font-semibold text-slate-500 dark:text-slate-400">{system.group}</span>
-                                        <strong className="mt-1 block truncate text-lg font-bold text-slate-900 dark:text-white">{system.title}</strong>
-                                        <span className="mt-2 line-clamp-2 min-h-11 text-sm leading-6 text-slate-600 dark:text-slate-300">{system.description}</span>
-                                        <span className={`mt-auto flex items-center justify-between gap-2 pt-5 text-sm font-semibold ${isActive ? 'text-indigo-600 dark:text-indigo-300' : 'text-slate-500 dark:text-slate-400'}`}>
-                                            {isActive ? 'เข้าสู่ระบบ' : 'เตรียมพัฒนาเป็นระบบถัดไป'}
-                                            {isActive && <ArrowUpRight className="h-4 w-4" />}
-                                        </span>
-                                    </>
-                                )
-
-                                return isActive ? (
-                                    <button key={system.id} type="button" onClick={() => openPath(system.path)} className="ta-directory-card flex min-h-56 min-w-0 flex-col overflow-hidden border p-5 text-left">{content}</button>
-                                ) : (
-                                    <article key={system.id} className="ta-directory-card flex min-h-56 min-w-0 flex-col overflow-hidden border p-5 opacity-75">{content}</article>
-                                )
-                            })}
-                        </div>
-                    ) : (
-                        <div className="grid min-h-72 place-content-center justify-items-center gap-2 rounded-xl border border-dashed border-slate-300 p-8 text-center dark:border-slate-600">
-                            <SearchX className="mb-2 h-8 w-8 text-slate-400" />
-                            <strong className="text-slate-800 dark:text-slate-100">ไม่พบระบบที่ค้นหา</strong>
-                            <span className="text-sm text-slate-500 dark:text-slate-400">ลองใช้คำค้นหาอื่น หรือแสดงระบบทั้งหมด</span>
-                            <button type="button" onClick={() => setSearchTerm('')} className="mt-3 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:border-indigo-300 hover:text-indigo-600 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">แสดงทั้งหมด</button>
-                        </div>
-                    )}
-                </section>
-
-                <section className="mt-10 border-t border-slate-200 pt-9 dark:border-slate-700" aria-labelledby="it-shortcuts-title">
-                    <p className="mb-1 text-xs font-bold text-indigo-600 dark:text-indigo-300">IT HELPDESK</p>
-                    <h2 id="it-shortcuts-title" className="text-xl font-bold text-slate-900 dark:text-white">ทางลัดบริการไอที</h2>
-                    <div className="mt-4 grid border-t border-slate-200 dark:border-slate-700 sm:grid-cols-2">
-                        {QUICK_ACTIONS.map((action) => {
-                            const Icon = action.icon
-                            return <button key={action.id} type="button" onClick={() => openPath(toItHelpdeskPath(action.path))} className="grid min-h-15 min-w-0 grid-cols-[1.25rem_minmax(0,1fr)_1rem] items-center gap-3 border-b border-slate-200 px-3 text-left hover:bg-white/70 hover:text-indigo-600 dark:border-slate-700 dark:hover:bg-slate-900/60 dark:hover:text-indigo-300 sm:odd:border-r"><Icon className="h-5 w-5 text-indigo-600 dark:text-indigo-300" /><span className="truncate text-sm font-semibold">{action.label}</span><ArrowUpRight className="h-4 w-4 text-slate-400" /></button>
-                        })}
-                    </div>
-                </section>
-            </main>
-
-            <footer className="mx-auto flex min-h-18 w-[calc(100%-2rem)] max-w-7xl items-center justify-between gap-4 border-t border-slate-200 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400 sm:w-[calc(100%-3rem)]">
-                <span>VAVA PACK</span>
-                <span>Internal Systems Center</span>
-            </footer>
-        </div>
-    )
+      {!searchTerm && <section className="center-quick" aria-labelledby="quick-title">
+        <div className="center-section-heading"><span>บริการที่ใช้บ่อย</span><h2 id="quick-title">เริ่มงานได้ทันที</h2><p>ไม่ต้องเข้าหน้าหลักของระบบก่อน</p></div>
+        <div className="center-quick-list">{QUICK_ACTIONS.map((action, index) => { const Icon = action.icon; return <button key={action.id} type="button" onClick={() => openPath(toItHelpdeskPath(action.path))}><span className="center-quick-number">0{index + 1}</span><span className="center-quick-icon"><Icon aria-hidden="true" /></span><span><strong>{action.label}</strong><small>{action.helper}</small></span><ArrowUpRight className="center-quick-arrow" aria-hidden="true" /></button> })}</div>
+      </section>}
+    </main>
+    <footer className="center-footer"><span>VAVA PACK</span><span>Internal Systems Center</span><span>สำหรับการใช้งานภายในบริษัท</span></footer>
+  </div>
 }
 
 export default CenterPortal
