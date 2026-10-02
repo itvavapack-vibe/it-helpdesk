@@ -39,7 +39,7 @@
 
 ## App Center Homepage
 
-- Uses a Portal Directory macrostructure with IT Helpdesk as the primary operational entry.
-- HR Center and Secretary Center remain equal secondary destinations with clear ownership labels.
+- Uses a scalable Portal Directory grid where every department system has equal visual priority.
+- The grid renders only available systems and grows naturally as departments are added.
 - Frequently used IT tasks appear as direct actions below the directory.
 - The homepage uses square corners, strong typography, restrained borders, and no ornamental gradients.

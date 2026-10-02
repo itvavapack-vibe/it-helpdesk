@@ -14,3 +14,17 @@
 @media(max-width:374px){.center-brand small{display:none}.center-quick-list button{grid-template-columns:26px 34px minmax(0,1fr) 15px;gap:9px;padding-inline:8px}}
 @media(prefers-reduced-motion:reduce){.center-portal *{scroll-behavior:auto!important;transition-duration:1ms!important}}
 
+/* Equal-priority system directory: add systems to the data list without reserving empty cards. */
+.center-directory{grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
+.center-system-card{min-height:330px;padding:26px}
+.center-system-card.is-indigo .center-system-icon{background:var(--cp-accent-soft);color:var(--cp-accent)}
+.center-live{border-color:var(--cp-rule);background:var(--cp-muted-surface);color:var(--cp-muted)}
+.center-live i{background:var(--cp-success)}
+.center-system-card>strong{margin-top:8px;font-size:clamp(22px,2vw,28px)}
+.center-system-description{min-height:3.1em;margin-top:10px;font-size:13px}
+.center-system-footer{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-top:auto;border-top:1px solid var(--cp-rule);padding-top:18px}
+.center-system-footer>span:first-child{max-width:180px;color:var(--cp-muted);font-size:10px;line-height:1.55}
+.center-system-footer .center-system-link{flex:none;margin:0;padding:0;white-space:nowrap}
+@media(max-width:1000px){.center-directory{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:640px){.center-directory{grid-template-columns:minmax(0,1fr)}.center-system-card{min-height:300px;padding:22px}.center-system-footer{align-items:flex-start;flex-direction:column}.center-system-footer>span:first-child{max-width:none}}
+

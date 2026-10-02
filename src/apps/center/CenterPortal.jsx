@@ -26,15 +26,10 @@ const CenterPortal = () => {
   const filteredSystems = useMemo(() => { const query = normalizeSearch(searchTerm); return SYSTEMS.filter((system) => !query || normalizeSearch(`${system.title} ${system.group} ${system.description} ${system.keywords}`).includes(query)) }, [searchTerm])
   const formattedDate = useMemo(() => new Intl.DateTimeFormat('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date()), [])
   const openPath = (path) => window.location.assign(path)
-  const primarySystem = filteredSystems.find((system) => system.id === 'it-helpdesk')
-  const secondarySystems = filteredSystems.filter((system) => system.id !== 'it-helpdesk')
-  const PrimaryIcon = primarySystem?.icon
 
   return <div className="center-portal">
     <header className="center-nav">
-      <button type="button" className="center-brand" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} aria-label="กลับด้านบน">
-        <img src="/vava-pack-logo.png" width="469" height="346" alt="VAVA PACK" /><span><strong>VAVA PACK</strong><small>APP CENTER</small></span>
-      </button>
+      <button type="button" className="center-brand" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} aria-label="กลับด้านบน"><img src="/vava-pack-logo.png" width="469" height="346" alt="VAVA PACK" /><span><strong>VAVA PACK</strong><small>APP CENTER</small></span></button>
       <div className="center-nav-actions"><span className="center-date">{formattedDate}</span><ThemePicker /><button type="button" className="center-contact" onClick={() => openPath(toItHelpdeskPath('/contact-it'))}><Headphones aria-hidden="true" /><span>ติดต่อ IT</span></button></div>
     </header>
 
@@ -44,16 +39,13 @@ const CenterPortal = () => {
         <label className="center-search"><span>ค้นหาระบบหรือบริการ</span><span className="center-search-control"><Search aria-hidden="true" /><input type="search" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="เช่น แจ้งซ่อม, ขอ User, จองห้อง" />{searchTerm && <button type="button" onClick={() => setSearchTerm('')} aria-label="ล้างคำค้นหา"><X aria-hidden="true" /></button>}</span><small>ค้นหาได้จากชื่อระบบและบริการภายใน</small></label>
       </section>
 
-      {filteredSystems.length > 0 ? <section className={`center-directory${primarySystem ? '' : ' is-secondary-only'}`} aria-label="ระบบงานภายใน">
-        {primarySystem && <article className="center-primary-card">
-          <div className="center-card-topline"><span className="center-system-icon"><PrimaryIcon aria-hidden="true" /></span><span className="center-live"><i /> พร้อมใช้งาน</span></div>
-          <div className="center-card-copy"><span>{primarySystem.group}</span><h2>{primarySystem.title}</h2><p>{primarySystem.description}</p></div>
-          <div className="center-primary-actions"><button type="button" className="center-enter-primary" onClick={() => openPath(primarySystem.path)}>เข้าสู่ระบบ <ArrowRight aria-hidden="true" /></button><span>{primarySystem.detail}</span></div>
-        </article>}
-        <div className="center-secondary-grid">{secondarySystems.map((system) => { const Icon = system.icon; return <button key={system.id} type="button" className={`center-system-card is-${system.tone}`} onClick={() => openPath(system.path)}>
-          <span className="center-card-topline"><span className="center-system-icon"><Icon aria-hidden="true" /></span><ArrowUpRight aria-hidden="true" /></span><span className="center-system-group">{system.group}</span><strong>{system.title}</strong><span className="center-system-description">{system.description}</span>
-          {system.id === 'hr' && <span className="center-service-row">{HR_SERVICES.map(({ label, icon: ServiceIcon }) => <span key={label} title={label}><ServiceIcon aria-hidden="true" /></span>)}</span>}<span className="center-system-link">เข้าสู่ระบบ <ArrowRight aria-hidden="true" /></span>
-        </button> })}</div>
+      {filteredSystems.length > 0 ? <section className="center-directory" aria-label="ระบบงานภายใน">
+        {filteredSystems.map((system) => { const Icon = system.icon; return <button key={system.id} type="button" className={`center-system-card is-${system.tone}`} onClick={() => openPath(system.path)}>
+          <span className="center-card-topline"><span className="center-system-icon"><Icon aria-hidden="true" /></span><span className="center-live"><i /> พร้อมใช้งาน</span></span>
+          <span className="center-system-group">{system.group}</span><strong>{system.title}</strong><span className="center-system-description">{system.description}</span>
+          {system.id === 'hr' && <span className="center-service-row">{HR_SERVICES.map(({ label, icon: ServiceIcon }) => <span key={label} title={label}><ServiceIcon aria-hidden="true" /></span>)}</span>}
+          <span className="center-system-footer"><span>{system.detail}</span><span className="center-system-link">เข้าสู่ระบบ <ArrowRight aria-hidden="true" /></span></span>
+        </button> })}
       </section> : <section className="center-empty" aria-live="polite"><SearchX aria-hidden="true" /><h2>ไม่พบระบบที่ค้นหา</h2><p>ลองค้นหาด้วยคำอื่น หรือกลับไปดูระบบทั้งหมด</p><button type="button" onClick={() => setSearchTerm('')}>แสดงระบบทั้งหมด</button></section>}
 
       {!searchTerm && <section className="center-quick" aria-labelledby="quick-title">
